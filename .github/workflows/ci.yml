@@ -111,7 +111,7 @@ jobs:
       - name: Build the image and start the e2e stack
         run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build
       - name: Wait for Geminarr
-        run: timeout 60 bash -c 'until curl -fs http://localhost:8383/health/live; do sleep 1; done'
+        run: timeout 60 bash -c 'until curl -fs http://localhost:8282/health/live; do sleep 1; done'
       - name: The image runs as a non-root user
         run: |
           container=$(docker compose -f tests/e2e/stack/docker-compose.yml ps -q geminarr)
