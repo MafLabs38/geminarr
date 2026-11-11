@@ -8,7 +8,7 @@
 # The constraint that comes with it: an asset that differs per architecture (a native library) must be chosen with ARG TARGETARCH
 # (or `dotnet publish -a`), never by the architecture of the builder, or the arm64 image gets amd64 files and fails only when it runs.
 # The browser of the reader (docs/SPEC.md, vertical 2) is such an asset: its stage comes with that vertical.
-FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
+FROM --platform=$BUILDPLATFORM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS frontend
 WORKDIR /build
 COPY package.json yarn.lock ./
 # No install script runs while the interface is built: the dev tools of the lockfile (test runners, mutation tools) are not needed by the build and would
