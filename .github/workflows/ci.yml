@@ -41,6 +41,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
       - run: dotnet format src/Geminarr.sln --verify-no-changes
+      # The checker of the review decisions (docs/review-decisions/README.md) has its own tests, run here and never in its own job.
+      - run: python3 -I -m unittest -q
+        working-directory: tools/review-decisions
       - run: yarn install --frozen-lockfile
       - run: yarn lint
       - run: yarn stylelint

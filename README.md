@@ -39,6 +39,7 @@ Gemini keeps your conversations to itself: no API gives access to the history, a
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Workflow, conventions, development setup |
 | [docs/DEVELOPMENT-PROTOCOL.md](docs/DEVELOPMENT-PROTOCOL.md) | Build big, check it yourself, push once |
 | [docs/TESTING.md](docs/TESTING.md) | Testing strategy and CI gates |
+| [docs/review-decisions/](docs/review-decisions/README.md) | How the findings of the four review agents are answered (the register, the three levels) |
 | [docs/DESIGN.md](docs/DESIGN.md) | Interface guidelines (Portarr's, plus what is specific here) |
 | [CLAUDE.md](CLAUDE.md) | Rules for AI assistants working in this repository |
 

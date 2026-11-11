@@ -24,7 +24,7 @@ Direct pushes to `main` and `develop` are blocked for everyone. One vertical (a 
 - **Zero warnings.** The SonarQube rules run in the build and in ESLint, so `dotnet build` and `yarn lint` already say what the quality gate will say. Fix a smell rather than silence it; a justified exception is documented where it is made.
 - Tests at the right level of the pyramid ([TESTING.md](docs/TESTING.md)); the reader against synthetic fixtures, never the network.
 - Documentation updates (spec, ADR when a decision is made).
-- A self-review with the four review agents of `.claude/agents/` (tests, quality, security, architecture): run the `review-vertical` skill before opening the PR, and answer every finding of the pipeline's agents in the PR's *Review* section.
+- A self-review with the four review agents of `.claude/agents/` (tests, quality, security, architecture): run the `review-vertical` skill before opening the PR, and answer every finding of the pipeline's agents in the PR's *Review* section and in `docs/review-decisions/<pr>.md` (three levels: fixed, declined with a reason, or — for a serious finding — accepted by the maintainer; [the register](docs/review-decisions/README.md)).
 
 ## Development setup
 
@@ -36,6 +36,13 @@ docker run --rm --cpus 2 --memory 3g -v "$PWD":/src -w /src mcr.microsoft.com/do
   sh -c 'dotnet build src/Geminarr.sln && dotnet test --solution src/Geminarr.sln'
 docker run --rm --cpus 2 --memory 3g -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 \
   dotnet format src/Geminarr.sln --verify-no-changes
+```
+
+Coverage of the .NET code (the target is 85 % overall; the report is XML under `coverage/backend/`):
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" --cpus 2 --memory 3g -e HOME=/tmp/home -e DOTNET_CLI_HOME=/tmp/home -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 \
+  dotnet test --solution src/Geminarr.sln --configuration Release -- --coverage --coverage-output-format xml --results-directory /src/coverage/backend/all
 ```
 
 With the SDK installed locally:

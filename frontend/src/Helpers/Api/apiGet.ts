@@ -68,25 +68,3 @@ export async function apiSend<T = void>(method: 'POST' | 'PUT' | 'DELETE', path:
   }
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
-
-/** A read whose answer is text (a YAML document), not JSON. */
-export async function apiGetText(path: string, signal?: AbortSignal): Promise<string> {
-  const response = await fetch(`${API_BASE}${path}`, { signal });
-  if (!response.ok) {
-    throw await failure(response);
-  }
-  return response.text();
-}
-
-/** A write whose body is YAML text, answered in JSON. */
-export async function apiSendYaml<T>(path: string, yaml: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'PUT',
-    headers: { [REQUEST_HEADER]: '1', 'Content-Type': 'application/yaml' },
-    body: yaml,
-  });
-  if (!response.ok) {
-    throw await failure(response);
-  }
-  return (await response.json()) as T;
-}

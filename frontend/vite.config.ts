@@ -47,8 +47,8 @@ export default defineConfig({
       reportsDirectory: '../coverage/frontend',
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/__tests__/**', 'src/index.tsx', 'src/setupTests.ts'],
-      // The gate of docs/TESTING.md §4: a pull request that lets coverage fall under it fails.
-      thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },
+      // The gate of docs/TESTING.md §5: a pull request that lets coverage fall under it fails (higher than Mnemarr's 70 %: the code base is small and starts clean).
+      thresholds: { statements: 85, branches: 80, functions: 85, lines: 85 },
     },
   },
 });

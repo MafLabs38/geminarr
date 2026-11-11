@@ -31,3 +31,15 @@
 - [ ] I have updated the documentation accordingly
 - [ ] My changes generate no new warnings or errors
 - [ ] No secrets or credentials are committed
+
+## Review
+<!-- Filled by the `review-vertical` skill with the `review-triage` protocol (ADR 0010): one table, per finding of the four agents, of CodeQL and of SonarQube:
+     the agent, the level it gave, the answer (fixed / declined / deferred) and the reason. A blocker, critical, high or major finding that is not fixed
+     needs the maintainer's comment (cited in `docs/review-decisions/<pr>.md`). An architecture verdict of "no" blocks the PR. -->
+
+| Agent | Fixed | Declined (and why) |
+|---|---|---|
+| test-reviewer | | |
+| quality-reviewer | | |
+| security-reviewer | | |
+| architecture-reviewer | | |

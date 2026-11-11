@@ -1,6 +1,6 @@
 # Geminarr — Functional and Technical Specification
 
-> **Status**: draft v0.3 (2026-11-11). The architecture and the security model are decided (D-01 to D-14, D-17); the foundation is built; **how Gemini is read is not known yet** and is the object of the first spike (§11, Q-01 to Q-06): the reader's design (§6) is written to survive either answer and will be frozen after it.
+> **Status**: draft v0.3 (2026-11-11). The architecture and the security model are decided (D-01 to D-14, D-17, D-18); the foundation is built; **how Gemini is read is not known yet** and is the object of the first spike (§11, Q-01 to Q-06): the reader's design (§6) is written to survive either answer and will be frozen after it.
 > **Related documents**: [VISION.md](VISION.md) (why) · [ROADMAP.md](ROADMAP.md) (the verticals) · [adr/](adr/README.md) (decision records) · [mnemarr-changes.md](mnemarr-changes.md) (what Mnemarr must gain)
 > **Audience**: the project owner, contributors.
 >
@@ -81,6 +81,7 @@ How it fits the constellation:
 | 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
 | 🟡 D-16 | **One browser, started per pass and closed after it** (resident only during a live view). | A resident Chromium costs memory for nothing between two passes that are 20 minutes apart. | *after the spike* |
 | ✅ D-17 | **Default port 8282** (Portarr has 8484, Mnemarr 8383). | No collision on a default install. | [0009](adr/0009-default-port.md) |
+| ✅ D-18 | **Review findings are answered in a register** (`docs/review-decisions/`) that the four agents read; a blocker, critical, high or major finding that is not fixed is accepted by the maintainer in a comment, checked by the `review-decisions` job. | The agents always find something and forget between rounds; the maintainer keeps control of what is serious without chasing the rest. | [0010](adr/0010-review-findings-are-answered-in-a-register-the-agents-read.md) |
 
 ---
 
@@ -528,4 +529,4 @@ Reading a consumer product by automation is against the provider's terms of use.
 |---|---|
 | 2026-11-11 | v0.1: first draft after the discussion of the day (questions only). |
 | 2026-11-11 | v0.2: import ladder (D-10), main-account exception. |
-| 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-17, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |
+| 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-18, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |

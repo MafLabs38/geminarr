@@ -41,8 +41,8 @@
 
 | Rule | Threshold |
 |---|---|
-| Core (.NET) coverage | at least 70 % overall, **at least 80 % on new code**, enforced by the SonarQube quality gate. That job only runs once a SonarQube server is configured, so **no check is made required in the repository rules before it is** |
-| Frontend coverage | at least 70 %, enforced by Vitest (`coverage.thresholds`) |
+| Core (.NET) coverage | at least 85 % overall (the target of this project; the server's quality gate enforces 70 % overall and **80 % on new code**), checked locally with the coverage run of CONTRIBUTING.md. That job only runs once a SonarQube server is configured, so **no check is made required in the repository rules before it is** |
+| Frontend coverage | at least 85 % of statements, lines and functions and 80 % of branches, enforced by Vitest (`coverage.thresholds`); it starts at 97 % and must stay high |
 | Unit tests | 100 % green, under 3 minutes |
 | Integration | 100 % green |
 | E2E smoke | 100 % green on every pull request, with no accessibility violation; the image runs as a non-root user |
