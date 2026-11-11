@@ -66,10 +66,24 @@ public sealed class DataFolderHealthCheckFixture : IDisposable
     [Fact]
     public async Task should_not_report_the_folder_as_unusable_when_the_probe_file_cannot_be_removed_afterwards()
     {
-        // The probe file is a directory that cannot be deleted as a file: the write "succeeds", the removal fails, and that is no reason to alarm.
-        var result = await Check(Subject(_folder, (path, _) => { Directory.CreateDirectory(path); File.WriteAllText(Path.Combine(path, "keep"), "x"); return Task.CompletedTask; }), TestContext.Current.CancellationToken);
+        string? probe = null;
+
+        var result = await Check(Subject(_folder, (path, _) =>
+        {
+            probe = path;
+            return LeaveADirectoryInsteadOfAFile(path);
+        }), TestContext.Current.CancellationToken);
 
         result.Status.Should().Be(HealthStatus.Healthy);
+        Directory.Exists(probe).Should().BeTrue("the removal failed, and that is what this test is about");
+    }
+
+    // The probe file is a directory that cannot be deleted as a file: the write "succeeds", the removal fails.
+    private static Task LeaveADirectoryInsteadOfAFile(string path)
+    {
+        Directory.CreateDirectory(path);
+        File.WriteAllText(Path.Combine(path, "keep"), "x");
+        return Task.CompletedTask;
     }
 
     [Theory]

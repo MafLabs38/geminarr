@@ -1,6 +1,6 @@
 # Configuration
 
-Geminarr is configured **only by environment variables and files**, so that a whole deployment is a manifest ([ADR 0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md)). A setting is an environment variable prefixed `GEMINARR__`; a double underscore is a level (`GEMINARR__READER__POLLMINUTES`). A secret is given as a **file** (`…FILE`), never as a value. The defaults are in bold; a setting marked with a vertical number does not exist before that vertical (the full list and its meaning are in [SPEC.md §10.2](SPEC.md#102-settings)).
+Geminarr is configured **only by environment variables and files**, so that a whole deployment is a manifest ([ADR 0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md)). A setting is an environment variable prefixed `GEMINARR__`; a double underscore is a level (`GEMINARR__READER__POLLMINUTES`). The `GEMINARR__*` names are the supported contract (they are read after `appsettings.json`, so they win over it); the command line is not a channel for settings, and a secret, or the path of one, never goes there (arguments are visible to every process of the host). A secret is given as a **file** (`…FILE`), never as a value. The defaults are in bold; a setting marked with a vertical number does not exist before that vertical (the full list and its meaning are in [SPEC.md §10.2](SPEC.md#102-settings)).
 
 ## Foundation (vertical 0)
 

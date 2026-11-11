@@ -13,7 +13,10 @@ describe('apiGet', () => {
   });
 
   it('throws an ApiError carrying the status when the server says no', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 404, json: () => Promise.reject(new Error('empty')) }),
+    );
 
     const failure = await apiGet('/things').catch((error: unknown) => error);
 
