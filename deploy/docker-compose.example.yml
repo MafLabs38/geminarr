@@ -1,0 +1,29 @@
+# Geminarr on a Docker host. Copy, adjust the values marked <...>, then `docker compose up -d`.
+# The image runs as a non-root user (uid 1654) with no shell: the data folder must be writable by that user.
+services:
+  geminarr:
+    image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
+    restart: unless-stopped
+    ports:
+      # Loopback only: Geminarr speaks plain HTTP. Publish it through a reverse proxy with TLS and a login in front,
+      # or change the address on purpose. Until the first vertical has its own sign-in, nothing but the probes and the status is served.
+      - "127.0.0.1:8282:8282"
+    volumes:
+      - geminarr-data:/config               # database and settings: back this up. The browser profile will have a volume of its own (SPEC §7.1).
+    environment:
+      GEMINARR__DATAFOLDER: /config
+    # Hardening: nothing writes outside the data folder and a temporary folder.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  geminarr-data:

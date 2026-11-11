@@ -1,0 +1,127 @@
+# Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
+# The page (and, from the reader vertical on, the live view where the dedicated account is signed in) must be behind a login:
+# publish it behind your single sign-on, and nothing else of it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: geminarr
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geminarr-data
+  namespace: geminarr
+spec:
+  accessModes: [ReadWriteOnce]
+  # A local, fast volume: not a network share.
+  storageClassName: <local-storage-class>
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geminarr
+  namespace: geminarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate        # one writer to the database and, later, the one browser profile
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: geminarr
+    spec:
+      # Geminarr never calls the Kubernetes API: do not hand a cluster credential to the pod.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: geminarr
+          image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
+          ports:
+            - name: http
+              containerPort: 8282
+          env:
+            - name: GEMINARR__DATAFOLDER
+              value: /config
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          readinessProbe:
+            # The data folder check is reused for 15 seconds, so a lost volume shows within that time plus one period.
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+              ephemeral-storage: 64Mi
+            limits:
+              memory: 256Mi
+              ephemeral-storage: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: geminarr-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geminarr
+  namespace: geminarr
+spec:
+  selector:
+    app.kubernetes.io/name: geminarr
+  ports:
+    - name: http
+      port: 8282
+      targetPort: http
+---
+# Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
+# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. An egress policy (SPEC §11.2,
+# docs/network.md) is added with the vertical that gives the container its outbound destinations.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geminarr-ingress
+  namespace: geminarr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <ingress-controller-namespace>
+      ports:
+        - protocol: TCP
+          port: 8282
