@@ -67,6 +67,10 @@ updates:
     target-branch: "develop"
     schedule:
       interval: "weekly"
+    # The two actions of CodeQL (init and analyze) are one version of one tool: bumped apart, each pull request fails on the other's version.
+    groups:
+      codeql:
+        patterns: ["github/codeql-action/*"]
     # A version published a moment ago is not taken at once: a compromised release is usually withdrawn within days.
     cooldown:
       default-days: 7
