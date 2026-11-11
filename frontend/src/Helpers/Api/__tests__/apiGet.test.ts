@@ -1,4 +1,4 @@
-import { ApiError, apiGet, apiSend } from 'Helpers/Api/apiGet';
+import { ApiError, apiGet } from 'Helpers/Api/apiGet';
 
 describe('apiGet', () => {
   it('reads JSON from the API under /api/v1 and passes the signal on', async () => {
@@ -29,14 +29,14 @@ describe('apiGet failures', () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        json: () => Promise.resolve({ title: 'A password is at least 12 characters.' }),
+        json: () => Promise.resolve({ title: 'The request cannot be read.' }),
       }),
     );
 
     await expect(apiGet('/x')).rejects.toMatchObject({
       status: 400,
-      problem: 'A password is at least 12 characters.',
-      message: 'A password is at least 12 characters.',
+      problem: 'The request cannot be read.',
+      message: 'The request cannot be read.',
     });
   });
 
@@ -63,49 +63,13 @@ describe('apiGet failures', () => {
   });
 });
 
-describe('apiSend', () => {
-  const answer = (status: number, body?: unknown) => ({ ok: status < 400, status, json: () => Promise.resolve(body) });
-
-  it('sends a JSON body with the header that a write needs, and returns the answer', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(answer(201, { id: 'a1' }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const created = await apiSend<{ id: string }>('POST', '/accounts', { name: 'alice' });
-
-    expect(created).toEqual({ id: 'a1' });
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/accounts', {
-      method: 'POST',
-      headers: { 'X-Geminarr-Request': '1', 'Content-Type': 'application/json' },
-      body: '{"name":"alice"}',
-    });
-  });
-
-  it('sends no body and no content type when there is nothing to say', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(answer(204));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(apiSend('DELETE', '/accounts/a1')).resolves.toBeUndefined();
-
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/accounts/a1', {
-      method: 'DELETE',
-      headers: { 'X-Geminarr-Request': '1' },
-      body: undefined,
-    });
-  });
-
-  it('fails with the reason of the server', async () => {
+describe('apiGet with a body that is not JSON', () => {
+  it('fails with a reason instead of giving a value', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 409,
-        json: () => Promise.resolve({ title: 'An account named x already exists.' }),
-      }),
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.reject(new Error('html')) }),
     );
 
-    const failure = await apiSend('POST', '/accounts', {}).catch((error: unknown) => error);
-
-    expect(failure).toBeInstanceOf(ApiError);
-    expect(failure).toMatchObject({ status: 409, message: 'An account named x already exists.' });
+    await expect(apiGet('/x')).rejects.toMatchObject({ status: 200, message: 'The server did not answer with data.' });
   });
 });

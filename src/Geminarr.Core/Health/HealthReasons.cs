@@ -10,8 +10,11 @@ public static class HealthReasons
 {
     public const string Key = "reason";
 
-    public static HealthCheckResult Degraded(string reason, string description) =>
-        HealthCheckResult.Degraded(description, data: Data(reason));
+    /// <summary>The data folder does not exist (a volume that was not mounted).</summary>
+    public const string DataFolderMissing = "data-folder-missing";
+
+    /// <summary>The data folder exists and cannot be written.</summary>
+    public const string DataFolderReadOnly = "data-folder-read-only";
 
     public static HealthCheckResult Unhealthy(string reason, string description, Exception? exception = null) =>
         HealthCheckResult.Unhealthy(description, exception, Data(reason));

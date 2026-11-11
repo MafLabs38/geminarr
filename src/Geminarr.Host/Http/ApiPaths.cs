@@ -5,9 +5,9 @@ public static class ApiPaths
 {
     public const string Prefix = "/api";
 
-    /// <summary>The MCP endpoint answers like the API: it takes the same session or key, so it is held to the same rules (no cross-site write).</summary>
-    public const string Mcp = "/mcp";
+    /// <summary>The description of the API is held to the same rules as the API itself: nothing it says is cached.</summary>
+    public const string OpenApi = "/openapi";
 
     public static bool IsApi(PathString path) =>
-        path.StartsWithSegments(Prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWithSegments(Mcp, StringComparison.OrdinalIgnoreCase);
+        path.StartsWithSegments(Prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWithSegments(OpenApi, StringComparison.OrdinalIgnoreCase);
 }

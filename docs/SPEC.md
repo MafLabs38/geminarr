@@ -75,7 +75,7 @@ How it fits the constellation:
 | ✅ D-09 | **A dedicated Google account, never the main one**, sharing the maintainer's Google AI plan through the family group. A one-time import of the past may use the main account only by the ladder of D-10. | A Google session is valid across all of the account's services: a leak of this container must reach nothing but Gemini conversations. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-10 | **The past is imported by the least exposed way that is complete enough**: (1) Google Takeout, no session; (2) extraction from the maintainer's own browser, text only; (3) last resort, an ephemeral sign-in of the container to the main account under the conditions of §11.4. | Same reason. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-11 | **A session that stops working is a state, not a silence**: Geminarr reports `needs-login` to Mnemarr, which mails the maintainer a link to Geminarr's sign-in page. Geminarr holds no mail credential and the mail never contains a token. | One place sends mail (M-3); fewer secrets in the most sensitive container. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
-| ✅ D-12 | **The same pipeline, thresholds, review agents and process as Mnemarr** (verticals, one PR each, local gates, push once, triaged review). | The maintainer's rule: identical structures, processes and skills. | [0005](adr/0005-the-same-quality-chain-and-process-as-mnemarr.md) |
+| ✅ D-12 | **The same pipeline, review agents and process as Mnemarr, with stricter coverage thresholds** (85 % overall, zero smells) (verticals, one PR each, local gates, push once, triaged review). | The maintainer's rule: identical structures, processes and skills. | [0005](adr/0005-the-same-quality-chain-and-process-as-mnemarr.md) |
 | ✅ D-13 | **Releases by semantic-release from `main`, consumed by pulling** (image on GHCR; a GitOps tool in the cluster follows the versions). Nothing in the CI can reach a host. | Same as Mnemarr's ADR 0013. | [0006](adr/0006-releases-with-semantic-release-consumed-by-pulling.md) |
 | ✅ D-14 | **Everything is described as code**: the repository (Terraform, `github-template`), the image (this repo), the deployment (the private GitOps repository). The container is configurable by environment variables and files only. | The maintainer deploys Geminarr like Mnemarr, on the Kubernetes cluster, by GitOps. | [0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md) |
 | 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
@@ -111,7 +111,7 @@ How it fits the constellation:
 
 | Project | Role | Rules |
 |---|---|---|
-| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `IClock`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
+| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
 | `Geminarr.Browser` *(vertical 2)* | The Playwright adapter: the web reader, the live view, the profile | Behind the ports of Core; selectors and calls of the web product in one place (D-15). |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication and the header of writes arrive with vertical 1. |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
@@ -303,7 +303,7 @@ The operator signs in once, **through Geminarr's page**, to a browser running in
 3. When the reader sees the signed-in application, the state becomes `connected`, the live view closes, the browser closes, the profile stays.
 4. *Disconnect* closes the browser and **deletes the profile folder's content**; the state is `not-connected`.
 
-Transport: a WebSocket on Geminarr's own origin (`/api/v1/connection/live/{id}`), opened with a **single-use token** minted by an authenticated POST; the server checks the `Origin`, the token and the operator's session, and refuses a second viewer. The streamed frames never reach a log or a disk. The Content-Security-Policy stays `default-src 'self'`: the canvas needs no exception (Q-08).
+Transport: a WebSocket on Geminarr's own origin (`/api/v1/connection/live-views/{id}`), opened with a **single-use token** minted by an authenticated POST; the server checks the `Origin`, the token and the operator's session, and refuses a second viewer. The streamed frames never reach a log or a disk. The Content-Security-Policy stays `default-src 'self'`: the canvas needs no exception (Q-08).
 
 The sign-in pages of the account provider are the **only** pages other than the assistant's that the browser may load, and only during a live view (D-08): the network policy of the browser (a route filter) refuses every other origin.
 
@@ -334,6 +334,8 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | **F-ACC** | **Operator access** | | |
 | F-ACC-01 | A first administrator from a name and a password file (as Mnemarr, ADR 0016); a session cookie; the header of writes | M | 1 |
 | F-ACC-02 | Behind the proxy's single sign-on **and** Geminarr's own login (nothing is reachable anonymously except the probes) | M | 1 |
+| F-ACC-03 | The API description (`/openapi`) behind the sign-in; `AllowedHosts` restricted to the loopback names and the host of `PUBLICURL` (a DNS-rebinding page must not reach the loopback address) | M | 1 |
+| F-ACC-04 | The server **enforces** the `X-Geminarr-Request` header on every write that is not a GET, HEAD or OPTIONS, with a test, before the first write endpoint ships | M | 1 |
 | **F-LNK** | **The link to Mnemarr** | | |
 | F-LNK-01 | Pair with a Mnemarr by asking, or enrol with a code, or use a provided key file | M | 1 |
 | F-LNK-02 | Heartbeat at every pass; state and `attention` (§5.4) | M | 1 |
@@ -412,7 +414,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(4)* | **512**, none | §8 |
 | `RETENTION__RUNSDAYS` *(3)* | **90** | How long runs are kept |
 
-Every limit and interval above comes from configuration with that default; none is a literal in the code.
+Every limit and interval above comes from configuration with that default; none is a literal in the code. The one exception is an internal cache window that no operator needs to tune: the 15 seconds during which the readiness probe reuses its result (the Kubernetes example's `periodSeconds: 15` follows it).
 
 ### 10.3 Health and reason codes
 

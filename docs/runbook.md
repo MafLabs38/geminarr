@@ -17,7 +17,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes).
 
 | Reason | Meaning | Do |
 |---|---|---|
-| `data-folder-missing` / `data-folder-read-only` | The volume is not mounted or not writable by uid 1654 | Fix the mount or the volume's ownership; the readiness probe recovers within a minute |
+| `data-folder-missing` / `data-folder-read-only` | The volume is not mounted or not writable by uid 1654 | Fix the mount or the volume's ownership; the readiness probe recovers within 15 seconds plus one probe period (its result is reused for 15 s) |
 | `needs-login` | The session expired (or the provider asked for a new verification) | Open the link of the mail, press *Sign in*, sign in to the **dedicated** account on the live view, approve on the phone |
 | `reader-broken` | The assistant's page no longer looks like what the reader knows | Nothing is lost (the outbox is kept, the position stays). Update Geminarr to a version of the reader that knows the new page; until then it only signals |
 | `rate-limited` | The provider limited or challenged the session | Geminarr pauses by itself (six hours by default); look at the account's security page; do not shorten the pause |

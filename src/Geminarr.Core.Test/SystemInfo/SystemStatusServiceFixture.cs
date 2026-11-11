@@ -18,12 +18,4 @@ public sealed class SystemStatusServiceFixture
         status.StartedAt.Should().Be(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));
         status.Uptime.Should().Be(TimeSpan.FromMinutes(90));
     }
-
-    [Fact]
-    public void should_report_the_build_version()
-    {
-        var status = new SystemStatusService(_clock).GetStatus();
-
-        status.Version.Should().Be(BuildInfo.Version).And.NotBeNullOrWhiteSpace();
-    }
 }

@@ -19,7 +19,6 @@ builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<ClientErrorExceptionHandler>();
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
 {
     document.Info = new OpenApiInfo
@@ -43,6 +42,7 @@ app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
 app.MapControllers();
+// The description of the API is served as it is while nothing sensitive exists; it goes behind the sign-in with the first vertical (docs/SPEC.md, F-ACC-03).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();
 app.MapGeminarrFrontendFallback();

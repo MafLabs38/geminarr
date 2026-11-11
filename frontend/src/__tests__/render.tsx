@@ -12,12 +12,21 @@ export const status: SystemStatus = {
   uptimeSeconds: 3725,
 };
 
+/** The address of a call, whatever form `fetch` was given it in. */
+function requestAddress(input: RequestInfo | URL): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+  return input instanceof URL ? input.href : input.url;
+}
+
 /** Answers the calls of the application like the API would, from a table of paths. A path that is not in it is a 404. */
 export function stubApi(routes: Readonly<Record<string, unknown>>) {
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
-      const path = new URL(String(input), 'http://localhost').pathname.replace(/^\/api\/v1/, '');
+      const address = requestAddress(input);
+      const path = new URL(address, 'http://localhost').pathname.replace(/^\/api\/v1/, '');
       return path in routes
         ? Promise.resolve(Response.json(routes[path]))
         : Promise.resolve(new Response(null, { status: 404 }));

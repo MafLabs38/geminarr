@@ -9,7 +9,7 @@ services:
       # or change the address on purpose. Until the first vertical has its own sign-in, nothing but the probes and the status is served.
       - "127.0.0.1:8282:8282"
     volumes:
-      - geminarr-data:/config               # database and settings: back this up. The browser profile will have a volume of its own (SPEC §6).
+      - geminarr-data:/config               # database and settings: back this up. The browser profile will have a volume of its own (SPEC §7.1).
     environment:
       GEMINARR__DATAFOLDER: /config
     # Hardening: nothing writes outside the data folder and a temporary folder.

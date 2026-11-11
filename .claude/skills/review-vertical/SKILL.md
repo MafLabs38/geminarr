@@ -8,7 +8,7 @@ description: Run the four review agents (tests, quality, OWASP security, archite
 1. Base: `develop` (or the given base). Make sure the branch is committed and the full test suite is green.
 2. Launch the four agents **two at a time at most** (the build machine is small and shared: four agents compiling together freeze it), each with the base and the branch name, asking for its Markdown report. A reviewing agent reads the code; it does not start builds, tests or browsers:
    - `test-reviewer`: relevance, redundancy, missing cases, speed;
-   - `quality-reviewer`: spec compliance, design, smells, frontend and Rust conventions;
+   - `quality-reviewer`: spec compliance, design, smells, frontend conventions;
    - `security-reviewer`: OWASP and privacy review;
    - `architecture-reviewer`: technical lead, *arr patterns, layers, hard-coded vs configurable, decisions.
    If the agents are not registered in the session, spawn general-purpose agents with the content of `.claude/agents/<name>.md` as instructions.

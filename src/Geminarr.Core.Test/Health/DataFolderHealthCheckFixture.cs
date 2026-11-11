@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Health;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -14,16 +13,16 @@ public sealed class DataFolderHealthCheckFixture : IDisposable
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
-    private DataFolderHealthCheck Subject(string folder) =>
-        new(Options.Create(new GeminarrOptions { DataFolder = folder }), _clock);
+    private DataFolderHealthCheck Subject(string folder, Func<string, CancellationToken, Task>? write = null) =>
+        new(Options.Create(new GeminarrOptions { DataFolder = folder }), _clock, write ?? ((path, token) => File.WriteAllBytesAsync(path, [], token)));
 
-    private static Task<HealthCheckResult> Check(DataFolderHealthCheck subject) =>
-        subject.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
+    private static Task<HealthCheckResult> Check(DataFolderHealthCheck subject, CancellationToken cancellationToken = default) =>
+        subject.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
 
     [Fact]
     public async Task should_be_healthy_and_leave_no_probe_file_when_the_folder_is_writable()
     {
-        var result = await Check(Subject(_folder));
+        var result = await Check(Subject(_folder), TestContext.Current.CancellationToken);
 
         result.Status.Should().Be(HealthStatus.Healthy);
         Directory.GetFileSystemEntries(_folder).Should().BeEmpty();
@@ -34,92 +33,110 @@ public sealed class DataFolderHealthCheckFixture : IDisposable
     {
         var missing = Path.Combine(_folder, "missing");
 
-        var result = await Check(Subject(missing));
+        var result = await Check(Subject(missing), TestContext.Current.CancellationToken);
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Data["reason"].Should().Be("data-folder-missing");
+        result.Data[HealthReasons.Key].Should().Be(HealthReasons.DataFolderMissing);
         result.Description.Should().Be("The data folder does not exist.").And.NotContain(missing);
     }
 
     [Fact]
-    [SupportedOSPlatform("linux")]
-    public async Task should_be_unhealthy_and_keep_the_cause_when_the_folder_is_not_writable()
+    public async Task should_say_the_folder_is_missing_and_not_throw_when_the_path_is_not_a_valid_one()
     {
-        Assert.SkipWhen(
-            !OperatingSystem.IsLinux() || Environment.IsPrivilegedProcess,
-            "Needs a Unix permission model and a user who is not privileged: root can write anywhere.");
-        File.SetUnixFileMode(_folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        var result = await Check(Subject("not\0a\0path"), TestContext.Current.CancellationToken);
 
-        try
-        {
-            var result = await Check(Subject(_folder));
+        result.Data[HealthReasons.Key].Should().Be(HealthReasons.DataFolderMissing);
+    }
 
-            result.Status.Should().Be(HealthStatus.Unhealthy);
-            result.Data["reason"].Should().Be("data-folder-read-only");
-            result.Description.Should().Be("The data folder is not writable.");
-            result.Exception.Should().BeOfType<UnauthorizedAccessException>();
-        }
-        finally
-        {
-            File.SetUnixFileMode(_folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        }
+    [Theory]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    [InlineData(typeof(IOException))]
+    public async Task should_be_unhealthy_and_keep_the_cause_when_the_probe_file_cannot_be_written(Type failure)
+    {
+        var cause = (Exception)Activator.CreateInstance(failure)!;
+
+        var result = await Check(Subject(_folder, (_, _) => Task.FromException(cause)), TestContext.Current.CancellationToken);
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Data[HealthReasons.Key].Should().Be(HealthReasons.DataFolderReadOnly);
+        result.Description.Should().Be("The data folder is not writable.").And.NotContain(_folder);
+        result.Exception.Should().BeSameAs(cause);
     }
 
     [Fact]
-    public async Task should_reuse_an_unhealthy_result_too_and_see_the_repaired_folder_once_the_time_has_passed()
+    public async Task should_not_report_the_folder_as_unusable_when_the_probe_file_cannot_be_removed_afterwards()
+    {
+        // The probe file is a directory that cannot be deleted as a file: the write "succeeds", the removal fails, and that is no reason to alarm.
+        var result = await Check(Subject(_folder, (path, _) => { Directory.CreateDirectory(path); File.WriteAllText(Path.Combine(path, "keep"), "x"); return Task.CompletedTask; }), TestContext.Current.CancellationToken);
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task should_reuse_the_result_until_it_is_too_old_whether_it_was_healthy_or_not(bool startsHealthy)
     {
         var folder = Path.Combine(_folder, "volume");
-        var subject = Subject(folder);
-        (await Check(subject)).Status.Should().Be(HealthStatus.Unhealthy);
+        if (startsHealthy)
+        {
+            Directory.CreateDirectory(folder);
+        }
 
-        Directory.CreateDirectory(folder);
+        var subject = Subject(folder);
+        var first = (await Check(subject, TestContext.Current.CancellationToken)).Status;
+        first.Should().Be(startsHealthy ? HealthStatus.Healthy : HealthStatus.Unhealthy);
+
+        // The volume changes under it: the answer does not, until the result expires.
+        if (startsHealthy)
+        {
+            Directory.Delete(folder);
+        }
+        else
+        {
+            Directory.CreateDirectory(folder);
+        }
+
         _clock.Advance(DataFolderHealthCheck.ReuseFor - TimeSpan.FromSeconds(1));
-        (await Check(subject)).Status.Should().Be(HealthStatus.Unhealthy);
+        (await Check(subject, TestContext.Current.CancellationToken)).Status.Should().Be(first);
 
         _clock.Advance(TimeSpan.FromSeconds(1));
-        (await Check(subject)).Status.Should().Be(HealthStatus.Healthy);
+        (await Check(subject, TestContext.Current.CancellationToken)).Status.Should().Be(startsHealthy ? HealthStatus.Unhealthy : HealthStatus.Healthy);
     }
 
     [Fact]
     public async Task should_probe_once_when_many_requests_arrive_together_after_the_result_expired()
     {
-        var subject = Subject(_folder);
         var probes = 0;
-        using var watcher = new FileSystemWatcher(_folder, ".write-test-*") { EnableRaisingEvents = true };
-        watcher.Created += (_, _) => Interlocked.Increment(ref probes);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subject = Subject(_folder, async (_, _) =>
+        {
+            Interlocked.Increment(ref probes);
+            await release.Task;
+        });
 
-        var results = await Task.WhenAll(Enumerable.Range(0, 25).Select(_ => Task.Run(() => Check(subject), TestContext.Current.CancellationToken)));
-        await Task.Delay(300, TestContext.Current.CancellationToken); // file events reach the watcher a moment later
+        var checks = Enumerable.Range(0, 25).Select(_ => Task.Run(() => Check(subject, TestContext.Current.CancellationToken), TestContext.Current.CancellationToken)).ToArray();
+        release.SetResult();
+        var results = await Task.WhenAll(checks);
 
         results.Should().OnlyContain(result => result.Status == HealthStatus.Healthy);
         probes.Should().Be(1);
     }
 
     [Fact]
-    public async Task should_reuse_its_result_for_a_few_seconds_so_that_a_loop_of_requests_does_not_write_on_every_one()
+    public async Task should_stop_waiting_for_its_turn_when_the_caller_gives_up()
     {
-        var folder = Path.Combine(_folder, "volume");
-        Directory.CreateDirectory(folder);
-        var subject = Subject(folder);
-        (await Check(subject)).Status.Should().Be(HealthStatus.Healthy);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subject = Subject(_folder, (_, _) => release.Task);
+        var first = Check(subject, TestContext.Current.CancellationToken);
+        using var giveUp = new CancellationTokenSource();
+        var second = Check(subject, giveUp.Token);
 
-        Directory.Delete(folder);
-        _clock.Advance(DataFolderHealthCheck.ReuseFor - TimeSpan.FromSeconds(1));
+        await giveUp.CancelAsync();
+        var waiting = async () => await second;
 
-        (await Check(subject)).Status.Should().Be(HealthStatus.Healthy);
-    }
-
-    [Fact]
-    public async Task should_see_a_volume_that_went_away_once_its_result_is_too_old()
-    {
-        var folder = Path.Combine(_folder, "volume");
-        Directory.CreateDirectory(folder);
-        var subject = Subject(folder);
-        await Check(subject);
-
-        Directory.Delete(folder);
-        _clock.Advance(DataFolderHealthCheck.ReuseFor);
-
-        (await Check(subject)).Status.Should().Be(HealthStatus.Unhealthy);
+        await waiting.Should().ThrowAsync<OperationCanceledException>();
+        release.SetResult();
+        (await first).Status.Should().Be(HealthStatus.Healthy);
     }
 }

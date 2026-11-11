@@ -33,7 +33,8 @@ test.describe('smoke @smoke', () => {
     await page.goto('/system/status');
 
     await expect(page.getByRole('heading', { name: 'Status' })).toBeVisible();
-    await expect(page.getByText('Version')).toBeVisible();
+    await expect(page.getByText('Version', { exact: true })).toBeVisible();
+    await expect(page.getByText('Runtime', { exact: true })).toBeVisible();
   });
 
   test('the page is served with its security headers', { tag: '@browserless' }, async ({ request }) => {
@@ -42,4 +43,29 @@ test.describe('smoke @smoke', () => {
     expect(response.headers()['x-content-type-options']).toBe('nosniff');
     expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
   });
+
+  test(
+    'the page is looked at again each time and the scripts it names are kept for good',
+    { tag: '@browserless' },
+    async ({ request }) => {
+      const page = await request.get('/');
+      expect(page.headers()['cache-control']).toContain('no-cache');
+
+      const script = /src="(\/assets\/[^"]+\.js)"/.exec(await page.text())?.[1];
+      expect(script, 'the page names a script under /assets').toBeTruthy();
+      expect((await request.get(script ?? '')).headers()['cache-control']).toContain('immutable');
+    },
+  );
+
+  test(
+    'an unknown route of the application is the page, and the API description is not cached',
+    { tag: '@browserless' },
+    async ({ request }) => {
+      const route = await request.get('/somewhere/in/the/application');
+      expect(route.status()).toBe(200);
+      expect(route.headers()['content-type']).toContain('text/html');
+
+      expect((await request.get('/openapi/v1.json')).headers()['cache-control']).toContain('no-store');
+    },
+  );
 });

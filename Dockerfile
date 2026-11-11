@@ -34,6 +34,8 @@ WORKDIR /app
 COPY --from=backend /app ./
 COPY --from=frontend /build/_output/UI ./wwwroot
 # The chiseled image has no shell to create folders: copy an empty one owned by the app user.
+# The folder is owned by the application's user on purpose: it is the mount point of the data volume and the container must be able to write it
+# (SonarQube hotspot docker:S6504, reviewed as safe: no other file of the image is writable by the application).
 COPY --from=backend --chown=1654:1654 /config /config
 ENV GEMINARR__DATAFOLDER=/config
 # The base image sets ASPNETCORE_HTTP_PORTS=8080, which the Urls setting of appsettings.json overrides with a warning at every start.

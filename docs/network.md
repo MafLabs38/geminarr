@@ -20,7 +20,7 @@ The live view is the page where the operator types the dedicated account's passw
 
 The browser has a **route filter** that refuses every other origin, and the container's network policy repeats the list at the cluster level. The exact host names the assistant's page needs are written down by the first spike and listed here, **and a new destination is a decision** (ADR 0008: the network policy is in the trust anchor).
 
-A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/connection/live/` (from vertical 2) and must not buffer them; and it must not cache `/api`.
+A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/connection/live-views/` (from vertical 2) and must not buffer them; and it must not cache `/api`.
 
 ## Firewalls and proxies at the other end
 

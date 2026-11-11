@@ -20,15 +20,23 @@ public sealed class DataFolderHealthCheck : IHealthCheck, IDisposable
 
     private readonly IOptions<GeminarrOptions> _options;
     private readonly TimeProvider _clock;
+    private readonly Func<string, CancellationToken, Task> _write;
     private readonly SemaphoreSlim _probing = new(1, 1);
     private readonly Lock _gate = new();
     private HealthCheckResult _last;
     private DateTimeOffset? _lastAt;
 
     public DataFolderHealthCheck(IOptions<GeminarrOptions> options, TimeProvider clock)
+        : this(options, clock, static (path, cancellationToken) => File.WriteAllBytesAsync(path, [], cancellationToken))
+    {
+    }
+
+    /// <summary>The write of the probe file is a seam, so that the tests count the probes and make the write fail without depending on the permissions of the user who runs them.</summary>
+    internal DataFolderHealthCheck(IOptions<GeminarrOptions> options, TimeProvider clock, Func<string, CancellationToken, Task> write)
     {
         _options = options;
         _clock = clock;
+        _write = write;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
@@ -73,22 +81,22 @@ public sealed class DataFolderHealthCheck : IHealthCheck, IDisposable
         }
     }
 
-    private static async Task<HealthCheckResult> ProbeAsync(string folder, CancellationToken cancellationToken)
+    private async Task<HealthCheckResult> ProbeAsync(string folder, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(folder))
         {
-            return HealthReasons.Unhealthy("data-folder-missing", "The data folder does not exist.");
+            return HealthReasons.Unhealthy(HealthReasons.DataFolderMissing, "The data folder does not exist.");
         }
 
         var probe = Path.Combine(folder, $".write-test-{Guid.NewGuid():N}");
         try
         {
-            await File.WriteAllBytesAsync(probe, [], cancellationToken);
+            await _write(probe, cancellationToken);
             return HealthCheckResult.Healthy();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return HealthReasons.Unhealthy("data-folder-read-only", "The data folder is not writable.", ex);
+            return HealthReasons.Unhealthy(HealthReasons.DataFolderReadOnly, "The data folder is not writable.", ex);
         }
         finally
         {
