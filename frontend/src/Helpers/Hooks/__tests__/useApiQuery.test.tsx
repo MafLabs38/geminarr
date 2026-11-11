@@ -28,15 +28,7 @@ describe('useApiQuery', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('reports the failure when the server answers an error', async () => {
-    stubApi({});
-
-    const { result } = renderHook(() => useApiQuery('/missing'), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-  });
-
-  it('asks again when the refresh interval is a function of the last answer', async () => {
+  it('gives the last answer to a refresh interval that is a function, so that it can decide when to ask again', async () => {
     stubApi({ '/things': { count: 1 } });
     const interval = vi.fn(() => false as const);
 

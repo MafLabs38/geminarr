@@ -13,7 +13,7 @@
 
 ## Reasons and what to do
 
-Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the health resource of vertical 1 exists, `/health/ready` answers only *Unhealthy*: the reason code is in the container's log, on the line "Health check data-folder".
+Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the health resource of vertical 1 exists, `/health/ready` answers only *Unhealthy*: the container's log says it on the line "Health check data-folder" ("The data folder does not exist." or "The data folder is not writable."); the code is the one of the table.
 
 | Reason | Meaning | Do |
 |---|---|---|

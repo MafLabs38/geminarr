@@ -11,7 +11,9 @@
 FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
 WORKDIR /build
 COPY package.json yarn.lock ./
-RUN corepack enable && yarn install --frozen-lockfile
+# No install script runs while the interface is built: the dev tools of the lockfile (test runners, mutation tools) are not needed by the build and would
+# run code in the stage that produces what the image ships (as in the release job).
+RUN corepack enable && yarn install --frozen-lockfile --ignore-scripts
 COPY frontend ./frontend
 RUN yarn build
 

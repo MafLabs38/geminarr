@@ -14,6 +14,8 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 
 // Settings come from appsettings.json, then environment variables prefixed with GEMINARR__.
 builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
+// The command line keeps the last word, as in every .NET application: appsettings.json, then GEMINARR__*, then the arguments.
+builder.Configuration.AddCommandLine(args);
 
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrHealthChecks();

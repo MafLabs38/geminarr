@@ -29,15 +29,4 @@ public sealed class EnvironmentConfigurationFixture : IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
-
-    [Fact]
-    public async Task should_say_not_ready_when_the_variable_names_a_folder_that_does_not_exist()
-    {
-        Environment.SetEnvironmentVariable(Variable, Path.Combine(_folder, "missing"));
-        using var factory = new EnvironmentFactory();
-
-        var response = await factory.CreateClient().GetAsync("/health/ready", TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-    }
 }

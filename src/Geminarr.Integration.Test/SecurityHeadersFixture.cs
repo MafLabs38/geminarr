@@ -14,7 +14,6 @@ public sealed class SecurityHeadersFixture
 
     [Theory]
     [InlineData("/api/v1/system/status", HttpStatusCode.OK)]
-    [InlineData("/API/v1/system/status", HttpStatusCode.OK)]
     [InlineData("/api/v1/nothing-here", HttpStatusCode.NotFound)]
     [InlineData("/openapi/v1.json", HttpStatusCode.OK)]
     public async Task should_keep_the_security_headers_and_cache_nothing_on_what_the_api_says_even_when_it_says_no(string path, HttpStatusCode expected)

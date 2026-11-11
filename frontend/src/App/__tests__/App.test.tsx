@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { renderAt, status, stubApi } from '__tests__/render';
 import App from 'App/App';
 import AppRoutes from 'App/AppRoutes';
+import { menuEntries } from 'App/navigation';
 import Page from 'Components/Page/Page';
 
 function shell(path: string) {
@@ -56,8 +57,10 @@ describe('the application', () => {
 
     const menu = screen.getByRole('navigation', { name: 'Main menu' });
     expect(menu).toHaveTextContent('Connection');
-    expect(screen.getAllByText('Soon')).toHaveLength(5);
-    expect(screen.queryByRole('link', { name: 'Connection' })).not.toBeInTheDocument();
+    for (const entry of menuEntries.filter((candidate) => !candidate.available)) {
+      expect(screen.queryByRole('link', { name: entry.label })).not.toBeInTheDocument();
+    }
+    expect(screen.getAllByText('Soon')).toHaveLength(menuEntries.filter((candidate) => !candidate.available).length);
     expect(screen.getByRole('link', { name: 'System' })).toHaveAttribute('href', '/system/status');
   });
 
