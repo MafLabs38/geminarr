@@ -4,6 +4,9 @@ namespace Geminarr.Host.Http;
 
 public static class FrontendFiles
 {
+    /// <summary>Where the build of the frontend puts the files whose name carries a hash (the output of Vite, `assets/`): they never change under their name.</summary>
+    private const string AssetsPrefix = "/assets";
+
     private static readonly StaticFileOptions Caching = new() { OnPrepareResponse = Cache };
 
     /// <summary>
@@ -17,7 +20,7 @@ public static class FrontendFiles
         {
             headers.CacheControl = "no-cache";
         }
-        else if (context.Context.Request.Path.StartsWithSegments("/assets"))
+        else if (context.Context.Request.Path.StartsWithSegments(AssetsPrefix))
         {
             headers.CacheControl = "public, max-age=31536000, immutable";
         }

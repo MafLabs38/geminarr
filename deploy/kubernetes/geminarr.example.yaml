@@ -103,3 +103,25 @@ spec:
     - name: http
       port: 8282
       targetPort: http
+---
+# Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
+# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. An egress policy (SPEC §11.2,
+# docs/network.md) is added with the vertical that gives the container its outbound destinations.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geminarr-ingress
+  namespace: geminarr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <ingress-controller-namespace>
+      ports:
+        - protocol: TCP
+          port: 8282

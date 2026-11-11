@@ -1,6 +1,6 @@
 namespace Geminarr.Host.Http;
 
-/// <summary>Where the API lives. Three security rules depend on it (the headers of an answer, the header of a write, the files of the interface): they must stay in step.</summary>
+/// <summary>Where the API lives. Two rules depend on it today (the headers of an answer, the files of the interface) and a third will (the header of a write, F-ACC-04): they must stay in step.</summary>
 public static class ApiPaths
 {
     public const string Prefix = "/api";

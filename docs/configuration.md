@@ -7,7 +7,7 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | Variable | Default | Purpose |
 |---|---|---|
 | `GEMINARR__DATAFOLDER` | **`/config`** | Where the database and the settings live. A volume; the image's user (uid 1654) must be able to write it. The readiness probe fails when it is missing or read-only. |
-| `ASPNETCORE_URLS` / `Urls` | **`http://+:8282`** | The address the container listens on. Plain HTTP: publish it through a reverse proxy with TLS and a login in front. |
+| `GEMINARR__URLS` | **`http://+:8282`** | The address the container listens on. Plain HTTP: publish it through a reverse proxy with TLS and a login in front. The prefixed variable is the one that takes effect (it is read after `appsettings.json`); `ASPNETCORE_URLS` does not. |
 | `Logging__LogLevel__Default` | **`Information`** | Standard ASP.NET logging. The logs carry ids, counts, durations and reason codes, **never** the text of a conversation or a cookie. |
 
 ## From the next verticals

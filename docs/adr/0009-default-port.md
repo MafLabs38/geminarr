@@ -10,7 +10,7 @@ Same reasoning as Mnemarr's ADR 0011: the audience runs the *arr suite and insta
 
 ## Decision
 
-Geminarr listens on **8282** by default, set in one place, the `Urls` setting of `appsettings.json` (overridable with `GEMINARR__URLS` / `ASPNETCORE_URLS`); the Dockerfile, the deployment examples, the end-to-end stack and the development proxy follow it.
+Geminarr listens on **8282** by default, set in one place, the `Urls` setting of `appsettings.json` (overridable with `GEMINARR__URLS`, which is read after `appsettings.json`: the standard `ASPNETCORE_URLS` is not); the Dockerfile, the deployment examples, the end-to-end stack and the development proxy follow it.
 
 ## Consequences
 

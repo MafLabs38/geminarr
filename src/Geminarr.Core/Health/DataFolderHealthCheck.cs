@@ -23,8 +23,7 @@ public sealed class DataFolderHealthCheck : IHealthCheck, IDisposable
     private readonly Func<string, CancellationToken, Task> _write;
     private readonly SemaphoreSlim _probing = new(1, 1);
     private readonly Lock _gate = new();
-    private HealthCheckResult _last;
-    private DateTimeOffset? _lastAt;
+    private (HealthCheckResult Result, DateTimeOffset At)? _last;
 
     public DataFolderHealthCheck(IOptions<GeminarrOptions> options, TimeProvider clock)
         : this(options, clock, static (path, cancellationToken) => File.WriteAllBytesAsync(path, [], cancellationToken))
@@ -58,8 +57,7 @@ public sealed class DataFolderHealthCheck : IHealthCheck, IDisposable
             var result = await ProbeAsync(_options.Value.DataFolder, cancellationToken);
             lock (_gate)
             {
-                _last = result;
-                _lastAt = _clock.GetUtcNow();
+                _last = (result, _clock.GetUtcNow());
             }
 
             return result;
@@ -76,8 +74,14 @@ public sealed class DataFolderHealthCheck : IHealthCheck, IDisposable
     {
         lock (_gate)
         {
-            result = _last;
-            return _lastAt is { } at && _clock.GetUtcNow() - at < ReuseFor;
+            if (_last is { } last && _clock.GetUtcNow() - last.At < ReuseFor)
+            {
+                result = last.Result;
+                return true;
+            }
+
+            result = default;
+            return false;
         }
     }
 

@@ -38,7 +38,7 @@ COPY --from=frontend /build/_output/UI ./wwwroot
 # (SonarQube hotspot docker:S6504, reviewed as safe: no other file of the image is writable by the application).
 COPY --from=backend --chown=1654:1654 /config /config
 ENV GEMINARR__DATAFOLDER=/config
-# The base image sets ASPNETCORE_HTTP_PORTS=8080, which the Urls setting of appsettings.json overrides with a warning at every start.
+# The base image sets ASPNETCORE_HTTP_PORTS=8080, which the Urls setting of appsettings.json overrides with a warning at every start (change the address with GEMINARR__URLS).
 ENV ASPNETCORE_HTTP_PORTS=
 # The app user of the chiseled image, stated so that nothing reads this image as running as root.
 USER 1654:1654

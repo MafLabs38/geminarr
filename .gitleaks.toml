@@ -1,11 +1,11 @@
-# Extends gitleaks' default rules. The only exception: the SonarQube project key in the SonarLint connection files, which is a public identifier
-# (it names the project on the server) and not a credential. Documented exception: do not widen it without a reason written here.
+# Extends gitleaks' default rules. The only exception: the SonarQube project key (a public identifier that names the project on the server, in the
+# SonarLint connection files), which the generic rule takes for an API key. The VALUE is allowed, not the files: a token pasted in those files is still found.
+# Documented exception: do not widen it without a reason written here.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "SonarQube project key (a public identifier) in the SonarLint connection files"
-paths = [
-  '''^\.sonarlint/connectedMode\.json$''',
-  '''^\.vscode/settings\.json$''',
+description = "The SonarQube project key (a public identifier)"
+regexes = [
+  '''MafLabs38_geminarr''',
 ]

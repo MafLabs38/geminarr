@@ -18,12 +18,13 @@ public sealed class SystemApiFixture
     public async Task should_report_version_runtime_start_and_uptime_and_nothing_about_the_host()
     {
         var response = await _factory.CreateClient().GetAsync("/api/v1/system/status", TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.UtcNow;
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var status = await response.Content.ReadFromJsonAsync<SystemStatusResource>(TestContext.Current.CancellationToken);
         status!.Version.Should().NotBeNullOrWhiteSpace();
         status.RuntimeVersion.Should().StartWith(".NET");
-        status.StartedAt.Should().BeAfter(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        status.StartedAt.Should().BeBefore(now).And.BeAfter(now.AddHours(-1));
         status.UptimeSeconds.Should().BeGreaterThanOrEqualTo(0);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().NotContain(_factory.DataFolder);

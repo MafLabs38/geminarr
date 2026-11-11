@@ -115,7 +115,14 @@ public sealed class DataFolderHealthCheckFixture : IDisposable
             await release.Task;
         });
 
-        var checks = Enumerable.Range(0, 25).Select(_ => Task.Run(() => Check(subject, TestContext.Current.CancellationToken), TestContext.Current.CancellationToken)).ToArray();
+        var started = 0;
+        var checks = Enumerable.Range(0, 25).Select(_ => Task.Run(() =>
+        {
+            Interlocked.Increment(ref started);
+            return Check(subject, TestContext.Current.CancellationToken);
+        }, TestContext.Current.CancellationToken)).ToArray();
+        // The first probe is held until every caller has asked: without the lock, each of them would write its own probe file meanwhile.
+        SpinWait.SpinUntil(() => Volatile.Read(ref started) == checks.Length, TimeSpan.FromSeconds(10)).Should().BeTrue();
         release.SetResult();
         var results = await Task.WhenAll(checks);
 

@@ -9,7 +9,7 @@
 - The **theme tokens**: same names and values (`--paper`, `--paperCard`, `--ink`, `--accent`, `--shadowCard`…), in `frontend/src/Styles/Themes/themes.css`. A component never carries a hard-coded color, font, radius or shadow.
 - The **fonts** (Fredoka, Nunito, JetBrains Mono), self-hosted through `@fontsource`: the interface makes no request to a third party.
 - The **code conventions**: CSS Modules, one component per file, absolute imports from `src`, icons only through `Helpers/Props/icons.ts`, the `kind` vocabulary, every text through `translate()`.
-- **Server data only through `useApiQuery`** (`Helpers/Hooks`), which goes through `apiGet`/`apiSend` (`Helpers/Api`): never a `fetch` in a component. Writes go through a mutation hook written next to the feature's query hooks, which refreshes the queries it changes.
+- **Server data only through `useApiQuery`** (`Helpers/Hooks`), which goes through `apiGet` (`Helpers/Api`): never a `fetch` in a component. The write path (`apiSend`, a mutation hook next to the feature's query hooks, the `X-Geminarr-Request` header the server will enforce, F-ACC-04) arrives with the first vertical that writes.
 
 ## 2. What is specific to Geminarr
 

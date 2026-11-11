@@ -16,5 +16,6 @@
 
 ## Specific to Geminarr
 
+- **The guards of the review are in the trust anchor (A), by name**: `.github/review-approvers`, `.github/workflows/review-decisions.yml`, `tools/review-decisions/**`, `docs/review-decisions/README.md` and `.gitleaks.toml` (with `.claude/**`, `ai-review.yml` and `CODEOWNERS` already listed). A pull request that adds an approver or loosens the checker is the one that would let a serious finding be declined by its own author. Nothing but the agent's discipline enforces this (the agent works with the maintainer's own token): a bot account for the agent and a required code-owner review are the remedy if an incident shows it is not enough, as for Mnemarr, and the residual risk is accepted.
 - **The browser binary, its source, and any change to the network policy or to what the browser may load are in the trust anchor (A)**: they decide what the session can reach.
 - A change that touches how the **profile** is stored, logged, backed up or deleted is in the trust anchor as well.

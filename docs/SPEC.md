@@ -372,7 +372,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 
 ### 10.1 REST API (`/api/v1`)
 
-Every call but the probes and `system/status` needs the operator's session (vertical 1); every write carries the `X-Geminarr-Request` header (a cross-site form cannot set it). Errors are `application/problem+json`; an unknown path under `/api` is a 404, never the HTML shell.
+Every call but the probes needs the operator's session (from vertical 1; until then `system/status` answers anonymously, and says only a version, a runtime and an uptime); every write carries the `X-Geminarr-Request` header (a cross-site form cannot set it). Errors are `application/problem+json`; an unknown path under `/api` is a 404, never the HTML shell.
 
 | Resource | Verbs | Purpose | Vertical |
 |---|---|---|---|
@@ -429,7 +429,7 @@ Every limit and interval above comes from configuration with that default; none 
 | `mnemarr` *(1)* | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address` |
 | `outbox` *(1)* | `outbox-growing` (older than one hour) |
 
-A degraded check never makes `ready` fail (the container is still useful to look at); only the data folder does.
+A degraded check never makes `ready` fail (the container is still useful to look at); only a check that says the container cannot keep anything does: the **data folder** and, from the vertical that adds it, the **database** (`database-unreadable`, `database-step-unknown`).
 
 ---
 

@@ -23,6 +23,7 @@ public sealed class SecurityHeadersFixture
 
         response.StatusCode.Should().Be(expected);
         response.Headers.CacheControl!.NoStore.Should().BeTrue();
+        response.Headers.GetValues("Pragma").Should().Equal("no-cache");
         response.Headers.GetValues("X-Content-Type-Options").Should().Equal("nosniff");
         response.Headers.GetValues("X-Frame-Options").Should().Equal("DENY");
         response.Headers.GetValues("Referrer-Policy").Should().Equal("no-referrer");
