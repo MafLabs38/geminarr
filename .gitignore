@@ -89,3 +89,7 @@ pr.diff
 .profile/
 .spike/
 *.takeout.zip
+
+# Python bytecode (the review-decisions checker and its tests)
+__pycache__/
+*.pyc
