@@ -4,7 +4,7 @@ import { renderAt, status, stubApi } from '__tests__/render';
 import Status from 'System/Status/Status';
 
 describe('Status', () => {
-  it('shows the version, runtime, start and uptime of the running build', async () => {
+  it('shows the version, the runtime and the uptime label of the running build', async () => {
     stubApi({ '/system/status': status });
 
     renderAt(<Status />);
@@ -14,12 +14,13 @@ describe('Status', () => {
     expect(screen.getByText('Uptime')).toBeInTheDocument();
   });
 
-  it('says it is loading until the server answers', () => {
+  it('says it is loading until the server answers', async () => {
     stubApi({ '/system/status': status });
 
     renderAt(<Status />);
 
     expect(screen.getByText('Loading…')).toBeInTheDocument();
+    await screen.findByText('0.0.0-test');
   });
 
   it('shows the error and never stale values when the server cannot be read', async () => {

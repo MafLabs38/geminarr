@@ -20,7 +20,7 @@ public static class FrontendFiles
         {
             headers.CacheControl = "no-cache";
         }
-        else if (context.Context.Request.Path.StartsWithSegments(AssetsPrefix, StringComparison.OrdinalIgnoreCase))
+        else if (context.Context.Request.Path.StartsWithSegments(AssetsPrefix))
         {
             headers.CacheControl = "public, max-age=31536000, immutable";
         }
