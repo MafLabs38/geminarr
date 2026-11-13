@@ -419,4 +419,30 @@ public sealed class LinkServiceFixture : IDisposable
         (first.State, second.State).Should().Be((PairingStates.Pending, PairingStates.Approved));
         _keys.Key.Should().Be("mnm_new");
     }
+
+    [Fact]
+    public void should_keep_the_binding_of_the_key_to_its_address_when_the_database_is_lost()
+    {
+        _keys.Key = "mnm_given_by_a_pairing";
+        _keys.Address = Url;
+        var moved = Subject(new MnemarrOptions { Url = "https://another.homelab.example" });
+
+        moved.Status().Linked.Should().BeFalse("the file of the key remembers which Mnemarr gave it, whatever the database says");
+        var resolve = () => moved.Resolve();
+        resolve.Should().Throw<SinkException>();
+        Subject(new MnemarrOptions { Url = Url }).Resolve().Key.Should().Be("mnm_given_by_a_pairing");
+    }
+
+    [Fact]
+    public async Task should_use_its_own_machine_name_when_the_name_mnemarr_gives_is_not_one()
+    {
+        _http.Answer = Mnemarr("approved", "mnm_new", "Not A Name!");
+        var subject = Subject(new MnemarrOptions { Machine = "gemini-3" });
+        subject.SetAddress(Url);
+        await subject.StartPairingAsync(TestContext.Current.CancellationToken);
+
+        await subject.PollPairingAsync(TestContext.Current.CancellationToken);
+
+        subject.Status().Machine.Should().Be("gemini-3");
+    }
 }

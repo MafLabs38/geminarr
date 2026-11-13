@@ -49,7 +49,7 @@ public sealed class PassRunner
     public bool IsRunning => _running.CurrentCount == 0;
 
     /// <summary>Runs a pass, or returns null when one is already running.</summary>
-    public async Task<PassResult?> RunAsync(CancellationToken cancellationToken)
+    public async Task<PassResult?> RunAsync(CancellationToken cancellationToken, bool reading = true)
     {
         if (!await _running.WaitAsync(0, cancellationToken))
         {
@@ -62,7 +62,7 @@ public sealed class PassRunner
             // The time limit follows the clock of the application, so that a test moves it.
             using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(options.PassTimeoutMinutes), _clock);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
-            return await RunOnceAsync(timeout.Token);
+            return await RunOnceAsync(timeout.Token, reading);
         }
         finally
         {
@@ -70,15 +70,25 @@ public sealed class PassRunner
         }
     }
 
-    private async Task<PassResult> RunOnceAsync(CancellationToken cancellationToken)
+    private async Task<PassResult> RunOnceAsync(CancellationToken cancellationToken, bool reading)
     {
         var watch = Stopwatch.StartNew();
         var runId = _runs.Start(RunKinds.Pass, _clock.GetUtcNow());
         var state = new PassState();
+        string? unforeseen = null;
         try
         {
             await ReconcileAsync(state, cancellationToken);
-            await ReadAsync(state, cancellationToken);
+            if (reading)
+            {
+                await ReadAsync(state, cancellationToken);
+            }
+            else
+            {
+                // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer must not make the machine look gone.
+                state.Fail(RunOutcomes.Skipped, "backoff");
+            }
+
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
         }
@@ -90,8 +100,14 @@ public sealed class PassRunner
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Something this version did not foresee (a value in the database that cannot be read, a batch that cannot be unpacked): the run says so, the next pass tries again, and the application stays up.
-            _logger.LogError(ex, "A pass failed with an error that was not foreseen.");
+            unforeseen = ex.GetType().Name;
             state.Fail(RunOutcomes.Failed, "internal-error");
+        }
+
+        if (unforeseen is not null)
+        {
+            // The kind of error only: from the reader that reads something real, the message of an exception may hold what was read.
+            _logger.LogError("A pass failed with an error that was not foreseen ({Type}).", unforeseen);
         }
 
         var result = new PassResult(state.Outcome, state.Reason, state.Listed, state.Opened, state.TurnsSent);
@@ -220,6 +236,7 @@ public sealed class PassRunner
         {
             _generation = _link.Generation;
             _positionsAt = null;
+            _positions = null;
         }
 
         if (_positionsAt is { } at && _clock.GetUtcNow() - at < PositionsRefresh)
@@ -374,11 +391,11 @@ public sealed class PassRunner
         string? code = null;
         if (connection.State == ConnectionState.NeedsLogin)
         {
-            code = "needs-login";
+            code = ConnectionReasons.NeedsLogin;
         }
         else if (connection.LastReason == ConnectionReasons.ReaderBroken)
         {
-            code = "reader-broken";
+            code = ConnectionReasons.ReaderBroken;
         }
 
         if (code is null)

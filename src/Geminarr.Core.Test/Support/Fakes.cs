@@ -111,13 +111,22 @@ public sealed class FakeKeys : IKeyStore
 
     public string? Read() => Key;
 
-    public void Write(string key) => Key = key;
+    public string? Address { get; set; }
+
+    public string? AddressOf() => Address;
+
+    public void Write(string key, string address)
+    {
+        Key = key;
+        Address = address;
+    }
 
     public void Delete()
     {
         if (!Stuck)
         {
             Key = null;
+            Address = null;
         }
     }
 }

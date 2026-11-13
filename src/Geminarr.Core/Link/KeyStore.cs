@@ -43,7 +43,20 @@ public sealed class KeyStore : IKeyStore
         }
     }
 
-    public void Write(string key)
+    public string? AddressOf()
+    {
+        try
+        {
+            var text = File.ReadAllText(Path + ".address").Trim();
+            return text.Length == 0 ? null : text;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    public void Write(string key, string address)
     {
         var folder = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
@@ -65,6 +78,7 @@ public sealed class KeyStore : IKeyStore
         }
 
         File.Move(temporary, Path, overwrite: true);
+        File.WriteAllText(Path + ".address", address, System.Text.Encoding.UTF8);
     }
 
     private static void CreateFolder(string folder)
@@ -83,6 +97,7 @@ public sealed class KeyStore : IKeyStore
         try
         {
             File.Delete(Path);
+            File.Delete(Path + ".address");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
