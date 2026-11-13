@@ -4,6 +4,7 @@ using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
+using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
 using Microsoft.OpenApi;
 
@@ -19,6 +20,7 @@ builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrHealthChecks();
+builder.Services.AddHostedService<PassScheduler>();
 builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
