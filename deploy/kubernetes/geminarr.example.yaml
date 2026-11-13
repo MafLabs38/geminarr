@@ -63,6 +63,11 @@ spec:
             # The name you reach the page by: its host is allowed, a request for any other name is refused (the probes are exempt).
             - name: GEMINARR__PUBLICURL
               value: https://geminarr.homelab.example
+            # The Mnemarr to send to (https). Leave it out to give the address on the page and pair there; a one-time code or a key can be mounted as a file instead.
+            # - name: GEMINARR__MNEMARR__URL
+            #   value: https://mnemarr.homelab.example
+            # - name: GEMINARR__MNEMARR__KEYFILE            # the key that Mnemarr gave to this machine, from a secret (or GEMINARR__MNEMARR__ENROLMENTCODEFILE for a one-time code)
+            #   value: /run/geminarr/mnemarr/key
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
@@ -99,6 +104,9 @@ spec:
             - name: operator
               mountPath: /run/geminarr/operator
               readOnly: true
+            # - name: mnemarr             # the key (or the code) of the machine, from a secret that holds the file `key`
+            #   mountPath: /run/geminarr/mnemarr
+            #   readOnly: true
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
@@ -107,6 +115,10 @@ spec:
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
             secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
+        # - name: mnemarr
+        #   secret:
+        #     secretName: geminarr-mnemarr
+        #     defaultMode: 0440
         # - name: identity
         #   configMap:
         #     name: geminarr-identity
@@ -131,8 +143,7 @@ spec:
       targetPort: http
 ---
 # Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
-# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. An egress policy (SPEC §11.2,
-# docs/network.md) is added with the vertical that gives the container its outbound destinations.
+# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -151,3 +162,40 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
+---
+# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to, and nothing else. The assistant's own origins are added with the
+# reader (vertical 4), and a new destination is a decision. Adjust the selectors to where DNS and Mnemarr run; for a Mnemarr outside the cluster use an
+# `ipBlock` with its address instead of the namespace selector.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geminarr-egress
+  namespace: geminarr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <mnemarr-namespace>
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mnemarr
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -21,14 +21,18 @@ public static class HealthExtensions
         services.TryAddSingleton<DataFolderHealthCheck>();
         services.AddHealthChecks()
             .AddCheck<DataFolderHealthCheck>("data-folder", tags: [ReadyTag])
+            .AddCheck<DatabaseHealthCheck>("database", tags: [ReadyTag])
             // Not a readiness check: a container without an operator is alive and closed, and the platform must not restart it for that.
-            .AddCheck<OperatorHealthCheck>("operator");
+            .AddCheck<OperatorHealthCheck>("operator")
+            .AddCheck<ConnectionHealthCheck>("connection")
+            .AddCheck<MnemarrHealthCheck>("mnemarr")
+            .AddCheck<OutboxHealthCheck>("outbox");
         return services;
     }
 
     /// <summary>
     /// <c>/health/live</c>: the process answers (no check, for a liveness probe).
-    /// <c>/health/ready</c>: it can also do its job (the data folder is writable, for a readiness probe).
+    /// <c>/health/ready</c>: it can also do its job (the data folder is writable and the database opens, for a readiness probe).
     /// </summary>
     public static IEndpointRouteBuilder MapGeminarrHealthChecks(this IEndpointRouteBuilder endpoints)
     {

@@ -1,6 +1,8 @@
 using Geminarr.Core.Access;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Identity;
+using Geminarr.Core.Link;
+using Geminarr.Core.Pipeline;
 using Geminarr.Core.Test.Access;
 
 namespace Geminarr.Core.Test.Configuration;
@@ -8,7 +10,7 @@ namespace Geminarr.Core.Test.Configuration;
 public sealed class EffectiveSettingsFixture
 {
     private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? identity = null) =>
-        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()));
+        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()), Options.Of(new MnemarrOptions()), Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()));
 
     [Fact]
     public void should_never_show_a_secret_nor_the_path_of_its_file_nor_the_name_of_the_operator()

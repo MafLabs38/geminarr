@@ -14,7 +14,8 @@
 | Vertical 1b: identity of the environment (name, picture, version in the menu; F-SYS-04) | **Built**, in review |
 | Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
-| Verticals 2 to 6 | Not started |
+| Vertical 2: the link to Mnemarr | **Built**, in review |
+| Verticals 3 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*
 
@@ -43,12 +44,13 @@
 
 *Output: the answer to Q-06, and a synthetic fixture that has the same shape.*
 
-## Vertical 2 — The link to Mnemarr
+## Vertical 2 — The link to Mnemarr *(built)*
 
 *Demo: pair Geminarr with a Mnemarr (or give it a one-time code); it appears online on Mnemarr's Machines page; a **demonstration reader** (a setting for a sandbox only) makes a fake conversation grow, its turns arrive in Mnemarr one batch after the other and are found by meaning; stop Geminarr and Mnemarr shows it silent; make the demonstration reader say that its session ended: Mnemarr shows the sentence and the link, and the mail goes to a catcher.*
 
 - F-LNK-01..04, F-RDR-01 (the ports, the pipeline, the outbox, the fake reader), the database and its numbered schema steps, the heartbeat with `attention`. Against Mnemarr 0.4.0 or later (the contract of [SPEC §5](SPEC.md#5-the-contract-with-mnemarr) was checked against a real 0.6.0).
-- Not now: the browser, the real assistant.
+- Built with the demonstration reader (a sandbox setting, `GEMINARR__READER__KIND=Demo`) and proved on a real Mnemarr (pairing, 3 000 lines, found by search). [ADR 0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md). **"Run now" and the list of passes are here** (they were planned for vertical 4: the demonstration needs them); the full *Runs* page is still vertical 4.
+- Not now: the browser, the real assistant, masking (nothing real is read yet).
 
 ## Vertical 3 — The session and the live view
 

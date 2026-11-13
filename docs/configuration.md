@@ -17,6 +17,18 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | `GEMINARR__IDENTITY__NAME` | the product's name (`Geminarr`) | The name of this environment, shown at the bottom of the menu (one line, at most 40 characters). |
 | `GEMINARR__IDENTITY__LOGOFILE` | none (the product's two rings) | The path of an image (png, webp or svg of at most 1 MiB, checked by its content) mounted into the container: the picture of the menu. A file that is not usable is not used, and the Settings page says so without its path. |
 | `GEMINARR__IDENTITY__COLORS__NAME` / `…COLORS__VERSION` | `accent` | The color of the name and of the version: `#rgb`, `#rrggbb` or a theme token (`accent`, `accentDeep`, `secondary`, `ink`, `inkSoft`, `inkMuted`). |
+| `GEMINARR__MNEMARR__URL` | none | The Mnemarr to send to (https; a loopback address is also accepted). When it is not set, the operator gives the address on the page *Mnemarr* and it is kept in the database. When it is set, the page does not change it. |
+| `GEMINARR__MNEMARR__MACHINE` | **`gemini`** | The name of this machine in Mnemarr: 1 to 40 lower-case letters, digits or hyphens. A pairing lets the person who approves it name the machine, and that name wins. |
+| `GEMINARR__MNEMARR__KEYFILE` | `<data folder>/mnemarr/key` | Where the key of the machine is kept: a file only the container's user can read. A key that was given as a file (mounted from a sealed secret) is used as it is. **The key is never in the database, a log or an answer of the API.** |
+| `GEMINARR__MNEMARR__ENROLMENTCODEFILE` | none | A file with a one-time code from Mnemarr (a deployment as code): exchanged for the key at start, when there is none. |
+| `GEMINARR__MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only: talk to Mnemarr over plain http to a host that is not the loopback. |
+| `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so), or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
+| `GEMINARR__READER__POLLMINUTES` | **`20`** | Minutes between two readings (a random 20 % either way is added; doubled for each pass that failed in a row, up to `MAXBACKOFFMINUTES`). |
+| `GEMINARR__READER__MAXLISTED`, `…MAXOPENPERPASS` | **`40`**, **`5`** | How many conversations of the list are looked at, and how many are opened in a pass. |
+| `GEMINARR__READER__PASSTIMEOUTMINUTES`, `…MAXBACKOFFMINUTES` | **`5`**, **`360`** | Reading never lasts longer than the first; a failing reader is read again after at most the second. Whatever the poll interval, the machine says it is alive at least every 10 minutes. |
+| `GEMINARR__READER__LOGINFAILURES` | **`3`** | Passes in a row that find nobody signed in before the state is `needs-login`. |
+| `GEMINARR__READER__DEMOGROWSECONDS` | **`60`** | The demonstration reader only: seconds between two new turns. |
+| `GEMINARR__RETENTION__RUNSDAYS` | **`90`** | How many days the runs are kept. |
 | `Logging__LogLevel__Default` | **`Information`** | Standard ASP.NET logging. The logs carry ids, counts, durations and reason codes, **never** the text of a conversation, a password or a cookie. |
 
 The `GEMINARR__*` names are the supported contract (they are read after `appsettings.json`, so they win over it); the command line is not a channel for settings, and a secret, or the path of one, never goes there (arguments are visible to every process of the host).
@@ -27,10 +39,8 @@ The `GEMINARR__*` names are the supported contract (they are read after `appsett
 
 | Variable | Vertical | Purpose |
 |---|---|---|
-| `GEMINARR__MNEMARR__URL`, `…MACHINE`, `…KEYFILE`, `…ENROLMENTCODEFILE`, `…ALLOWINSECUREHTTP` | 2 | The Mnemarr to send to and how Geminarr joins it |
 | `GEMINARR__PROFILEFOLDER` | 3 | The browser profile: **a volume of its own**, mode `0700` |
-| `GEMINARR__READER__*` | 3, 4 | Intervals, limits, backoff, backfill |
+| `GEMINARR__READER__BACKFILLPERPASS`, `…RATELIMITPAUSEHOURS` | 4 | Backfill and the pause after a block |
 | `GEMINARR__IMPORT__*`, `GEMINARR__IMPORTFOLDER` | 5 | The Takeout import |
-| `GEMINARR__RETENTION__RUNSDAYS` | 4 | How long runs are kept |
 
 Every limit and interval comes from configuration with a documented default; none is a literal in the code, except the fixed security policy of the sign-in and an internal cache window, which are stated in [SPEC.md §10.2](SPEC.md#102-settings). A setting that cannot work stops the start with a sentence that names it.

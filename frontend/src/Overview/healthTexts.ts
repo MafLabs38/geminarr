@@ -10,13 +10,35 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['operator-not-configured', 'ReasonOperatorNotConfigured'],
   ['operator-password-unreadable', 'ReasonOperatorPasswordUnreadable'],
   ['operator-password-weak', 'ReasonOperatorPasswordWeak'],
+  ['database-unreadable', 'ReasonDatabaseUnreadable'],
+  ['database-step-unknown', 'ReasonDatabaseStepUnknown'],
+  ['outbox-growing', 'ReasonOutboxGrowing'],
+  ['not-connected', 'ReasonConnectionNotConnected'],
+  ['needs-login', 'ReasonNeedsLogin'],
+  ['reader-broken', 'ReasonReaderBroken'],
+  ['rate-limited', 'ReasonRateLimited'],
+  ['unreachable', 'ReasonUnreachable'],
+  ['mnemarr-not-linked', 'ReasonMnemarrNotLinked'],
+  ['mnemarr-insecure-address', 'ReasonMnemarrInsecureAddress'],
+  ['mnemarr-refused', 'ReasonMnemarrRefused'],
+  ['mnemarr-unreachable', 'ReasonMnemarrUnreachable'],
+  ['mnemarr-rejected', 'ReasonMnemarrRejected'],
 ]);
 
 /** The name of each check, as the server calls it. */
 const checkNames: Readonly<Record<string, TranslationKey>> = {
   'data-folder': 'CheckDataFolder',
+  database: 'CheckDatabase',
   operator: 'CheckOperator',
+  connection: 'CheckConnection',
+  mnemarr: 'CheckMnemarr',
+  outbox: 'CheckOutbox',
 };
+
+/** The sentence of a reason code (of a check, or of what the destination or the connection says), or nothing for a code this version does not know. */
+export function reasonKeyOf(code: string | null): TranslationKey | undefined {
+  return code ? reasonTexts.get(code) : undefined;
+}
 
 export function reasonKey(check: HealthCheck): TranslationKey | undefined {
   return check.reason ? reasonTexts.get(check.reason) : undefined;
