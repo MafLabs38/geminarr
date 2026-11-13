@@ -126,10 +126,11 @@ function Unlink() {
   return (
     <div className={styles.block}>
       <p>{translate('MnemarrUnlinkConfirm')}</p>
+      {unlink.error && <Alert>{unlink.error.message}</Alert>}
       <Button
         variant="danger"
         disabled={unlink.isPending}
-        onClick={() => unlink.mutate(undefined, { onSettled: () => setSure(false) })}
+        onClick={() => unlink.mutate(undefined, { onSuccess: () => setSure(false) })}
       >
         {translate('MnemarrUnlinkNow')}
       </Button>
