@@ -44,6 +44,20 @@ public sealed class ConversationLinesFixture
     }
 
     [Fact]
+    public void should_cut_a_turn_so_that_a_line_never_reaches_the_limit_of_mnemarr_and_not_in_the_middle_of_a_pair()
+    {
+        var text = new string('é', ConversationLines.MaxTurnCharacters - 1) + "😀" + new string('x', 5_000);
+
+        var line = ConversationLines.TurnLine(new Turn("user", null, text));
+
+        System.Text.Encoding.UTF8.GetByteCount(line).Should().BeLessThan(1_500_000);
+        using var document = JsonDocument.Parse(line);
+        var cut = document.RootElement.GetProperty("text").GetString()!;
+        cut.Length.Should().Be(ConversationLines.MaxTurnCharacters - 1, "the pair of characters that would be split is left out");
+        cut.Should().NotContain("\uFFFD");
+    }
+
+    [Fact]
     public void should_write_an_empty_title_as_it_is()
     {
         using var document = JsonDocument.Parse(ConversationLines.Meta("c1", null, "web"));

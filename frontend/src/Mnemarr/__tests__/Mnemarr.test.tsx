@@ -208,6 +208,22 @@ describe('Mnemarr', () => {
     await waitFor(() => expect(calls.some((call) => call.key === 'DELETE /mnemarr')).toBe(true));
   });
 
+  it('says why it could not unlink, and stays where it is', async () => {
+    serveApi({
+      'GET /mnemarr': () => linked,
+      'DELETE /mnemarr': () =>
+        Response.json({ title: 'The key is a file of the deployment: take it out of the manifest.' }, { status: 409 }),
+    });
+    renderAt(<Mnemarr />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Unlink' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, unlink' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('take it out of the manifest');
+    expect(screen.getByRole('button', { name: 'Yes, unlink' })).toBeEnabled();
+  });
+
   it('does not offer to change an address that the deployment gives', async () => {
     serveApi({
       'GET /mnemarr': () => ({ ...unlinked, url: 'https://mnemarr.homelab.example', addressFromSettings: true }),

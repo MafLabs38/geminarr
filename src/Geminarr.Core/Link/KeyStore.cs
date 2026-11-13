@@ -65,7 +65,14 @@ public sealed class KeyStore : IKeyStore
         }
 
         // Written to a file of its own first and moved over the old one: a crash never leaves half a key, and the key is never readable by another user, not even for a moment.
-        var temporary = Path + ".new";
+        // The address that binds it is written the same way (it decides which Mnemarr may be given the key).
+        WriteOwnerOnly(Path + ".address", address);
+        WriteOwnerOnly(Path, key);
+    }
+
+    private static void WriteOwnerOnly(string path, string text)
+    {
+        var temporary = path + ".new";
         // A file that is already there keeps its mode, and a link would be followed: it is removed first (a link itself, not what it points to).
         File.Delete(temporary);
         var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
@@ -76,11 +83,10 @@ public sealed class KeyStore : IKeyStore
 
         using (var stream = new FileStream(temporary, options))
         {
-            stream.Write(System.Text.Encoding.UTF8.GetBytes(key));
+            stream.Write(System.Text.Encoding.UTF8.GetBytes(text));
         }
 
-        File.Move(temporary, Path, overwrite: true);
-        File.WriteAllText(Path + ".address", address, System.Text.Encoding.UTF8);
+        File.Move(temporary, path, overwrite: true);
     }
 
     private static void CreateFolder(string folder)

@@ -36,8 +36,26 @@ public static class ConversationLines
     public static string Meta(string id, string? title, string source) =>
         JsonSerializer.Serialize(new { v = 1, meta = new { title = Cut(title), source, id } }, Json);
 
+    /// <summary>
+    /// The longest text of a turn that is sent: Mnemarr keeps 20 000 characters and marks the cut, and a line over 1.5 MB is refused whole (SPEC §5.2), which would hold back the rest of its conversation
+    /// for ever. A turn is cut well above what Mnemarr keeps, so that Mnemarr still marks the cut itself.
+    /// </summary>
+    public const int MaxTurnCharacters = 100_000;
+
     public static string TurnLine(Turn turn) =>
-        JsonSerializer.Serialize(new { v = 1, role = turn.Role, at = turn.At?.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture), text = turn.Text }, Json);
+        JsonSerializer.Serialize(new { v = 1, role = turn.Role, at = turn.At?.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture), text = CutTurn(turn.Text) }, Json);
+
+    private static string CutTurn(string text)
+    {
+        if (text.Length <= MaxTurnCharacters)
+        {
+            return text;
+        }
+
+        // Not in the middle of a pair of characters that make one.
+        var end = char.IsHighSurrogate(text[MaxTurnCharacters - 1]) ? MaxTurnCharacters - 1 : MaxTurnCharacters;
+        return text[..end];
+    }
 
     /// <summary>A short hash of a title, to see that it changed without keeping it (a title is made of what the person asked).</summary>
     public static string? TitleHashOf(string? title) => string.IsNullOrWhiteSpace(title) ? null : Hash(title.Trim())[..16];
