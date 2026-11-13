@@ -66,6 +66,8 @@ public sealed class KeyStore : IKeyStore
 
         // Written to a file of its own first and moved over the old one: a crash never leaves half a key, and the key is never readable by another user, not even for a moment.
         var temporary = Path + ".new";
+        // A file that is already there keeps its mode, and a link would be followed: it is removed first (a link itself, not what it points to).
+        File.Delete(temporary);
         var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
         if (!OperatingSystem.IsWindows())
         {

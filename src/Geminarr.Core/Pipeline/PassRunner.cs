@@ -204,11 +204,16 @@ public sealed class PassRunner
         var waiting = _outbox.ConversationsWaiting();
         return headers.Where(header =>
         {
+            // Nothing is opened until Mnemarr has been asked what it holds (and again after an unlink): a conversation goes on from where Mnemarr stands, and no text waits with nowhere to go.
+            if (_positions is null)
+            {
+                return false;
+            }
+
             var known = _conversations.Get(header.Id);
-            // A conversation that was never seen here waits until Mnemarr has been asked what it holds: it goes on from there, not from line 0.
             if (known is null)
             {
-                return _positions is not null;
+                return true;
             }
 
             // The most recent conversation is looked at every pass: new turns do not move it up a list that it already heads.

@@ -583,19 +583,34 @@ public sealed class PassRunnerFixture : IDisposable
         _outbox.PendingLines().Should().BeGreaterThanOrEqualTo(waiting, "a link that changes without leaving no destination does not lose what waits");
     }
 
-    [Theory]
-    [InlineData(long.MaxValue, int.MaxValue - 0)]
-    [InlineData(-5L, 0)]
-    public async Task should_clamp_a_count_of_lines_that_does_not_fit(long lines, int expectedMax)
+    [Fact]
+    public async Task should_clamp_a_count_of_lines_that_does_not_fit_and_send_nothing_again()
     {
         _reader.Say("c1", "T", "a", "b");
-        _sink.Held[Session("c1")] = lines;
+        _sink.Held[Session("c1")] = long.MaxValue;
 
-        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+        await Subject().RunAsync(TestContext.Current.CancellationToken);
 
-        result.Should().NotBeNull();
-        _conversations.Get("c1")!.TurnsSent.Should().BeInRange(0, expectedMax);
-        _outbox.Waiting(10).Should().OnlyContain(batch => batch.FromPosition >= 0);
+        _conversations.Get("c1")!.TurnsSent.Should().Be(2, "Mnemarr holds more than the conversation has: the position is the conversation's, not a wrapped number");
+        _sink.Sent.Should().BeEmpty();
+        _outbox.PendingLines().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task should_read_nothing_after_an_unlink_even_for_a_conversation_that_is_known()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _reader.Say("c1", "T", "a", "b");
+        _link.Unlink();
+        _sink.FailPositions = new SinkException(SinkFailure.NotLinked, "No Mnemarr is linked.");
+        _reader.Opened.Clear();
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _reader.Opened.Should().BeEmpty("the machine is not linked: no text waits for a Mnemarr that is not there");
+        _outbox.PendingLines().Should().Be(0);
     }
 
     [Fact]
