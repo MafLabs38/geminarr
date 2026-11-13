@@ -58,11 +58,7 @@ public sealed class PassRunner
 
         try
         {
-            var options = _settings.Reading;
-            // The time limit follows the clock of the application, so that a test moves it.
-            using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(options.PassTimeoutMinutes), _clock);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
-            return await RunOnceAsync(timeout.Token, reading);
+            return await RunOnceAsync(cancellationToken, reading);
         }
         finally
         {
@@ -79,22 +75,13 @@ public sealed class PassRunner
         try
         {
             await ReconcileAsync(state, cancellationToken);
-            if (reading)
-            {
-                await ReadAsync(state, cancellationToken);
-            }
-            else
-            {
-                // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer must not make the machine look gone.
-                state.Fail(RunOutcomes.Skipped, "backoff");
-            }
-
+            await ReadWithinItsTimeAsync(state, reading, cancellationToken);
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            // The pass ran out of time, or the application is stopping: what was queued stays queued, and the run says so.
+            // The application is stopping: what was queued stays queued, and the run says so.
             state.Fail(RunOutcomes.Partial, "pass-timeout");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -115,6 +102,31 @@ public sealed class PassRunner
         _runs.Prune(_clock.GetUtcNow() - TimeSpan.FromDays(_settings.RunsDays));
         _logger.LogInformation("A pass ended: {Outcome}; listed {Listed}, opened {Opened}, sent {Turns} turns.", result.Outcome, result.Listed, result.Opened, result.TurnsSent);
         return result;
+    }
+
+    /// <summary>
+    /// Reading has a time of its own (the setting of the pass): a reader that hangs ends the reading, and what waits is still sent and Mnemarr still hears from the machine. The time follows the
+    /// clock of the application, so that a test moves it.
+    /// </summary>
+    private async Task ReadWithinItsTimeAsync(PassState state, bool reading, CancellationToken cancellationToken)
+    {
+        if (!reading)
+        {
+            // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer must not make the machine look gone.
+            state.Fail(RunOutcomes.Skipped, "backoff");
+            return;
+        }
+
+        using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(_settings.Reading.PassTimeoutMinutes), _clock);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
+        try
+        {
+            await ReadAsync(state, linked.Token);
+        }
+        catch (OperationCanceledException) when (limit.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            state.Fail(RunOutcomes.Partial, "pass-timeout");
+        }
     }
 
     /// <summary>Steps 1 to 4: may we read, is the session good, what is new.</summary>

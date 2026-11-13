@@ -117,9 +117,10 @@ public sealed class PassScheduler : BackgroundService
         {
             _logger.LogWarning(ex, "The enrolment code was not accepted by Mnemarr ({Failure}).", ex.Failure);
         }
-        catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "The enrolment could not be kept: the database cannot be reached.");
+            // The key could not be written, the database cannot be reached: it is said, and the application goes on without the link (the page says what is wrong).
+            _logger.LogWarning(ex, "The enrolment could not be completed.");
         }
     }
 

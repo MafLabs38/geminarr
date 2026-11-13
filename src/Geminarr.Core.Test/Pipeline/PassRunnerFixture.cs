@@ -400,6 +400,24 @@ public sealed class PassRunnerFixture : IDisposable
         result!.Outcome.Should().Be(RunOutcomes.Partial);
         result.Reason.Should().Be("pass-timeout");
         _runs.Recent(1).Single().Outcome.Should().Be(RunOutcomes.Partial);
+        _sink.Heartbeats.Should().ContainSingle("a reader that hangs ends the reading, not the heartbeat: Mnemarr still hears from the machine");
+    }
+
+    [Fact]
+    public async Task should_keep_how_a_rejected_batch_went_when_its_conversation_is_queued_again()
+    {
+        _reader.Say("bad", "Bad", "a");
+        _sink.FailSession = (Session("bad"), new SinkException(SinkFailure.Rejected, "Mnemarr said no (400)."));
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var first = _outbox.Waiting(10).Single();
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        var second = _outbox.Waiting(10).Single();
+        second.Id.Should().Be(first.Id, "the same batch, not a new one made of the same lines");
+        second.Attempts.Should().Be(2);
+        second.CreatedAt.Should().Be(first.CreatedAt);
     }
 
     [Fact]
