@@ -205,6 +205,7 @@ public sealed class PassRunner
     private async Task<T> FromReader<T>(Func<Task<T>> call)
     {
         string failure;
+        var reason = ConnectionReasons.ReaderBroken;
         try
         {
             return await call();
@@ -212,11 +213,16 @@ public sealed class PassRunner
         catch (Exception ex) when (ex is not (OperationCanceledException or ReaderException or OutOfMemoryException))
         {
             failure = ex.GetType().Name;
+            // The network, a file and a time limit pass; what is left (a page that is not what was expected) is the reader that no longer knows its page.
+            if (ex is IOException or HttpRequestException or TimeoutException)
+            {
+                reason = ConnectionReasons.Unreachable;
+            }
         }
 
         // The kind of error only: the message of an exception of a reader that reads something real may hold what was read.
         _logger.LogWarning("A reader failed with an error that is not its own ({Type}).", failure);
-        throw new ReaderException(ConnectionReasons.ReaderBroken, "The reader failed.");
+        throw new ReaderException(reason, "The reader failed.");
     }
 
     /// <summary>A conversation is a candidate when it is new, moved up the list, was renamed, or has turns that nothing is waiting to send (SPEC §6.2); best rank first.</summary>
@@ -308,7 +314,7 @@ public sealed class PassRunner
         catch (SinkException ex)
         {
             state.Destination = ex.Failure;
-            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+            state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
         }
     }
 
@@ -337,7 +343,7 @@ public sealed class PassRunner
         catch (SinkException ex)
         {
             state.Destination = ex.Failure;
-            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+            state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
         }
     }
 
@@ -394,7 +400,7 @@ public sealed class PassRunner
             _outbox.RecordFailure(batch.Id, ex.Message);
             skipped.Add(batch.ConversationId);
             state.Destination = ex.Failure;
-            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+            state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
         }
         catch (SinkException ex)
         {
@@ -429,12 +435,12 @@ public sealed class PassRunner
 
         try
         {
-            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), ErrorOf(connection), AttentionOf(connection)), cancellationToken);
+            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl)), cancellationToken);
         }
         catch (SinkException ex)
         {
             state.Destination = ex.Failure;
-            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+            state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
         }
 
         RecordTalk(state);
@@ -444,90 +450,7 @@ public sealed class PassRunner
     {
         if (state.Destination != SinkFailure.NotLinked && state.Destination != SinkFailure.InsecureAddress)
         {
-            _link.RecordTalk(state.Destination is { } failure ? ProblemOf(failure) : null);
+            _link.RecordTalk(state.Destination is { } failure ? HeartbeatContent.ProblemOf(failure) : null);
         }
-    }
-
-    private static string ProblemOf(SinkFailure failure) => failure switch
-    {
-        SinkFailure.NotLinked => DestinationProblems.NotLinked,
-        SinkFailure.InsecureAddress => DestinationProblems.InsecureAddress,
-        SinkFailure.Refused => DestinationProblems.Refused,
-        SinkFailure.Rejected => DestinationProblems.Rejected,
-        _ => DestinationProblems.Unreachable,
-    };
-
-    /// <summary>A short sentence with no path and no content: what Mnemarr shows next to the machine.</summary>
-    private static string? ErrorOf(ConnectionRecord connection) => connection.State switch
-    {
-        ConnectionState.Connected => null,
-        ConnectionState.NotConnected => "Not connected.",
-        ConnectionState.NeedsLogin => "The session has expired.",
-        _ => connection.LastReason switch
-        {
-            ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
-            ConnectionReasons.RateLimited => "The assistant asked to slow down.",
-            ConnectionReasons.Unreachable => "The assistant could not be reached.",
-            _ => "The last pass failed.",
-        },
-    };
-
-    /// <summary>What a person is asked for: only the two codes Mnemarr knows. The address is where to answer, given only when Mnemarr would keep it (https, or loopback).</summary>
-    private Attention? AttentionOf(ConnectionRecord connection)
-    {
-        string? code = null;
-        if (connection.State == ConnectionState.NeedsLogin)
-        {
-            code = ConnectionReasons.NeedsLogin;
-        }
-        else if (connection.LastReason == ConnectionReasons.ReaderBroken)
-        {
-            code = ConnectionReasons.ReaderBroken;
-        }
-
-        if (code is null)
-        {
-            return null;
-        }
-
-        return new Attention(code, MnemarrAddress.AttentionLink(_settings.PublicUrl));
-    }
-
-    private sealed class PassState
-    {
-        public string Outcome { get; private set; } = RunOutcomes.Ok;
-
-        public string? Reason { get; private set; }
-
-        public int Listed { get; set; }
-
-        public int Opened { get; set; }
-
-        public int TurnsSent { get; set; }
-
-        public SinkFailure? Destination { get; set; }
-
-        /// <summary>Says something went wrong; the worst outcome of the pass is the one that counts, with its reason.</summary>
-        public void Fail(string outcome, string reason)
-        {
-            // The reason is the one of the worst outcome: a pass that was skipped and then failed to send says why it failed.
-            if (Rank(outcome) > Rank(Outcome))
-            {
-                Outcome = outcome;
-                Reason = reason;
-            }
-            else
-            {
-                Reason ??= reason;
-            }
-        }
-
-        private static int Rank(string outcome) => outcome switch
-        {
-            RunOutcomes.Failed => 3,
-            RunOutcomes.Partial => 2,
-            RunOutcomes.Skipped => 1,
-            _ => 0,
-        };
     }
 }

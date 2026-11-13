@@ -613,15 +613,19 @@ public sealed class PassRunnerFixture : IDisposable
         _outbox.PendingLines().Should().Be(0);
     }
 
-    [Fact]
-    public async Task should_take_any_error_of_a_reader_for_a_reader_that_fails_so_that_reading_backs_off()
+    [Theory]
+    [InlineData(typeof(IOException), ConnectionReasons.Unreachable)]
+    [InlineData(typeof(HttpRequestException), ConnectionReasons.Unreachable)]
+    [InlineData(typeof(InvalidOperationException), ConnectionReasons.ReaderBroken)]
+    [InlineData(typeof(KeyNotFoundException), ConnectionReasons.ReaderBroken)]
+    public async Task should_take_any_error_of_a_reader_for_a_reader_that_fails_so_that_reading_backs_off(Type error, string reason)
     {
         _reader.Say("c1", "T", "a");
-        _reader.FailWith = new IOException("A file of the reader.");
+        _reader.FailWith = (Exception)Activator.CreateInstance(error, "An error of the reader.")!;
 
         var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
 
-        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Failed, ConnectionReasons.ReaderBroken));
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Failed, reason));
         _connection.Current().State.Should().Be(ConnectionState.Degraded);
         _connection.Current().ConsecutiveFailures.Should().Be(1, "the backoff counts it");
     }
