@@ -2,7 +2,7 @@
 
 > Change requests addressed to the **Mnemarr** repository, written here as the single source so that both repositories are built against the same text. Each one is made in Mnemarr, with its own chain (an ADR and a D-row there, tests, the four review agents). The contract is [SPEC.md §5](SPEC.md#5-the-contract-with-mnemarr).
 >
-> **Not started.** To be done by a session opened in the Mnemarr workspace, from a file of instructions (see the end of this document), so that the conversation history belongs to that repository.
+> **Delivered** in Mnemarr 0.4.0 (its ADR 0041 and 0042; production runs 0.6.0) and **checked by the agent against a real 0.6.0** on 2026-11-13: enrolment, a `chat-turns` conversation (title from the `meta` line, a secret masked, a bad line skipped but counted, a resend that changes nothing, an append by position), the attention signal (the machine `failing` with Mnemarr's sentence and the link, cleared by the next heartbeat), consolidation off by default, and a search by meaning that found the conversation without a shared word. This document is kept as the record of the request; **the contract as it is now is [SPEC §5](SPEC.md#5-the-contract-with-mnemarr)**. Where Mnemarr decided differently from what is asked below, it is said in SPEC §5 and in [ADR 0012](adr/0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) (the mail points to Mnemarr's page, not Geminarr's; the service is SMTP).
 
 | Id | Change | Why | Needed by |
 |---|---|---|---|

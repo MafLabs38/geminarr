@@ -27,9 +27,12 @@ async function failure(response: Response): Promise<ApiError> {
   }
 }
 
+/** The header every write carries: the server refuses a write without it (docs/SPEC.md F-ACC-04), and a browser cannot add it to a form or a link. */
+export const REQUEST_HEADER = 'X-Geminarr-Request';
+
 /**
  * The one place the API is addressed: a URL base is added here, and nowhere else. A success whose body is not JSON (a proxy's page) is an
- * error, not a value. Writes (and the header that the server will require on them, docs/SPEC.md F-ACC-04) come with the first vertical that writes.
+ * error, not a value.
  */
 export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { signal });
@@ -41,4 +44,21 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
   } catch {
     throw new ApiError(response.status, translate('NotJson'));
   }
+}
+
+/** A write to the API (POST, PUT or DELETE), with a JSON body when there is one. A 204 answers with nothing. */
+export async function apiSend<T = void>(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { [REQUEST_HEADER]: '1' };
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw await failure(response);
+  }
+  return (response.status === 204 ? undefined : await response.json()) as T;
 }

@@ -1,0 +1,42 @@
+using System.Net.Http.Json;
+using Geminarr.Api.V1.Health;
+using Geminarr.Api.V1.Settings;
+
+namespace Geminarr.Integration.Test;
+
+[Collection("Host")]
+public sealed class HealthAndSettingsApiFixture
+{
+    private readonly GeminarrFactory _factory;
+
+    public HealthAndSettingsApiFixture(GeminarrFactory factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task should_list_every_check_with_its_state_and_nothing_about_the_host()
+    {
+        using var client = await _factory.SignedInClientAsync();
+
+        var health = await client.GetFromJsonAsync<HealthResource>("/api/v1/health", TestContext.Current.CancellationToken);
+
+        health!.Status.Should().Be("Healthy");
+        health.Checks.Select(check => check.Name).Should().BeEquivalentTo("data-folder", "operator");
+        health.Checks.Should().OnlyContain(check => check.Status == "Healthy" && check.Reason == null);
+        var body = await client.GetStringAsync("/api/v1/health", TestContext.Current.CancellationToken);
+        body.Should().NotContain(_factory.DataFolder);
+    }
+
+    [Fact]
+    public async Task should_show_the_settings_with_the_secrets_hidden()
+    {
+        using var client = await _factory.SignedInClientAsync();
+
+        var settings = await client.GetFromJsonAsync<SettingsResource>("/api/v1/settings", TestContext.Current.CancellationToken);
+
+        settings!.Settings.Should().Contain(setting => setting.Name == "GEMINARR__DATAFOLDER" && setting.Value == _factory.DataFolder);
+        var body = await client.GetStringAsync("/api/v1/settings", TestContext.Current.CancellationToken);
+        body.Should().NotContain(GeminarrFactoryBase.OperatorPassword).And.NotContain(GeminarrFactoryBase.OperatorName).And.NotContain("geminarr-password-");
+    }
+}

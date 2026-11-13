@@ -8,6 +8,7 @@ import { kinds } from 'Helpers/Props/kinds';
 import { useSystemStatus } from 'System/Status/useSystemStatus';
 import translate from 'Utilities/String/translate';
 
+import HealthCard from './HealthCard';
 import styles from './Overview.module.css';
 
 /**
@@ -49,6 +50,7 @@ export default function Overview() {
             </div>
           </div>
         </Card>
+        <HealthCard />
       </PageContentBody>
     </PageContent>
   );

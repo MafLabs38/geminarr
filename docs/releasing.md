@@ -64,7 +64,7 @@ image: ghcr.io/<owner>/geminarr:0.1.0
 
 **A tool that follows the registry.** For example [Flux](https://fluxcd.io) image automation, which records the newest version in your own infrastructure repository (a deployment is then a commit there, and a rollback a `git revert`). Below 1.0 a breaking change is a minor, and Geminarr keeps a database and a browser profile: stay on one minor and move to the next deliberately. The shape of such a folder is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## The browser (from vertical 2)
+## The browser (from vertical 3)
 
 The reader's browser is part of the image and architecture-specific. It is chosen with `TARGETARCH`, never by the architecture of the builder. The end-to-end test runs the amd64 image only: **a smoke test of the pushed arm64 image is a precondition of the vertical that adds the browser**, as it was for Mnemarr's vector library. A browser upgrade is an image version with a line in the [runbook](runbook.md).
 

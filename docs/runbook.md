@@ -9,7 +9,7 @@
 | `GET /health/ready` | The container can do its job (the data folder is writable). Used by the platform's probe. |
 | The overview of the page | The state of the connection, of the link to Mnemarr, and the last runs *(from the verticals that add them)* |
 | Mnemarr's machines page | Geminarr as an `always-on` machine: `online`, or `failing` with its sentence, or `silent` after 30 minutes without a heartbeat |
-| The mail from Mnemarr | "Geminarr needs you to sign in again" (vertical 5), with a link to the page |
+| The mail from Mnemarr | "Geminarr needs you to sign in again" (vertical 6), with a link to Mnemarr's Machines page, where the link to Geminarr's page is |
 
 ## Reasons and what to do
 
@@ -24,6 +24,9 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `unreachable` | The provider or the network is down | Wait: it backs off by itself |
 | `mnemarr-refused` | The key was revoked or the machine removed in Mnemarr | Pair again (page *Mnemarr*) |
 | `mnemarr-unreachable` | Mnemarr does not answer | Wait; the outbox keeps the turns. `outbox-growing` appears after an hour |
+| `operator-not-configured` | No name and password file: nobody can sign in, everything but the probes is closed | Set `GEMINARR__AUTH__ADMINUSER` and `…ADMINPASSWORDFILE` in the manifest and restart |
+| `operator-password-unreadable` | The password file is missing, empty or not readable by uid 1654 | Mount it, with the right permissions; it is read at each sign-in, no restart needed |
+| `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 | `profile-not-private` | The profile folder is readable by others | Fix the permissions (`0700`, the container's user) before anything else |
 
 ## Recover
@@ -37,3 +40,10 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 ## Spike hygiene (while a spike is going on)
 
 `.spike/` and `.profile/` are git-ignored and **hold a signed-in session and real conversations**: they live on disk (not in `/tmp`, which is memory on the build machine), are deleted when the spike's result is written down, and a spike's findings written in `docs/spikes/` contain the *shape* of the pages and never their content.
+
+## Signing in
+
+- **Locked out** (HTTP 429 after five wrong passwords, for fifteen minutes): wait, or restart the container (the lockout is in memory). If it happens without you having tried, someone is guessing the name: change it (`GEMINARR__AUTH__ADMINUSER`).
+- **Rotate the password**: replace the content of the file; the next sign-in uses it, and sessions that are open stay valid until their end (restart to end them all).
+- **A page that answers 400 "The host name is not allowed"**: add the name or the address you reach it by to `GEMINARR__ALLOWEDHOSTNAMES` (or set `GEMINARR__PUBLICURL`).
+- **Signed out all of a sudden**: the container restarted (sessions are in memory), or the 12 hours passed.

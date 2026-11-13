@@ -9,3 +9,15 @@ services:
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
       - /config:uid=1654,gid=1654
+    # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
+    environment:
+      GEMINARR__AUTH__ADMINUSER: e2e-operator
+      GEMINARR__AUTH__ADMINPASSWORDFILE: /run/admin-password
+      GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
+    configs:
+      - source: admin_password
+        target: /run/admin-password
+        mode: 0444
+configs:
+  admin_password:
+    content: e2e-admin-password

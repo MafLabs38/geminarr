@@ -13,7 +13,9 @@ public static class HealthExtensions
         // One instance: it keeps its last result, and AddCheck would otherwise build a new one for every probe.
         services.TryAddSingleton<DataFolderHealthCheck>();
         services.AddHealthChecks()
-            .AddCheck<DataFolderHealthCheck>("data-folder", tags: [ReadyTag]);
+            .AddCheck<DataFolderHealthCheck>("data-folder", tags: [ReadyTag])
+            // Not a readiness check: a container without an operator is alive and closed, and the platform must not restart it for that.
+            .AddCheck<OperatorHealthCheck>("operator");
         return services;
     }
 

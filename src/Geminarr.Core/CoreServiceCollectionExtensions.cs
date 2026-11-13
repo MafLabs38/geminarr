@@ -1,3 +1,4 @@
+using Geminarr.Core.Access;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.SystemInfo;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +17,14 @@ public static class CoreServiceCollectionExtensions
         services.AddOptions<GeminarrOptions>().Bind(configuration).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ISystemStatusService, SystemStatusService>();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+        services.AddOptions<AuthOptions>().Bind(configuration.GetSection("Auth")).ValidateOnStart();
+        services.AddSingleton<IOperatorCredentials, OperatorCredentials>();
+        services.AddSingleton<LoginThrottle>();
+        services.AddSingleton<SessionRegistry>();
+        services.AddSingleton<SignInService>();
+        services.AddSingleton<AllowedHostList>();
+        services.AddSingleton<EffectiveSettings>();
         return services;
     }
 }

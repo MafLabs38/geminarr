@@ -1,6 +1,6 @@
 # Geminarr — Functional and Technical Specification
 
-> **Status**: draft v0.3 (2026-11-11). The architecture and the security model are decided (D-01 to D-14, D-17, D-18); the foundation is built; **how Gemini is read is not known yet** and is the object of the first spike (§11, Q-01 to Q-06): the reader's design (§6) is written to survive either answer and will be frozen after it.
+> **Status**: draft v0.4 (2026-11-13). The architecture and the security model are decided (D-01 to D-20); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
 > **Related documents**: [VISION.md](VISION.md) (why) · [ROADMAP.md](ROADMAP.md) (the verticals) · [adr/](adr/README.md) (decision records) · [mnemarr-changes.md](mnemarr-changes.md) (what Mnemarr must gain)
 > **Audience**: the project owner, contributors.
 >
@@ -74,13 +74,15 @@ How it fits the constellation:
 | ✅ D-08 | **Read-only, on the assistant's own pages.** The browser visits only the assistant's origin (and the sign-in pages of its account provider during the live view); it never submits a prompt. | Limits what a bug or a compromise can do on the account, and the footprint on the provider. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-09 | **A dedicated Google account, never the main one**, sharing the maintainer's Google AI plan through the family group. A one-time import of the past may use the main account only by the ladder of D-10. | A Google session is valid across all of the account's services: a leak of this container must reach nothing but Gemini conversations. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-10 | **The past is imported by the least exposed way that is complete enough**: (1) Google Takeout, no session; (2) extraction from the maintainer's own browser, text only; (3) last resort, an ephemeral sign-in of the container to the main account under the conditions of §11.4. | Same reason. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
-| ✅ D-11 | **A session that stops working is a state, not a silence**: Geminarr reports `needs-login` to Mnemarr, which mails the maintainer a link to Geminarr's sign-in page. Geminarr holds no mail credential and the mail never contains a token. | One place sends mail (M-3); fewer secrets in the most sensitive container. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
+| ✅ D-11 | **A session that stops working is a state, not a silence**: Geminarr reports `needs-login` to Mnemarr in its heartbeat, and Mnemarr mails the maintainer (D-20). Geminarr holds no mail credential, and nothing it wrote is in the mail. | One place sends mail (M-3); fewer secrets in the most sensitive container. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
 | ✅ D-12 | **The same pipeline, review agents and process as Mnemarr, with stricter coverage thresholds** (85 % overall, zero smells) (verticals, one PR each, local gates, push once, triaged review). | The maintainer's rule: identical structures, processes and skills. | [0005](adr/0005-the-same-quality-chain-and-process-as-mnemarr.md) |
 | ✅ D-13 | **Releases by semantic-release from `main`, consumed by pulling** (image on GHCR; a GitOps tool in the cluster follows the versions). Nothing in the CI can reach a host. | Same as Mnemarr's ADR 0013. | [0006](adr/0006-releases-with-semantic-release-consumed-by-pulling.md) |
 | ✅ D-14 | **Everything is described as code**: the repository (Terraform, `github-template`), the image (this repo), the deployment (the private GitOps repository). The container is configurable by environment variables and files only. | The maintainer deploys Geminarr like Mnemarr, on the Kubernetes cluster, by GitOps. | [0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md) |
 | 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
 | 🟡 D-16 | **One browser, started per pass and closed after it** (resident only during a live view). | A resident Chromium costs memory for nothing between two passes that are 20 minutes apart. | *after the spike* |
 | ✅ D-17 | **Default port 8282** (Portarr has 8484, Mnemarr 8383). | No collision on a default install. | [0009](adr/0009-default-port.md) |
+| ✅ D-19 | **One operator, a session in memory.** Geminarr has a single operator (a name, and a password in a mounted file read at each sign-in, at least twelve characters), signed in by a cookie (`HttpOnly`, `SameSite=Strict`, `Secure` unless told otherwise, `__Host-` prefixed), whose session lives in memory with an absolute lifetime (12 hours by default): a restart signs everybody out, and signing out kills a copied cookie. Five wrong passwords lock a name for fifteen minutes, counted per name whether it exists or not. Every call but the probes needs the session; every write carries `X-Geminarr-Request`; a request for a `Host` that is not allowed is refused (the probes excepted). No accounts to manage, no database. | The container holds a signed-in session of an account: the page that reaches it must be closed by default, simple enough to audit, and leave nothing at rest to steal. | [0011](adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) |
+| ✅ D-20 | **The mail is Mnemarr's, and points to Mnemarr.** On an `attention` signal Mnemarr (0.4.0, its ADR 0041 and 0042) shows its own sentence and the satellite's link on its Machines page and sends **one mail** per episode (a reminder at most once a day, a few at most) from its own mailbox to its own recipient, by SMTP. The mail holds Mnemarr's sentence and the address of **Mnemarr's** Machines page, **never the link or any text the satellite wrote**: a leaked ingest key must not be able to make Mnemarr send a convincing "sign in here". The link of Geminarr's sign-in page is shown there, with its host visible. | The consequence of an ingest-only key being low-trust. This replaces the "link to Geminarr's page in the mail" of ADR 0003 §6. | [0012](adr/0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) |
 | ✅ D-18 | **Review findings are answered in a register** (`docs/review-decisions/`) that the four agents read; a blocker, critical, high or major finding that is not fixed is accepted by the maintainer in a comment, checked by the `review-decisions` job. | The agents always find something and forget between rounds; the maintainer keeps control of what is serious without chasing the rest. | [0010](adr/0010-review-findings-are-answered-in-a-register-the-agents-read.md) |
 
 ---
@@ -112,8 +114,8 @@ How it fits the constellation:
 | Project | Role | Rules |
 |---|---|---|
 | `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
-| `Geminarr.Browser` *(vertical 2)* | The Playwright adapter: the web reader, the live view, the profile | Behind the ports of Core; selectors and calls of the web product in one place (D-15). |
-| `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication and the header of writes arrive with vertical 1. |
+| `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: the web reader, the live view, the profile | Behind the ports of Core; selectors and calls of the web product in one place (D-15). |
+| `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
 | `frontend/` | React page: overview, connection, conversations, runs, settings | Server data only through the data hooks (DESIGN.md). |
 | Tests | `Geminarr.Core.Test` (unit), `Geminarr.Integration.Test` (the real host in memory), `tests/e2e` (Playwright against the image) | See [TESTING.md](TESTING.md). |
@@ -190,35 +192,38 @@ The key is **ingest-only** and **bound to the machine**; a 401/403 puts the dest
 
 | Field | Rule |
 |---|---|
-| `session` | `gemini-` + the assistant's conversation id, lower-cased, `[a-z0-9-]` only (anything else is replaced; a collision is resolved by suffixing a short hash). Stable for the life of the conversation. |
+| `session` | `<assistant>-<id>`: `gemini-` + the assistant's conversation id, lower-cased, `[a-z0-9-]` only (anything else is replaced; a collision is resolved by suffixing a short hash). Stable for the life of the conversation. `application` is the assistant's name (`gemini`). |
 | `from` | The position of the first line of `lines` in the conversation: line 0 is the `meta` line, turn *n* is line *n+1*. |
-| line 0 | Always a `meta` line: `title` (may be empty), `source` (`web`/`takeout`), `id` (the assistant's id). It is written once; a later rename of the conversation is **not** sent (the position model cannot update a line; Q-07). |
-| turn line | `role` (`user`/`assistant`), `at` (ISO-8601 UTC, or `null` when the product does not show one), `text` (plain text or Markdown as the assistant wrote it; never HTML). |
-| size | A line is at most 1.5 MB (a longer turn is cut and ends with `[…truncated]`), a batch at most 500 lines or 3 MB: Mnemarr's limits. |
+| line 0 | Always a `meta` line, `v` 1: `title` (may be empty), `source` (`web`/`takeout`), `id` (the assistant's id). It is **not a turn** (no heading in the note) but **it is a line**: it takes position 0, so that turn *n* is line *n + 1*. A non-empty `title` becomes the title of the note (Mnemarr masks it, makes it one line, cuts it at 200 characters; its source is `sender`, **no model is ever asked for another**; a person can still rewrite it). A later rename of the conversation is **not** sent (the position model cannot update a line; Q-07). |
+| turn line | `v` 1, `role` (`user`/`assistant`; any other is skipped by Mnemarr), `at` (ISO-8601 UTC, or `null` when the product does not show one), `text` (plain text or Markdown as the assistant wrote it; never HTML; an empty one is skipped). A line that is not JSON, not an object or of another `v` is **skipped, never a failure**, and **it still takes its position**. |
+| size | A line is at most 1.5 MB, a batch at most 500 lines or 3 MB, and **Mnemarr cuts a turn at 20 000 characters** (`… [cut]`): a pasted file or a very long answer is not what a memory is made of. Geminarr need not cut, but a turn longer than that will be shorter in the note. |
 | not sent | Attachments, images, audio and tool output: a turn that held only an attachment is sent with the text `[attachment]`, so that positions stay aligned with the product. |
 
 Mnemarr masks secrets again on its side; **Geminarr masks first** (the same rules as the collector's, `tests/masking/samples.json` shared in spirit) so that nothing it sends carries a private key, token or password assignment.
 
 ### 5.3 Positions, idempotence, rewrites
 
-- Before sending, Geminarr asks `GET /api/v1/ingest/positions` (at start and about hourly, like the collector) and **goes back to where Mnemarr is** when Mnemarr holds fewer lines than Geminarr believes it sent (a restored backup, a deleted machine).
+- Before sending, Geminarr asks `GET /api/v1/ingest/positions?machine=<its machine>` (the parameter is required; at start and about hourly, like the collector) and **goes back to where Mnemarr is** when Mnemarr holds fewer lines than Geminarr believes it sent (a restored backup, a deleted machine).
 - The response `{next, accepted}` moves `turns_sent`. Mnemarr skips an overlap and never fills a hole: Geminarr never sends a batch whose `from` is beyond `next`.
 - **A turn rewritten after it was sent** (an edit, a regenerated answer) is **not** sent again: it is the known limit of formats that are documents (conversation-formats.md). Geminarr detects it (the hash of a known turn differs), counts it in `rewritten_turns` and shows it in the page; it never reorders or renumbers.
 
-### 5.4 The heartbeat and the attention signal (M-3)
+### 5.4 The heartbeat and the attention signal (M-3, delivered: Mnemarr's ADR 0041 and 0042)
 
-At the end of every pass, even one that sent nothing: `POST /api/v1/ingest/heartbeat` with Mnemarr's existing `{version, pendingLines, error, paused}`, plus one optional field proposed here:
+At the end of every pass, even one that sent nothing: `POST /api/v1/ingest/heartbeat` with Mnemarr's existing `{version, pendingLines, error, paused}`, plus one optional field:
 
 ```json
 { "version": "0.3.0.123", "pendingLines": 0, "error": "The session has expired.", "paused": false,
   "attention": { "code": "needs-login", "url": "https://geminarr.homelab.example/connection" } }
 ```
 
-`attention.code` is one of `needs-login`, `reader-broken`; `url` is an address the maintainer can open (from `GEMINARR__PUBLICURL`). Mnemarr treats a heartbeat with `attention` as `failing`, shows the link on the machines page and, once per episode and then at most once a day (settings of Mnemarr), **sends a mail** to the address the maintainer configured in Mnemarr. The mail contains the machine's name, the sentence and the link, **never a token or a conversation**.
+- `attention.code` is from a **closed list in Mnemarr**: `needs-login`, `reader-broken`. A satellite never invents one: an unknown code is ignored and the rest of the heartbeat is kept.
+- `attention.url` is where the maintainer can answer (the sign-in page of Geminarr, from `GEMINARR__PUBLICURL`). Mnemarr keeps it **only if** it is an `https` address (or `http` to a loopback address, for a sandbox) with a host, no credentials, no space or control character, at most 512 characters; anything else is dropped. It is shown on the machines page as a link with its host visible.
+- A heartbeat **with** `attention` makes the machine `failing` (an alert, for an always-on machine) and Mnemarr shows **its own sentence** for the code, and the link. The **next heartbeat without it ends the episode**; the episode belongs to the machine, so going from one code to another is the same episode.
+- **The mail** (when Mnemarr's notifications are on): one mail when an episode begins, then a reminder at most once a day for a few days, nothing when it ends; stored, so that a restart does not send again. It is sent from Mnemarr's own mailbox to its own configured recipient, holds **Mnemarr's sentence and the address of Mnemarr's Machines page**, and **never the link or any text that Geminarr wrote** (D-20): the person opens Mnemarr, where they are signed in, and follows the link from there. Geminarr's `error` sentence is shown on the page, never in the mail.
 
 ### 5.5 What Mnemarr does with a Geminarr machine
 
-It is `always-on` (state `silent` after 30 minutes without a heartbeat), its conversations are filed `gemini/gemini/<day>-<session>.md` (the first folder of a note is the machine, so a search can include or exclude them with `topic`), they are indexed for search by meaning, and **not consolidated** (M-2). Reading them needs `conversations.read`, as for every conversation.
+It is `always-on` (state `silent` after 30 minutes without a heartbeat), its conversations are filed `gemini/gemini/<day>-<session>.md` (the first folder of a note is the machine, so a search can include or exclude them with `topic`), they are indexed for search by meaning (a search can also leave them out with `exclude_topic` over MCP), and **not consolidated**: the default of any format but Claude Code's is *not consolidated*, and the maintainer can set it per machine (the Manage button, `POST /api/v1/collectors/{machine}/consolidate`). Reading them needs `conversations.read`, as for every conversation.
 
 ---
 
@@ -233,7 +238,7 @@ IConversationReader                          IConversationSink
   Open(id)            → Turn[]                 Heartbeat(state)            → void
 ```
 
-`ConversationHeader` = `{ id, title?, rank, activityHint? }` (the list is ordered by last activity). `Turn` = `{ role, at?, text }`. Two implementations (D-15): the **web reader** (vertical 3) and the **Takeout importer** (vertical 4); a fake reader (in-memory conversations that grow) serves vertical 1's demo and the tests of the pipeline.
+`ConversationHeader` = `{ id, title?, rank, activityHint? }` (the list is ordered by last activity). `Turn` = `{ role, at?, text }`. Two implementations (D-15): the **web reader** (vertical 4) and the **Takeout importer** (vertical 5); a fake reader (in-memory conversations that grow) serves the demo of vertical 2 and the tests of the pipeline.
 
 ### 6.2 Deciding what to open 🧪
 
@@ -328,43 +333,43 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | Id | Feature | Pri. | Vertical |
 |---|---|---|---|
 | **F-SYS** | **System** | | |
-| F-SYS-01 | Version, runtime, uptime; liveness and readiness probes | M | 0 |
-| F-SYS-02 | Health with reason codes (§10.3), shown on the page | M | 1 |
-| F-SYS-03 | Effective settings (read-only, secrets hidden) | S | 1 |
+| F-SYS-01 | Version, runtime, uptime; liveness and readiness probes | M | 0 ✅ |
+| F-SYS-02 | Health with reason codes (§10.3), shown on the page | M | 1 ✅ |
+| F-SYS-03 | Effective settings (read-only, secrets hidden) | S | 1 ✅ |
 | **F-ACC** | **Operator access** | | |
-| F-ACC-01 | A first administrator from a name and a password file (as Mnemarr, ADR 0016); a session cookie; the header of writes | M | 1 |
-| F-ACC-02 | Behind the proxy's single sign-on **and** Geminarr's own login (nothing is reachable anonymously except the probes) | M | 1 |
-| F-ACC-03 | The API description (`/openapi`) behind the sign-in; `AllowedHosts` restricted to the loopback names and the host of `PUBLICURL` (a DNS-rebinding page must not reach the loopback address) | M | 1 |
-| F-ACC-04 | The server **enforces** the `X-Geminarr-Request` header on every write that is not a GET, HEAD or OPTIONS, with a test, before the first write endpoint ships | M | 1 |
+| F-ACC-01 | A first administrator from a name and a password file (as Mnemarr, ADR 0016); a session cookie; the header of writes | M | 1 ✅ |
+| F-ACC-02 | Behind the proxy's single sign-on **and** Geminarr's own login (nothing is reachable anonymously except the probes) | M | 1 ✅ |
+| F-ACC-03 | The API description (`/openapi`) behind the sign-in; `AllowedHostNames` restricted to the loopback names and the host of `PUBLICURL` (a DNS-rebinding page must not reach the loopback address) | M | 1 ✅ |
+| F-ACC-04 | The server **enforces** the `X-Geminarr-Request` header on every write that is not a GET, HEAD or OPTIONS, with a test, before the first write endpoint ships | M | 1 ✅ |
 | **F-LNK** | **The link to Mnemarr** | | |
-| F-LNK-01 | Pair with a Mnemarr by asking, or enrol with a code, or use a provided key file | M | 1 |
-| F-LNK-02 | Heartbeat at every pass; state and `attention` (§5.4) | M | 1 |
-| F-LNK-03 | Resume from Mnemarr's positions (§5.3); the outbox survives a restart | M | 1 |
-| F-LNK-04 | Show the destination, its state and its last error; unlink | S | 1 |
+| F-LNK-01 | Pair with a Mnemarr by asking, or enrol with a code, or use a provided key file | M | 2 |
+| F-LNK-02 | Heartbeat at every pass; state and `attention` (§5.4) | M | 2 |
+| F-LNK-03 | Resume from Mnemarr's positions (§5.3); the outbox survives a restart | M | 2 |
+| F-LNK-04 | Show the destination, its state and its last error; unlink | S | 2 |
 | **F-CON** | **The connection to the assistant** | | |
-| F-CON-01 | The connection state machine (§7.2) and its page | M | 2 |
-| F-CON-02 | The live view to sign in (§7.3); disconnect destroys the profile | M | 2 |
-| F-CON-03 | Pause and resume | S | 2 |
-| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 2 |
+| F-CON-01 | The connection state machine (§7.2) and its page | M | 3 |
+| F-CON-02 | The live view to sign in (§7.3); disconnect destroys the profile | M | 3 |
+| F-CON-03 | Pause and resume | S | 3 |
+| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 |
 | **F-RDR** | **The reader** | | |
-| F-RDR-01 | `IConversationReader`/`IConversationSink` and the pipeline with a fake reader and a fake sink | M | 1 |
-| F-RDR-02 | The web reader: session check, list, open, extract turns (§6) | M | 3 |
-| F-RDR-03 | Incremental passes: candidates, positions, outbox, batches | M | 3 |
-| F-RDR-04 | Backfill of the whole history at a slow pace (§6.3) | S | 3 |
-| F-RDR-05 | `reader-broken` and `rate-limited` handling, backoff (§6.4) | M | 3 |
-| F-RDR-06 | Masking of secrets before the outbox | M | 3 |
-| F-RDR-07 | "Run now" | S | 3 |
+| F-RDR-01 | `IConversationReader`/`IConversationSink` and the pipeline with a fake reader and a fake sink | M | 2 |
+| F-RDR-02 | The web reader: session check, list, open, extract turns (§6) | M | 4 |
+| F-RDR-03 | Incremental passes: candidates, positions, outbox, batches | M | 4 |
+| F-RDR-04 | Backfill of the whole history at a slow pace (§6.3) | S | 4 |
+| F-RDR-05 | `reader-broken` and `rate-limited` handling, backoff (§6.4) | M | 4 |
+| F-RDR-06 | Masking of secrets before the outbox | M | 4 |
+| F-RDR-07 | "Run now" | S | 4 |
 | **F-IMP** | **The Takeout import** | | |
-| F-IMP-01 | Upload or drop an archive; safe reading; mapping to conversations (§8) | M | 4 |
-| F-IMP-02 | Idempotent re-import; counts and errors on the page | M | 4 |
+| F-IMP-01 | Upload or drop an archive; safe reading; mapping to conversations (§8) | M | 5 |
+| F-IMP-02 | Idempotent re-import; counts and errors on the page | M | 5 |
 | **F-VIEW** | **What the operator sees** | | |
-| F-VIEW-01 | Overview: connection, destination, last runs | M | 1–3 |
-| F-VIEW-02 | Conversations: state, turns known/sent, rewritten turns (metadata only, never text) | S | 3 |
-| F-VIEW-03 | Runs: outcome, counts, reason | S | 3 |
+| F-VIEW-01 | Overview: connection, destination, last runs | M | 2–4 |
+| F-VIEW-02 | Conversations: state, turns known/sent, rewritten turns (metadata only, never text) | S | 4 |
+| F-VIEW-03 | Runs: outcome, counts, reason | S | 4 |
 | **F-OPS** | **Operating it** | | |
-| F-OPS-01 | Deployment as code: Compose and Kubernetes examples, GitOps folder shape | M | 0 |
-| F-OPS-02 | Runbook: signed-out, reader broken, Mnemarr refused, recover a lost profile | M | 5 |
-| F-OPS-03 | Production deployment on the cluster, by GitOps | M | 5 |
+| F-OPS-01 | Deployment as code: Compose and Kubernetes examples, GitOps folder shape | M | 0 ✅ |
+| F-OPS-02 | Runbook: signed-out, reader broken, Mnemarr refused, recover a lost profile | M | 6 |
+| F-OPS-03 | Production deployment on the cluster, by GitOps | M | 6 |
 
 ---
 
@@ -372,23 +377,23 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 
 ### 10.1 REST API (`/api/v1`)
 
-Every call but the probes needs the operator's session (from vertical 1; until then `system/status` answers anonymously, and says only a version, a runtime and an uptime); every write carries the `X-Geminarr-Request` header (a cross-site form cannot set it). Errors are `application/problem+json`; an unknown path under `/api` is a 404, never the HTML shell.
+Every call but the probes needs the operator's session (D-19: an unknown path is a 401 too, a 404 only once signed in); every write carries the `X-Geminarr-Request` header (a cross-site form cannot set it). Errors are `application/problem+json`; an unknown path under `/api` is a 404, never the HTML shell.
 
 | Resource | Verbs | Purpose | Vertical |
 |---|---|---|---|
-| `/system/status` | GET | Version, runtime, uptime | 0 |
-| `/health` | GET | The checks with their reason codes | 1 |
-| `/auth/login`, `/auth/logout`, `/auth/session` | POST/POST/GET | The operator's session | 1 |
-| `/mnemarr` | GET, PUT, DELETE | The destination: address, machine, state, last error | 1 |
-| `/mnemarr/pairing` | POST, GET | Start pairing (returns the approval address), poll it | 1 |
-| `/connection` | GET | State, since, last ok, reason | 2 |
-| `/connection/live-views` | POST, DELETE | Open (returns a single-use token and the path), close | 2 |
-| `/connection/pause`, `/connection/resume` | POST | Pause/resume | 2 |
-| `/connection/disconnect` | POST | Destroy the profile | 2 |
-| `/runs` | GET, POST | List runs; start one now | 3 |
-| `/conversations` | GET | List with state and counts (no text) | 3 |
-| `/imports` | POST, GET | Upload an archive; list/show imports | 4 |
-| `/settings` | GET | Effective settings | 1 |
+| `/system/status` | GET | Version, runtime, uptime | 0 ✅ |
+| `/health` | GET | The checks with their reason codes | 1 ✅ |
+| `/auth/login`, `/auth/logout`, `/auth/session` | POST/POST/GET | The operator's session (429 and `Retry-After` when a name is locked) | 1 ✅ |
+| `/mnemarr` | GET, PUT, DELETE | The destination: address, machine, state, last error | 2 |
+| `/mnemarr/pairing` | POST, GET | Start pairing (returns the approval address), poll it | 2 |
+| `/connection` | GET | State, since, last ok, reason | 3 |
+| `/connection/live-views` | POST, DELETE | Open (returns a single-use token and the path), close | 3 |
+| `/connection/pause`, `/connection/resume` | POST | Pause/resume | 3 |
+| `/connection/disconnect` | POST | Destroy the profile | 3 |
+| `/runs` | GET, POST | List runs; start one now | 4 |
+| `/conversations` | GET | List with state and counts (no text) | 4 |
+| `/imports` | POST, GET | Upload an archive; list/show imports | 5 |
+| `/settings` | GET | Effective settings (a secret is `set` or `not set`) | 1 ✅ |
 
 OpenAPI is served at `/openapi/v1.json`.
 
@@ -399,20 +404,23 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | Setting | Default | Purpose |
 |---|---|---|
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
-| `PROFILEFOLDER` *(2)* | **`/profile`** | The browser profile: a volume of its own |
-| `PUBLICURL` *(1)* | none | The address of Geminarr's page as the operator reaches it; goes into the `attention` link |
-| `AUTH__ADMINUSER`, `AUTH__ADMINPASSWORDFILE`, `AUTH__COOKIESECURITY` *(1)* | none, none, **`Always`** | The first administrator (as Mnemarr) |
-| `MNEMARR__URL` *(1)* | none | The Mnemarr to send to (HTTPS) |
-| `MNEMARR__MACHINE` *(1)* | **`gemini`** | The machine name |
-| `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` *(1)* | `<data>/mnemarr/key`, none | See §5.1 |
-| `MNEMARR__ALLOWINSECUREHTTP` *(1)* | **`false`** | A sandbox only |
-| `READER__POLLMINUTES` *(3)* | **20** | Interval between passes (±20 % jitter) |
-| `READER__MAXLISTED`, `READER__MAXOPENPERPASS` *(3)* | **40**, **5** | §6.2 |
-| `READER__BACKFILLPERPASS` *(3)* | **10** | §6.3 (0 turns backfill off) |
-| `READER__PASSTIMEOUTMINUTES`, `READER__MAXBACKOFFMINUTES`, `READER__RATELIMITPAUSEHOURS` *(3)* | **5**, **360**, **6** | §6.4 |
-| `READER__LOGINFAILURES` *(2)* | **3** | Consecutive "not signed in" before `needs-login` |
-| `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(4)* | **512**, none | §8 |
-| `RETENTION__RUNSDAYS` *(3)* | **90** | How long runs are kept |
+| `PROFILEFOLDER` *(3)* | **`/profile`** | The browser profile: a volume of its own |
+| `PUBLICURL` | none | The address of Geminarr's page as the operator reaches it (http or https, a host, no credentials); its host is allowed, and it is the address that goes in the `attention` signal |
+| `ALLOWEDHOSTNAMES` | **`localhost;127.0.0.1;[::1]`** | The names the page may be reached by (commas, semicolons or spaces; ports ignored; `*` for every name): any other `Host` is refused, the probes excepted. **Not** the `AllowedHosts` key of ASP.NET, which stays `*` |
+| `AUTH__ADMINUSER`, `AUTH__ADMINPASSWORDFILE` | none, none | The operator: a name that is not obvious, and a file with a password of twelve characters or more (read at each sign-in; set together or not at all; without them nobody can sign in) |
+| `AUTH__COOKIESECURITY` | **`Always`** | `Always`: the cookie is `Secure` and `__Host-` prefixed; `SameAsRequest`: a plain-HTTP sandbox only |
+| `AUTH__SESSIONHOURS` | **12** | How long a session lasts, used or not (1 to 720) |
+| `MNEMARR__URL` *(2)* | none | The Mnemarr to send to (HTTPS) |
+| `MNEMARR__MACHINE` *(2)* | **`gemini`** | The machine name |
+| `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` *(2)* | `<data>/mnemarr/key`, none | See §5.1 |
+| `MNEMARR__ALLOWINSECUREHTTP` *(2)* | **`false`** | A sandbox only |
+| `READER__POLLMINUTES` *(4)* | **20** | Interval between passes (±20 % jitter) |
+| `READER__MAXLISTED`, `READER__MAXOPENPERPASS` *(4)* | **40**, **5** | §6.2 |
+| `READER__BACKFILLPERPASS` *(4)* | **10** | §6.3 (0 turns backfill off) |
+| `READER__PASSTIMEOUTMINUTES`, `READER__MAXBACKOFFMINUTES`, `READER__RATELIMITPAUSEHOURS` *(4)* | **5**, **360**, **6** | §6.4 |
+| `READER__LOGINFAILURES` *(3)* | **3** | Consecutive "not signed in" before `needs-login` |
+| `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(5)* | **512**, none | §8 |
+| `RETENTION__RUNSDAYS` *(4)* | **90** | How long runs are kept |
 
 Every limit and interval above comes from configuration with that default; none is a literal in the code. The one exception is an internal cache window that no operator needs to tune: the 15 seconds during which the readiness probe reuses its result (the Kubernetes example's `periodSeconds: 15` follows it).
 
@@ -503,7 +511,7 @@ Reading a consumer product by automation is against the provider's terms of use.
 | Q-08 | Live view: screencast of the browser over CDP with relayed input (proposed), or a VNC-type view in the container? Lightest that works. | 🧪 S1 |
 | Q-09 | A conversation imported from Takeout and later seen by the web reader are two sessions (proposed) or merged by content? | ❓ |
 | Q-10 | What does the browser's sandbox need in a restricted pod (user namespaces, `--no-sandbox` with a seccomp profile)? | 🧪 S1 |
-| Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 3 |
+| Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 4 |
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |
 
@@ -532,3 +540,4 @@ Reading a consumer product by automation is against the provider's terms of use.
 | 2026-11-11 | v0.1: first draft after the discussion of the day (questions only). |
 | 2026-11-11 | v0.2: import ladder (D-10), main-account exception. |
 | 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-18, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |
+| 2026-11-13 | v0.4: Mnemarr's side delivered (0.4.0): the contract of §5 aligned with what it does (a title of the sender, 20 000-character turns, the attention rules, the mail that points to Mnemarr, the consolidate switch, `positions?machine=`); D-19 (one operator, a session in memory), D-20 (the mail is Mnemarr's); the verticals renumbered (access, link, session, reader, import, production); vertical 1 built. |

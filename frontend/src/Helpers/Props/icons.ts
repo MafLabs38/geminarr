@@ -8,6 +8,7 @@ import {
   MessagesSquare,
   Plug,
   Server,
+  Settings,
   TriangleAlert,
   Upload,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ export const icons = {
   IMPORT: Upload,
   MNEMARR: Link2,
   SYSTEM: Server,
+  SETTINGS: Settings,
   INFO: Info,
   SUCCESS: CircleCheck,
   DANGER: CircleX,

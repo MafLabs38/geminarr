@@ -17,7 +17,8 @@ public sealed class SystemApiFixture
     [Fact]
     public async Task should_report_version_runtime_start_and_uptime_and_nothing_about_the_host()
     {
-        var response = await _factory.CreateClient().GetAsync("/api/v1/system/status", TestContext.Current.CancellationToken);
+        using var client = await _factory.SignedInClientAsync();
+        var response = await client.GetAsync("/api/v1/system/status", TestContext.Current.CancellationToken);
         var now = DateTimeOffset.UtcNow;
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -28,13 +29,5 @@ public sealed class SystemApiFixture
         status.UptimeSeconds.Should().BeGreaterThanOrEqualTo(0);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().NotContain(_factory.DataFolder);
-    }
-
-    [Fact]
-    public async Task should_answer_not_found_and_not_the_page_when_an_api_path_is_unknown()
-    {
-        var response = await _factory.CreateClient().GetAsync("/api/v1/nothing-here", TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

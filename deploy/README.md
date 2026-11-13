@@ -21,5 +21,5 @@ A change to the deployment is a commit in the infrastructure repository; nobody 
 
 ## What to know before running it
 
-- **Foundation only so far.** The container answers (`/health/live`, `/health/ready`, `/api/v1/system/status`) and serves its interface; it does not read anything yet. Access control comes with the first vertical, before any session exists: until then, publish it on the loopback address only, as the Compose example does.
+- **Closed by default.** The container answers its probes without a sign-in; everything else needs the **operator** (a name and a password file, see [configuration](../docs/configuration.md)). Without them nobody can sign in. It still reads nothing; the reader and the session come with the next verticals, behind this access. Publish it behind a reverse proxy with TLS and your single sign-on, and tell it the name you reach it by (`GEMINARR__PUBLICURL`, or `GEMINARR__ALLOWEDHOSTNAMES`).
 - **From the reader vertical on**, the container holds a browser profile (the signed-in session of a **dedicated** Google account). It gets a volume of its own, never shared and never backed up in the clear, and its network egress is limited to what [docs/network.md](../docs/network.md) lists. Do not sign it in to your main Google account: a session is valid across all the services of an account ([SPEC §7.1 and §11](../docs/SPEC.md)).
