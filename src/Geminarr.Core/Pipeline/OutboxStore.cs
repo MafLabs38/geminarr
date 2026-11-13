@@ -42,12 +42,13 @@ public sealed class OutboxStore : IOutboxStore
         transaction.Commit();
     }
 
-    public IReadOnlyList<OutboxBatch> Waiting(int limit)
+    public IReadOnlyList<OutboxBatch> Waiting(int limit, long afterId = 0)
     {
         using var connection = _database.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, conversation_id, from_position, lines, created_at, attempts, last_error FROM outbox ORDER BY id LIMIT $limit;";
+        command.CommandText = "SELECT id, conversation_id, from_position, lines, created_at, attempts, last_error FROM outbox WHERE id > $after ORDER BY id LIMIT $limit;";
         command.Parameters.AddWithValue("$limit", limit);
+        command.Parameters.AddWithValue("$after", afterId);
         using var reader = command.ExecuteReader();
         var result = new List<OutboxBatch>();
         while (reader.Read())
@@ -57,6 +58,8 @@ public sealed class OutboxStore : IOutboxStore
 
         return result;
     }
+
+    public void Clear() => Run("DELETE FROM outbox;");
 
     public void Delete(long id) => Run("DELETE FROM outbox WHERE id = $id;", ("$id", id));
 

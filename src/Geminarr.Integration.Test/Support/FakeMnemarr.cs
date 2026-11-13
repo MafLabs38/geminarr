@@ -25,15 +25,49 @@ public sealed class FakeMnemarr : HttpMessageHandler
     /// <summary>Makes every call fail with this status (unauthorized, server error…) until it is null.</summary>
     public HttpStatusCode? FailWith { get; set; }
 
-    public Dictionary<string, List<string>> Conversations { get; } = new(StringComparer.Ordinal);
+    private Dictionary<string, List<string>> Conversations { get; } = new(StringComparer.Ordinal);
 
-    public List<JsonElement> Heartbeats { get; } = [];
+    private List<JsonElement> Heartbeats { get; } = [];
 
-    public List<string> Calls { get; } = [];
+    private List<(string Call, IReadOnlyDictionary<string, string> Headers)> Calls { get; } = [];
 
-    public List<IReadOnlyDictionary<string, string>> Headers { get; } = [];
+    /// <summary>What Mnemarr holds, copied under the lock: the passes of a scheduler may still be writing.</summary>
+    public Dictionary<string, List<string>> ConversationsSnapshot()
+    {
+        lock (_gate)
+        {
+            return Conversations.ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.Ordinal);
+        }
+    }
 
-    public int Enrolments { get; private set; }
+    public IReadOnlyList<JsonElement> HeartbeatsSnapshot()
+    {
+        lock (_gate)
+        {
+            return [.. Heartbeats];
+        }
+    }
+
+    public IReadOnlyList<(string Call, IReadOnlyDictionary<string, string> Headers)> CallsSnapshot()
+    {
+        lock (_gate)
+        {
+            return [.. Calls];
+        }
+    }
+
+    public int Enrolments
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _enrolments;
+            }
+        }
+    }
+
+    private int _enrolments;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -41,8 +75,7 @@ public sealed class FakeMnemarr : HttpMessageHandler
         var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
         lock (_gate)
         {
-            Calls.Add($"{request.Method} {path}");
-            Headers.Add(request.Headers.ToDictionary(header => header.Key, header => string.Join(",", header.Value), StringComparer.OrdinalIgnoreCase));
+            Calls.Add(($"{request.Method} {path}", request.Headers.ToDictionary(header => header.Key, header => string.Join(",", header.Value), StringComparer.OrdinalIgnoreCase)));
             return FailWith is { } failure ? new HttpResponseMessage(failure) : Answer(request, path, body);
         }
     }
@@ -78,7 +111,7 @@ public sealed class FakeMnemarr : HttpMessageHandler
             case "/api/v1/ingest/pair/poll":
                 return Approved ? Json(new { state = "approved", key = Key, machine = MachineName, kind = "satellite" }) : Json(new { state = "pending", key = (string?)null, machine = (string?)null, kind = (string?)null });
             default:
-                Enrolments++;
+                _enrolments++;
                 return body.Contains("GOOD-CODE", StringComparison.Ordinal) ? Json(new { key = Key, machine = MachineName, kind = "satellite" }) : new HttpResponseMessage(HttpStatusCode.Unauthorized);
         }
     }

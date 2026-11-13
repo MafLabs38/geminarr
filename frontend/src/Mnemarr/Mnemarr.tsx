@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
@@ -14,6 +14,7 @@ import { kinds } from 'Helpers/Props/kinds';
 import { reasonKeyOf } from 'Overview/healthTexts';
 import translate from 'Utilities/String/translate';
 
+import { hostOf } from './hostOf';
 import styles from './Mnemarr.module.css';
 import {
   useCancelPairing,
@@ -28,27 +29,29 @@ import {
 /** How often a pairing that waits is looked at: Mnemarr says to ask about every three seconds. */
 export const PAIRING_CHECK_MS = 3_000;
 
-const hostOf = (address: string): string => {
-  try {
-    return new URL(address).host;
-  } catch {
-    return address;
-  }
-};
-
 function PairingBlock({ hasAddress }: Readonly<{ hasAddress: boolean }>) {
   const pairing = usePairing();
   const start = useStartPairing();
   const check = useCheckPairing();
   const cancel = useCancelPairing();
   const pending = pairing.data?.state === 'pending';
-  const { mutate: checkNow } = check;
+  const { mutate: checkNow, isPending: checking } = check;
+  const busy = useRef(false);
+
+  useEffect(() => {
+    busy.current = checking;
+  }, [checking]);
 
   useEffect(() => {
     if (!pending) {
       return undefined;
     }
-    const timer = setInterval(() => checkNow(), PAIRING_CHECK_MS);
+    // One question at a time: a slow answer must not be followed by another call for the same pairing.
+    const timer = setInterval(() => {
+      if (!busy.current) {
+        checkNow();
+      }
+    }, PAIRING_CHECK_MS);
     return () => clearInterval(timer);
   }, [pending, checkNow]);
 

@@ -51,9 +51,18 @@ public sealed class MnemarrController : ControllerBase
     /// <summary>Unlinks: the key and the machine are forgotten, and nothing is sent any more. What Mnemarr already holds stays there.</summary>
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public IActionResult Unlink()
     {
-        _link.Unlink();
+        try
+        {
+            _link.Unlink();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
+        }
+
         return NoContent();
     }
 

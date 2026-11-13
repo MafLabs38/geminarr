@@ -210,15 +210,19 @@ public sealed class IdentityFactory : GeminarrFactoryBase
 /// <summary>A host whose deployment gives it a Mnemarr (a fake, in memory), a demonstration reader and a public address, as a sandbox does.</summary>
 public sealed class MnemarrFactory : GeminarrFactoryBase
 {
-    public MnemarrFactory(bool urlFromSettings = false, string? enrolmentCode = null)
+    public MnemarrFactory(bool urlFromSettings = false, string? enrolmentCode = null, bool blockTheReader = false)
         : base(createFolder: true)
     {
         UrlFromSettings = urlFromSettings;
         EnrolmentCode = enrolmentCode;
         Mnemarr = new Support.FakeMnemarr();
+        Blocker = blockTheReader ? new Support.BlockingReader() : null;
     }
 
     public Support.FakeMnemarr Mnemarr { get; }
+
+    /// <summary>A reader that waits until the test lets it go, to hold a pass open.</summary>
+    public Support.BlockingReader? Blocker { get; }
 
     private bool UrlFromSettings { get; }
 
@@ -243,6 +247,12 @@ public sealed class MnemarrFactory : GeminarrFactoryBase
         }
     }
 
-    protected override void ConfigureServices(IServiceCollection services) =>
+    protected override void ConfigureServices(IServiceCollection services)
+    {
         services.AddHttpClient(MnemarrClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Mnemarr);
+        if (Blocker is not null)
+        {
+            services.AddSingleton(new Geminarr.Core.Pipeline.ReaderProvider(Blocker));
+        }
+    }
 }

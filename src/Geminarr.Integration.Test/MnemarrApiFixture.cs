@@ -81,7 +81,9 @@ public sealed class MnemarrApiFixture
         using var client = await factory.SignedInClientAsync();
         await client.PutAsJsonAsync("/api/v1/mnemarr", new { url = "https://mnemarr.test" }, Token);
 
-        var started = await (await client.PostAsync("/api/v1/mnemarr/pairing", content: null, Token)).Content.ReadFromJsonAsync<PairingResource>(Token);
+        var startedResponse = await client.PostAsync("/api/v1/mnemarr/pairing", content: null, Token);
+        (await startedResponse.Content.ReadAsStringAsync(Token)).Should().NotContain("device-secret", "the secret to ask with stays on the server");
+        var started = await client.GetFromJsonAsync<PairingResource>("/api/v1/mnemarr/pairing", Token);
         started.Should().BeEquivalentTo(new PairingResource("pending", "ABCD-EFGH", "https://mnemarr.test/link?code=ABCD-EFGH", started!.ExpiresAt));
         (await client.GetFromJsonAsync<PairingResource>("/api/v1/mnemarr/pairing", Token))!.State.Should().Be("pending");
 
@@ -96,7 +98,7 @@ public sealed class MnemarrApiFixture
         var linked = await client.GetStringAsync("/api/v1/mnemarr", Token);
         linked.Should().Contain("\"linked\":true").And.Contain("\"machine\":\"gemini-2\"").And.NotContain(FakeKey);
         File.ReadAllText(Path.Combine(factory.DataFolder, "mnemarr", "key")).Trim().Should().Be(FakeKey);
-        factory.Mnemarr.Headers.Where((_, index) => factory.Mnemarr.Calls[index].StartsWith("POST /api/v1/ingest/pair", StringComparison.Ordinal)).Should().OnlyContain(headers => headers.ContainsKey("X-Mnemarr-Request"));
+        factory.Mnemarr.CallsSnapshot().Where(call => call.Call.StartsWith("POST /api/v1/ingest/pair", StringComparison.Ordinal)).Should().OnlyContain(call => call.Headers.ContainsKey("X-Mnemarr-Request"));
     }
 
     private static string FakeKey => Support.FakeMnemarr.Key;
@@ -164,12 +166,12 @@ public sealed class MnemarrApiFixture
         using var stop = new CancellationTokenSource();
 
         await scheduler.StartAsync(stop.Token);
-        await Eventually(() => factory.Mnemarr.Heartbeats.Count > 0);
+        await Eventually(() => factory.Mnemarr.HeartbeatsSnapshot().Count > 0);
         await scheduler.StopAsync(CancellationToken.None);
 
         factory.Mnemarr.Enrolments.Should().Be(1);
         (await client.GetFromJsonAsync<MnemarrResource>("/api/v1/mnemarr", Token))!.Linked.Should().BeTrue();
-        factory.Mnemarr.Conversations.Keys.Should().OnlyContain(session => session.StartsWith("gemini-demo-c", StringComparison.Ordinal));
+        factory.Mnemarr.ConversationsSnapshot().Keys.Should().OnlyContain(session => session.StartsWith("gemini-demo-c", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -196,14 +198,14 @@ public sealed class MnemarrApiFixture
 
         run!.Outcome.Should().Be("ok");
         run.TurnsSent.Should().BeGreaterThan(0);
-        factory.Mnemarr.Conversations.Should().HaveCount(3);
-        var lines = factory.Mnemarr.Conversations.Values.First();
+        factory.Mnemarr.ConversationsSnapshot().Should().HaveCount(3);
+        var lines = factory.Mnemarr.ConversationsSnapshot().Values.First();
         lines[0].Should().Contain("\"meta\"").And.Contain("Demo:");
         lines.Skip(1).Should().OnlyContain(line => line.Contains("\"role\"", StringComparison.Ordinal));
-        var beat = factory.Mnemarr.Heartbeats.Last();
+        var beat = factory.Mnemarr.HeartbeatsSnapshot()[^1];
         beat.GetProperty("pendingLines").GetInt64().Should().Be(0);
         beat.GetProperty("attention").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
-        factory.Mnemarr.Headers.Where((_, index) => factory.Mnemarr.Calls[index] != "POST /api/v1/ingest/pair").Last()["Authorization"].Should().Be($"Bearer {FakeKey}");
+        factory.Mnemarr.CallsSnapshot().Where(call => call.Call.Contains("/ingest/conversations", StringComparison.Ordinal)).Should().NotBeEmpty().And.OnlyContain(call => call.Headers["Authorization"] == $"Bearer {FakeKey}");
         var connection = await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token);
         (connection!.State, connection.Reader).Should().Be(("Connected", "Demo"));
         var runs = await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token);
@@ -224,10 +226,10 @@ public sealed class MnemarrApiFixture
         await runner.RunAsync(Token);
         await runner.RunAsync(Token);
 
-        var attention = factory.Mnemarr.Heartbeats.Last().GetProperty("attention");
+        var attention = factory.Mnemarr.HeartbeatsSnapshot()[^1].GetProperty("attention");
         attention.GetProperty("code").GetString().Should().Be("needs-login");
         attention.GetProperty("url").GetString().Should().Be("https://geminarr.homelab.example/");
-        factory.Mnemarr.Heartbeats.Last().GetProperty("error").GetString().Should().Be("The session has expired.");
+        factory.Mnemarr.HeartbeatsSnapshot()[^1].GetProperty("error").GetString().Should().Be("The session has expired.");
         (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.State.Should().Be("NeedsLogin");
         var health = await client.GetFromJsonAsync<HealthResource>("/api/v1/health", Token);
         health!.Checks.Single(check => check.Name == "connection").Reason.Should().Be("needs-login");
@@ -235,7 +237,7 @@ public sealed class MnemarrApiFixture
         File.Delete(marker);
         await runner.RunAsync(Token);
 
-        factory.Mnemarr.Heartbeats.Last().GetProperty("attention").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        factory.Mnemarr.HeartbeatsSnapshot()[^1].GetProperty("attention").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
         (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.State.Should().Be("Connected");
     }
 
@@ -256,23 +258,40 @@ public sealed class MnemarrApiFixture
     }
 
     [Fact]
-    public async Task should_run_a_pass_at_once_when_asked_and_refuse_to_start_a_second_alongside()
+    public async Task should_run_a_pass_at_once_when_asked()
     {
         using var factory = await LinkedAsync();
         using var client = await factory.SignedInClientAsync();
         var scheduler = ActivatorUtilities.CreateInstance<Geminarr.Host.Pipeline.PassScheduler>(factory.Services, TimeSpan.Zero);
         await scheduler.StartAsync(CancellationToken.None);
-        await Eventually(() => factory.Mnemarr.Heartbeats.Count >= 1);
+        await Eventually(() => factory.Mnemarr.HeartbeatsSnapshot().Count >= 1);
         // The heartbeat is the last thing a pass tells Mnemarr; the pass itself ends a moment later, and "run now" is refused while one runs.
         await EventuallyAsync(async () => (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))! is { Running: false, Runs.Count: >= 1 });
-        var before = factory.Mnemarr.Heartbeats.Count;
+        var before = factory.Mnemarr.HeartbeatsSnapshot().Count;
 
         var response = await client.PostAsync("/api/v1/runs", content: null, Token);
-        await Eventually(() => factory.Mnemarr.Heartbeats.Count > before);
+        await Eventually(() => factory.Mnemarr.HeartbeatsSnapshot().Count > before);
         await scheduler.StopAsync(CancellationToken.None);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs?limit=1", Token))!.Runs.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task should_refuse_to_start_a_pass_while_one_is_running()
+    {
+        using var factory = new MnemarrFactory(blockTheReader: true);
+        using var client = await factory.SignedInClientAsync();
+        var runner = factory.Services.GetRequiredService<PassRunner>();
+        var running = runner.RunAsync(Token);
+        await factory.Blocker!.Started.Task;
+
+        var refused = await client.PostAsync("/api/v1/runs", content: null, Token);
+        var state = await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        state!.Running.Should().BeTrue();
+        factory.Blocker.Release();
+        (await running).Should().NotBeNull();
     }
 
     [Fact]

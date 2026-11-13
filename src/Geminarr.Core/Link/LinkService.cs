@@ -16,11 +16,15 @@ public sealed class LinkService
     private readonly MnemarrClient _client;
     private readonly TimeProvider _clock;
     private readonly ILogger<LinkService> _logger;
+    private readonly IOutboxStore _outbox;
     private readonly Lock _gate = new();
+    private readonly SemaphoreSlim _polling = new(1, 1);
     private PendingPairing? _pairing;
+    private long _generation;
 
-    public LinkService(IOptions<MnemarrOptions> options, IDestinationStore store, IKeyStore keys, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger)
+    public LinkService(IOptions<MnemarrOptions> options, IDestinationStore store, IKeyStore keys, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger, IOutboxStore outbox)
     {
+        _outbox = outbox;
         _options = options;
         _store = store;
         _keys = keys;
@@ -31,11 +35,14 @@ public sealed class LinkService
 
     private string? SettingsUrl => MnemarrAddress.Normalize(_options.Value.Url);
 
+    /// <summary>Changes each time the destination does (an address, a link, an unlink): what was asked of the Mnemarr before is not the truth about the next.</summary>
+    public long Generation => Interlocked.Read(ref _generation);
+
     public DestinationStatus Status()
     {
         var row = _store.Get();
         var url = SettingsUrl ?? row?.Url;
-        var hasKey = _keys.Read() is not null;
+        var hasKey = _keys.Read() is not null && KeyBelongsTo(row, url);
         var problem = ProblemOf(url, hasKey, row?.LastProblem);
         return new DestinationStatus(url, row?.Machine ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
     }
@@ -45,7 +52,7 @@ public sealed class LinkService
     {
         var row = _store.Get();
         var url = SettingsUrl ?? row?.Url;
-        var key = _keys.Read();
+        var key = KeyBelongsTo(row, url) ? _keys.Read() : null;
         return ProblemOf(url, key is not null, problem: null) switch
         {
             DestinationProblems.NotLinked => throw new SinkException(SinkFailure.NotLinked, "No Mnemarr is linked."),
@@ -53,6 +60,12 @@ public sealed class LinkService
             _ => new ResolvedDestination(url!, row?.Machine ?? _options.Value.Machine, key!),
         };
     }
+
+    /// <summary>
+    /// A key that a pairing or an enrolment gave belongs to the Mnemarr that gave it: it is never sent to another address, whoever changed the address (the settings included). A key that was given as a
+    /// file by the deployment is the deployment's to bind to its address.
+    /// </summary>
+    private static bool KeyBelongsTo(DestinationRecord? row, string? url) => row is not { LinkedAt: not null } || string.Equals(row.Url, url, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The code of what is wrong with the destination, or null. A problem the last talk left (refused, unreachable) is kept until the next one works.</summary>
     private string? ProblemOf(string? url, bool hasKey, string? problem)
@@ -79,6 +92,7 @@ public sealed class LinkService
         }
 
         _store.SaveAddress(MnemarrAddress.Normalize(address) ?? throw new ArgumentException("Not an address of Mnemarr.", nameof(address)));
+        Interlocked.Increment(ref _generation);
     }
 
     /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it.</summary>
@@ -92,7 +106,7 @@ public sealed class LinkService
 
         _store.EnsureAddress(url);
         var started = await _client.PairStartAsync(url, _options.Value.Machine, cancellationToken);
-        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, 30, 3600)));
+        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, 30, 3600)));
         lock (_gate)
         {
             _pairing = pairing;
@@ -111,6 +125,20 @@ public sealed class LinkService
 
     /// <summary>Asks Mnemarr what became of the pairing. When a person approved it, the key is written and the machine is linked.</summary>
     public async Task<PairingStatus> PollPairingAsync(CancellationToken cancellationToken)
+    {
+        // One question at a time: Mnemarr gives the key once, and a second asker that comes while the first is waiting must hear the same answer, not race it.
+        await _polling.WaitAsync(cancellationToken);
+        try
+        {
+            return await PollOnceAsync(cancellationToken);
+        }
+        finally
+        {
+            _polling.Release();
+        }
+    }
+
+    private async Task<PairingStatus> PollOnceAsync(CancellationToken cancellationToken)
     {
         PendingPairing? pairing;
         lock (_gate)
@@ -133,6 +161,12 @@ public sealed class LinkService
         switch (polled.State)
         {
             case PairingStates.Approved when !string.IsNullOrWhiteSpace(polled.Key):
+                // Given up (or unlinked) while Mnemarr was answering: the key is not kept.
+                if (!StillPending(pairing))
+                {
+                    return new PairingStatus(PairingStates.None, null, null, null);
+                }
+
                 Link(pairing.Url, polled.Key, polled.Machine ?? _options.Value.Machine);
                 Forget(pairing);
                 _logger.LogInformation("Linked to Mnemarr by pairing, as the machine {Machine}.", polled.Machine ?? _options.Value.Machine);
@@ -189,6 +223,13 @@ public sealed class LinkService
         CancelPairing();
         _keys.Delete();
         _store.Clear();
+        // What waits for the Mnemarr that is left is text of conversations: it does not stay in the database with nobody to acknowledge it.
+        _outbox.Clear();
+        Interlocked.Increment(ref _generation);
+        if (_keys.Read() is not null)
+        {
+            throw new InvalidOperationException("The key is a file of the deployment and could not be removed: take it out of the manifest.");
+        }
     }
 
     /// <summary>The result of the last talk with Mnemarr: when, and the code of the problem (null when it worked).</summary>
@@ -207,6 +248,15 @@ public sealed class LinkService
         _keys.Write(key);
         _store.EnsureAddress(url);
         _store.SaveLinked(machine, _clock.GetUtcNow());
+        Interlocked.Increment(ref _generation);
+    }
+
+    private bool StillPending(PendingPairing pairing)
+    {
+        lock (_gate)
+        {
+            return ReferenceEquals(_pairing, pairing);
+        }
     }
 
     private void Forget(PendingPairing pairing)
@@ -221,8 +271,13 @@ public sealed class LinkService
     }
 
     /// <summary>The page where a person approves is Mnemarr's own, and shown to the operator with its host visible; anything that is not an http or https address is not shown.</summary>
-    private static string? SafeLink(string? address) =>
-        Uri.TryCreate(address, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 ? uri.ToString() : null;
+    private static string? SafeLink(string? address, string mnemarrUrl) =>
+        Uri.TryCreate(address, UriKind.Absolute, out var uri)
+        && uri.Scheme is "http" or "https"
+        && uri.UserInfo.Length == 0
+        && (uri.Scheme == Uri.UriSchemeHttps || !MnemarrAddress.IsSecure(mnemarrUrl) || new Uri(mnemarrUrl).Scheme == Uri.UriSchemeHttp)
+            ? uri.ToString()
+            : null;
 
     private sealed record PendingPairing(string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
     {

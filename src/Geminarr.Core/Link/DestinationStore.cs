@@ -22,7 +22,7 @@ public sealed class DestinationStore : IDestinationStore
             : null;
     }
 
-    public void EnsureAddress(string url) => Run("INSERT INTO destination (id, url) VALUES (1, $url) ON CONFLICT (id) DO UPDATE SET url = $url WHERE url <> $url;", ("$url", url));
+    public void EnsureAddress(string url) => Run("INSERT INTO destination (id, url) VALUES (1, $url) ON CONFLICT (id) DO NOTHING;", ("$url", url));
 
     public void SaveAddress(string url) =>
         Run("INSERT INTO destination (id, url) VALUES (1, $url) ON CONFLICT (id) DO UPDATE SET url = $url, machine = NULL, linked_at = NULL, last_heartbeat_at = NULL, last_problem = NULL;", ("$url", url));

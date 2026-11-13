@@ -66,6 +66,8 @@ spec:
             # The Mnemarr to send to (https). Leave it out to give the address on the page and pair there; a one-time code or a key can be mounted as a file instead.
             # - name: GEMINARR__MNEMARR__URL
             #   value: https://mnemarr.homelab.example
+            # - name: GEMINARR__MNEMARR__KEYFILE            # the key that Mnemarr gave to this machine, from a secret (or GEMINARR__MNEMARR__ENROLMENTCODEFILE for a one-time code)
+            #   value: /run/geminarr/mnemarr/key
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
@@ -102,6 +104,9 @@ spec:
             - name: operator
               mountPath: /run/geminarr/operator
               readOnly: true
+            # - name: mnemarr             # the key (or the code) of the machine, from a secret that holds the file `key`
+            #   mountPath: /run/geminarr/mnemarr
+            #   readOnly: true
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
@@ -110,6 +115,10 @@ spec:
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
             secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
+        # - name: mnemarr
+        #   secret:
+        #     secretName: geminarr-mnemarr
+        #     defaultMode: 0440
         # - name: identity
         #   configMap:
         #     name: geminarr-identity

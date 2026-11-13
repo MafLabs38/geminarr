@@ -77,7 +77,7 @@ describe('ConnectionCard', () => {
     expect(await screen.findByText(/A demonstration reader is on/)).toBeInTheDocument();
   });
 
-  it('runs a pass now, and not while one runs', async () => {
+  it('runs a pass now', async () => {
     const calls = serveApi({
       'GET /connection': () => connection,
       'GET /mnemarr': () => linkedState,
@@ -91,7 +91,7 @@ describe('ConnectionCard', () => {
     await waitFor(() => expect(calls.some((call) => call.key === 'POST /runs')).toBe(true));
   });
 
-  it('disables the button while a pass is running and says when the call is refused', async () => {
+  it('disables the button while a pass is running', async () => {
     serveApi({
       'GET /connection': () => connection,
       'GET /mnemarr': () => linkedState,

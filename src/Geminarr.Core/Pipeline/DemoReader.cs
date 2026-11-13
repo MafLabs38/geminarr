@@ -67,6 +67,8 @@ public sealed class DemoReader : IConversationReader
         _growSeconds = reader.Value.DemoGrowSeconds;
     }
 
+    public string Source => ConversationSources.Web;
+
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(File.Exists(Path.Combine(_dataFolder, SignedOutFile)) ? SessionCheck.SignedOut : SessionCheck.SignedIn);
 
