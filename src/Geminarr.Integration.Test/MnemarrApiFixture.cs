@@ -277,6 +277,24 @@ public sealed class MnemarrApiFixture
     }
 
     [Fact]
+    public async Task should_read_in_a_pass_that_was_asked_for_even_when_the_reader_waits_after_a_pass()
+    {
+        using var factory = await LinkedAsync();
+        using var client = await factory.SignedInClientAsync();
+        var scheduler = ActivatorUtilities.CreateInstance<Geminarr.Host.Pipeline.PassScheduler>(factory.Services, TimeSpan.Zero);
+        await scheduler.StartAsync(CancellationToken.None);
+        await EventuallyAsync(async () => (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))! is { Running: false, Runs.Count: >= 1 });
+
+        await client.PostAsync("/api/v1/runs", content: null, Token);
+        await EventuallyAsync(async () => (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))! is { Running: false, Runs.Count: >= 2 });
+        await scheduler.StopAsync(CancellationToken.None);
+
+        var latest = (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))!.Runs[0];
+        latest.Reason.Should().NotBe("backoff", "the pass that was asked for read, instead of waiting for the next reading");
+        latest.Listed.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
     public async Task should_refuse_to_start_a_pass_while_one_is_running()
     {
         using var factory = new MnemarrFactory(blockTheReader: true);

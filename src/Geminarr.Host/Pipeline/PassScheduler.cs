@@ -69,7 +69,11 @@ public sealed class PassScheduler : BackgroundService
                 nextRead = _clock.GetUtcNow() + ReadDelay(result);
             }
 
-            await _trigger.WaitAsync(Interval(), stoppingToken);
+            // A pass that was asked for reads, whatever the reader's backoff says: the operator wants to see it now.
+            if (await _trigger.WaitAsync(Interval(), stoppingToken))
+            {
+                nextRead = DateTimeOffset.MinValue;
+            }
         }
     }
 
