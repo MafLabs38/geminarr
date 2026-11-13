@@ -25,11 +25,10 @@ public sealed class PassScheduler : BackgroundService
     private readonly IOptions<ReaderOptions> _options;
     private readonly ILogger<PassScheduler> _logger;
     private readonly TimeSpan _startDelay;
-    private readonly TimeProvider _clock;
+    private static readonly TimeProvider Clock = TimeProvider.System;
 
-    public PassScheduler(PassRunner runner, PassTrigger trigger, LinkService link, ConnectionTracker connection, IOptions<ReaderOptions> options, ILogger<PassScheduler> logger, TimeProvider clock, TimeSpan? startDelay = null)
+    public PassScheduler(PassRunner runner, PassTrigger trigger, LinkService link, ConnectionTracker connection, IOptions<ReaderOptions> options, ILogger<PassScheduler> logger, TimeSpan? startDelay = null)
     {
-        _clock = clock;
         _startDelay = startDelay ?? DefaultStartDelay;
         _runner = runner;
         _trigger = trigger;
@@ -62,11 +61,11 @@ public sealed class PassScheduler : BackgroundService
         var nextRead = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var reading = _clock.GetUtcNow() >= nextRead;
+            var reading = Clock.GetUtcNow() >= nextRead;
             var result = await PassAsync(reading, stoppingToken);
             if (reading)
             {
-                nextRead = _clock.GetUtcNow() + ReadDelay(result);
+                nextRead = Clock.GetUtcNow() + ReadDelay(result);
             }
 
             // A pass that was asked for reads, whatever the reader's backoff says: the operator wants to see it now.

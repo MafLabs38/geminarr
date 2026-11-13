@@ -401,6 +401,7 @@ public sealed class PassRunnerFixture : IDisposable
         result.Reason.Should().Be("pass-timeout");
         _runs.Recent(1).Single().Outcome.Should().Be(RunOutcomes.Partial);
         _sink.Heartbeats.Should().ContainSingle("a reader that hangs ends the reading, not the heartbeat: Mnemarr still hears from the machine");
+        _connection.Current().State.Should().Be(ConnectionState.Degraded, "a reader that hangs is a reader that failed: the reading backs off");
     }
 
     [Fact]
