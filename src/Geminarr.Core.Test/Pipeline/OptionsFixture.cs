@@ -51,12 +51,14 @@ public sealed class OptionsFixture
     }
 
     [Theory]
-    [InlineData(5, 0.5, 5)]
-    [InlineData(10, 0.5, 10)]
-    [InlineData(20, 0, 10)]
-    [InlineData(1440, 1, 10)]
-    public void should_wake_for_a_heartbeat_at_least_every_ten_minutes_whatever_the_poll_interval(int poll, double random, double minutes)
+    [InlineData(300, 300)]
+    [InlineData(60, 60)]
+    [InlineData(-5, 1)]
+    [InlineData(0, 1)]
+    [InlineData(1_200, 600)]
+    [InlineData(86_400, 600)]
+    public void should_wake_when_the_reading_is_due_and_at_least_every_ten_minutes_for_the_heartbeat(double secondsUntilReading, double expectedSeconds)
     {
-        PassSchedule.WakeDelay(poll, 360, random).TotalMinutes.Should().BeApproximately(minutes, 0.001);
+        PassSchedule.WakeDelay(TimeSpan.FromSeconds(secondsUntilReading)).Should().Be(TimeSpan.FromSeconds(expectedSeconds));
     }
 }

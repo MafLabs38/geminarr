@@ -497,12 +497,28 @@ public sealed class PassRunnerFixture : IDisposable
         _sink.FailSend = null;
         _reader.Opened.Clear();
 
+        var runsBefore = _runs.Recent(10).Count;
+
         var result = await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
 
         _reader.Opened.Should().BeEmpty("a pass that does not read does not open anything");
-        result!.Reason.Should().Be("backoff");
+        result!.Outcome.Should().Be(RunOutcomes.Ok);
         _sink.Sent.Should().ContainSingle("what waited went");
         _sink.Heartbeats.Should().HaveCount(2, "and Mnemarr heard from the machine");
+        _runs.Recent(10).Count.Should().Be(runsBefore + 1, "a heartbeat that sent something is a run");
+    }
+
+    [Fact]
+    public async Task should_leave_no_run_for_a_heartbeat_between_two_readings_that_had_nothing_to_send()
+    {
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var runsBefore = _runs.Recent(10).Count;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+
+        _runs.Recent(10).Count.Should().Be(runsBefore);
+        _sink.Heartbeats.Should().HaveCount(2);
     }
 
     [Fact]

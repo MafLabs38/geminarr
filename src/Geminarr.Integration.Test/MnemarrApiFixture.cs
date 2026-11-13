@@ -291,7 +291,7 @@ public sealed class MnemarrApiFixture
         await scheduler.StopAsync(CancellationToken.None);
 
         var latest = (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))!.Runs[0];
-        latest.Reason.Should().NotBe("backoff", "the pass that was asked for read, instead of waiting for the next reading");
+        latest.Outcome.Should().Be("ok", "the pass that was asked for read, instead of waiting for the next reading");
         latest.Listed.Should().BeGreaterThan(0);
     }
 

@@ -17,7 +17,7 @@ public sealed record Enrolled(string Key, string Machine);
 
 /// <summary>
 /// Mnemarr's ingest API, as a machine uses it (SPEC §5; Mnemarr's ADR 0024, 0027, 0030, 0041): positions, conversations, heartbeat, and the two ways to get a key. Redirects are not
-/// followed (a key must not follow a redirect to another host), every call is bounded, and every failure says which kind it is (<see cref="SinkException"/>) and never what was sent.
+/// followed (a key must not follow a redirect to another host), every call is bounded as a whole (30 seconds, the answer included), and every failure says which kind it is (<see cref="SinkException"/>) and never what was sent.
 /// </summary>
 public sealed class MnemarrClient
 {
@@ -31,11 +31,16 @@ public sealed class MnemarrClient
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    private readonly IHttpClientFactory _factory;
+    /// <summary>A call as a whole (the answer to the last byte of it) never lasts longer than this.</summary>
+    private static readonly TimeSpan DefaultCallTimeout = TimeSpan.FromSeconds(30);
 
-    public MnemarrClient(IHttpClientFactory factory)
+    private readonly IHttpClientFactory _factory;
+    private readonly TimeSpan _callTimeout;
+
+    public MnemarrClient(IHttpClientFactory factory, TimeSpan? callTimeout = null)
     {
         _factory = factory;
+        _callTimeout = callTimeout ?? DefaultCallTimeout;
     }
 
     public async Task<SinkPositions> PositionsAsync(string url, string key, string machine, CancellationToken cancellationToken)
@@ -108,8 +113,12 @@ public sealed class MnemarrClient
         return request;
     }
 
-    private async Task<T?> SendAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
+    private async Task<T?> SendAsync<T>(HttpRequestMessage request, CancellationToken caller)
     {
+        // The time of the client stops counting once the headers are there: the whole call, answer included, has its own, so that a Mnemarr that stops in the middle of an answer does not hold a pass forever.
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(caller);
+        limit.CancelAfter(_callTimeout);
+        var cancellationToken = limit.Token;
         try
         {
             using var client = _factory.CreateClient(HttpClientName);
@@ -131,7 +140,7 @@ public sealed class MnemarrClient
             limited.Position = 0;
             return await JsonSerializer.DeserializeAsync<T>(limited, Json, cancellationToken);
         }
-        catch (Exception ex) when (IsFailureOfTheCall(ex, cancellationToken))
+        catch (Exception ex) when (IsFailureOfTheCall(ex, caller))
         {
             // Never the message of the exception: it can hold the address, and the address is not for a log or the page.
             throw new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer, or not with an answer this version understands.");
@@ -140,7 +149,7 @@ public sealed class MnemarrClient
 
     /// <summary>A failure of the call itself (the network, a timeout, an answer that is not what was expected), and not the caller giving up.</summary>
     private static bool IsFailureOfTheCall(Exception exception, CancellationToken cancellationToken) =>
-        !cancellationToken.IsCancellationRequested && exception is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException;
+        !cancellationToken.IsCancellationRequested && exception is HttpRequestException or OperationCanceledException or IOException or JsonException or NotSupportedException;
 
     private static async Task CopyAtMostAsync(Stream source, Stream target, int limit, CancellationToken cancellationToken)
     {

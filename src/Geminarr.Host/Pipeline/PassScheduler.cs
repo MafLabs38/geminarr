@@ -55,8 +55,8 @@ public sealed class PassScheduler : BackgroundService
     }
 
     /// <summary>
-    /// A pass at every poll interval, which sends what waits and tells Mnemarr it is alive. Reading waits longer after a pass that failed (doubled up to the limit): that backoff is the reader's, and a machine
-    /// that is backing off must not go silent in Mnemarr.
+    /// Reading when it is due (the poll interval, doubled after a pass that failed, up to the limit), and a pass at least every ten minutes that only sends what waits and tells Mnemarr the machine is alive:
+    /// a slow reading, or one that backs off, must not make the machine go silent in Mnemarr.
     /// </summary>
     private async Task PassesAsync(CancellationToken stoppingToken)
     {
@@ -71,7 +71,7 @@ public sealed class PassScheduler : BackgroundService
             }
 
             // A pass that was asked for reads, whatever the reader's backoff says: the operator wants to see it now.
-            if (await _trigger.WaitAsync(Interval(), stoppingToken))
+            if (await _trigger.WaitAsync(PassSchedule.WakeDelay(nextRead - SystemClock.GetUtcNow()), stoppingToken))
             {
                 nextRead = DateTimeOffset.MinValue;
             }
@@ -138,9 +138,6 @@ public sealed class PassScheduler : BackgroundService
             return null;
         }
     }
-
-    /// <summary>The interval between two passes: the poll interval with its random twenty percent, never more than the heartbeat's (a pass that does not read still sends and says the machine is alive).</summary>
-    private TimeSpan Interval() => PassSchedule.WakeDelay(_options.Value.PollMinutes, _options.Value.MaxBackoffMinutes, Random.Shared.NextDouble());
 
     /// <summary>How long reading waits after this pass: the interval, doubled for each pass that failed in a row up to the limit.</summary>
     private TimeSpan ReadDelay(PassResult? result)

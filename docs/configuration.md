@@ -23,7 +23,7 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | `GEMINARR__MNEMARR__ENROLMENTCODEFILE` | none | A file with a one-time code from Mnemarr (a deployment as code): exchanged for the key at start, when there is none. |
 | `GEMINARR__MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only: talk to Mnemarr over plain http to a host that is not the loopback. |
 | `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so), or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
-| `GEMINARR__READER__POLLMINUTES` | **`20`** | Minutes between two passes (a random 20 % either way is added; doubled for each pass that failed in a row, up to `MAXBACKOFFMINUTES`). |
+| `GEMINARR__READER__POLLMINUTES` | **`20`** | Minutes between two readings (a random 20 % either way is added; doubled for each pass that failed in a row, up to `MAXBACKOFFMINUTES`). |
 | `GEMINARR__READER__MAXLISTED`, `…MAXOPENPERPASS` | **`40`**, **`5`** | How many conversations of the list are looked at, and how many are opened in a pass. |
 | `GEMINARR__READER__PASSTIMEOUTMINUTES`, `…MAXBACKOFFMINUTES` | **`5`**, **`360`** | Reading never lasts longer than the first; a failing reader is read again after at most the second. Whatever the poll interval, the machine says it is alive at least every 10 minutes. |
 | `GEMINARR__READER__LOGINFAILURES` | **`3`** | Passes in a row that find nobody signed in before the state is `needs-login`. |
