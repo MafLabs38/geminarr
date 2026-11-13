@@ -216,6 +216,10 @@ test.describe('smoke @smoke', () => {
     await expect(page.getByText('https://mnemarr.homelab.example', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Pair with Mnemarr' })).toBeEnabled();
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    // The browsers share one server: the address does not stay for the tests that read "Not linked".
+    expect((await page.request.delete('/api/v1/mnemarr', { headers: { 'X-Geminarr-Request': '1' } })).status()).toBe(
+      204,
+    );
   });
 
   test('the Mnemarr page is closed without a sign-in', { tag: '@browserless' }, async ({ request }) => {
