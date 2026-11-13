@@ -109,6 +109,39 @@ public sealed class LoginThrottleFixture
     }
 
     [Fact]
+    public void should_forget_the_names_whose_failures_have_aged_out_before_the_ones_that_have_not()
+    {
+        var subject = Subject();
+        for (var name = 0; name < LoginThrottle.MaxTracked; name++)
+        {
+            subject.TryReserve($"old-{name}", isOperator: false);
+        }
+
+        _clock.Advance(LoginThrottle.Window + TimeSpan.FromSeconds(1));
+
+        subject.TryReserve("a-new-guess", isOperator: false).Should().BeTrue("everything that was there has expired");
+        Enumerable.Range(0, LoginThrottle.MaxFailures).Should().OnlyContain(_ => subject.TryReserve("old-0", isOperator: false), "an expired name starts again from nothing");
+    }
+
+    [Fact]
+    public void should_forget_the_oldest_guesses_first_when_none_has_expired()
+    {
+        var subject = Subject();
+        for (var name = 0; name < LoginThrottle.MaxTracked; name++)
+        {
+            subject.TryReserve($"guess-{name}", isOperator: false);
+            _clock.Advance(TimeSpan.FromMilliseconds(1));
+        }
+
+        subject.TryReserve("a-new-guess", isOperator: false).Should().BeTrue();
+
+        // The oldest one was forgotten and starts again; the newest one still has its failure.
+        Enumerable.Range(0, LoginThrottle.MaxFailures).Should().OnlyContain(_ => subject.TryReserve("guess-0", isOperator: false));
+        Enumerable.Range(0, LoginThrottle.MaxFailures - 1).Should().OnlyContain(_ => subject.TryReserve($"guess-{LoginThrottle.MaxTracked - 1}", isOperator: false));
+        subject.TryReserve($"guess-{LoginThrottle.MaxTracked - 1}", isOperator: false).Should().BeFalse();
+    }
+
+    [Fact]
     public void should_not_say_a_name_is_locked_when_it_was_never_seen()
     {
         Subject().LockedFor("nobody").Should().BeNull();

@@ -44,6 +44,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 ## Signing in
 
 - **Locked out** (HTTP 429 after five wrong passwords, for fifteen minutes): wait, or restart the container (the lockout is in memory). If it happens without you having tried, someone is guessing the name: change it (`GEMINARR__AUTH__ADMINUSER`).
-- **Rotate the password**: replace the content of the file; the next sign-in uses it, and sessions that are open stay valid until their end (restart to end them all).
+- **Rotate the password**: replace the content of the file; the next sign-in uses it, and sessions that are open stay valid until their end. **If the password leaked, restart the container after changing it: that ends every session.**
+- **Nobody can sign in and the page only says "wrong"**: the log of the container says why at its start (`Nobody can sign in (NotConfigured | PasswordUnreadable | PasswordWeak)`), and the reason codes above say what to do. Each refused sign-in and each lockout is in the log too, without the name or the password typed.
 - **A page that answers 400 "The host name is not allowed"**: add the name or the address you reach it by to `GEMINARR__ALLOWEDHOSTNAMES` (or set `GEMINARR__PUBLICURL`).
 - **Signed out all of a sudden**: the container restarted (sessions are in memory), or the 12 hours passed.

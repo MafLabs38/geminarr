@@ -1,4 +1,5 @@
 using Geminarr.Core.Access;
+using Geminarr.Host.Health;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Geminarr.Host.Security;
@@ -20,7 +21,7 @@ public sealed class AllowedHostsMiddleware
 
     public Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase) || _hosts.IsAllowed(context.Request.Host.Value))
+        if (HealthExtensions.IsProbe(context.Request.Path) || _hosts.IsAllowed(context.Request.Host.Value))
         {
             return _next(context);
         }

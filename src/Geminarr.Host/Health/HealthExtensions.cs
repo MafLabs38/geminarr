@@ -6,7 +6,14 @@ namespace Geminarr.Host.Health;
 
 public static class HealthExtensions
 {
+    public const string LivePath = "/health/live";
+    public const string ReadyPath = "/health/ready";
+
     private const string ReadyTag = "ready";
+
+    /// <summary>Whether a path is one of the two probes of the platform (and nothing else under <c>/health</c>).</summary>
+    public static bool IsProbe(PathString path) =>
+        path.Equals(LivePath, StringComparison.OrdinalIgnoreCase) || path.Equals(ReadyPath, StringComparison.OrdinalIgnoreCase);
 
     public static IServiceCollection AddGeminarrHealthChecks(this IServiceCollection services)
     {
@@ -25,8 +32,8 @@ public static class HealthExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapGeminarrHealthChecks(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
-        endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = registration => registration.Tags.Contains(ReadyTag) }).AllowAnonymous();
+        endpoints.MapHealthChecks(LivePath, new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+        endpoints.MapHealthChecks(ReadyPath, new HealthCheckOptions { Predicate = registration => registration.Tags.Contains(ReadyTag) }).AllowAnonymous();
         return endpoints;
     }
 }

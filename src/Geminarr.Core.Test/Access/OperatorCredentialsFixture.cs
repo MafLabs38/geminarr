@@ -44,10 +44,20 @@ public sealed class OperatorCredentialsFixture : IDisposable
     }
 
     [Fact]
-    public void should_say_the_password_is_unreadable_when_the_path_is_not_one_or_the_file_is_not_a_password()
+    public void should_say_the_password_is_unreadable_when_the_path_is_not_one()
     {
         Subject("operator-name", "bad\0path").Status.Should().Be(OperatorStatus.PasswordUnreadable);
+    }
+
+    [Fact]
+    public void should_say_the_password_is_unreadable_when_the_file_is_too_large_to_be_one()
+    {
         Subject("operator-name", File(new string('x', OperatorCredentials.MaxPasswordFileBytes + 1))).Status.Should().Be(OperatorStatus.PasswordUnreadable);
+    }
+
+    [Fact]
+    public void should_refuse_everything_when_the_path_is_not_one()
+    {
         Subject("operator-name", "bad\0path").Verify("operator-name", Password).Should().BeFalse();
     }
 

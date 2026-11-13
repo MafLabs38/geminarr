@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Geminarr.Api.V1.Access;
 
@@ -16,7 +17,7 @@ public sealed record SessionResource(string Name);
 /// <summary>Signing in and out of the interface, and who is signed in.</summary>
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthController : ControllerBase
+public sealed partial class AuthController : ControllerBase
 {
     /// <summary>A name and a password are short: a body larger than this is not a sign-in.</summary>
     private const int MaxBodyBytes = 8 * 1024;
@@ -24,13 +25,25 @@ public sealed class AuthController : ControllerBase
     private readonly SignInService _signIn;
     private readonly SessionRegistry _sessions;
     private readonly TimeProvider _clock;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(SignInService signIn, SessionRegistry sessions, TimeProvider clock)
+    public AuthController(SignInService signIn, SessionRegistry sessions, TimeProvider clock, ILogger<AuthController> logger)
     {
         _signIn = signIn;
         _sessions = sessions;
         _clock = clock;
+        _logger = logger;
     }
+
+    // What is said about a sign-in is the outcome and nothing of what was typed: a name or a password is not something to keep in a log.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A sign-in was refused: the name or the password is wrong.")]
+    private partial void LogRefused();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A sign-in was refused: the name is locked for {Seconds} seconds after too many failures.")]
+    private partial void LogLocked(int seconds);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The operator signed in.")]
+    private partial void LogSignedIn();
 
     /// <summary>Signs the operator in and starts a session. The answer is the same for a wrong name and a wrong password.</summary>
     [HttpPost("login")]
@@ -44,12 +57,15 @@ public sealed class AuthController : ControllerBase
         var outcome = _signIn.SignIn(request.Name, request.Password);
         if (outcome.Status == SignInStatus.Locked)
         {
-            Response.Headers.RetryAfter = ((int)Math.Ceiling((outcome.RetryAfter ?? LoginThrottle.Window).TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var seconds = (int)Math.Ceiling((outcome.RetryAfter ?? LoginThrottle.Window).TotalSeconds);
+            LogLocked(seconds);
+            Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Too many failed attempts. Try again later.");
         }
 
         if (outcome.Status != SignInStatus.Signed || outcome.SessionId is null)
         {
+            LogRefused();
             return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The name or the password is wrong.");
         }
 
@@ -59,6 +75,7 @@ public sealed class AuthController : ControllerBase
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, name), new Claim(AccessConstants.SessionClaim, outcome.SessionId)], AccessConstants.Scheme);
         var properties = new AuthenticationProperties { IsPersistent = false, ExpiresUtc = _clock.GetUtcNow() + _sessions.Lifetime };
         await HttpContext.SignInAsync(AccessConstants.Scheme, new ClaimsPrincipal(identity), properties);
+        LogSignedIn();
         return new SessionResource(name);
     }
 

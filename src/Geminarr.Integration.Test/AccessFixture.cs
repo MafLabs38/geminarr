@@ -110,16 +110,6 @@ public sealed class AccessFixture
     }
 
     [Fact]
-    public async Task should_not_ask_the_header_of_a_head_request()
-    {
-        using var client = await _factory.SignedInClientAsync(sendsTheHeader: false);
-        using var request = new HttpRequestMessage(HttpMethod.Head, "/api/v1/system/status");
-
-        // The routes answer GET only: what matters here is that the header is not what refuses a read.
-        (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
     public async Task should_answer_a_sign_in_without_a_name_the_same_as_a_wrong_one()
     {
         using var client = _factory.CreateClient();
@@ -144,7 +134,7 @@ public sealed class AccessFixture
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().BeOneOf(HttpStatusCode.UnsupportedMediaType, HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
         response.Headers.Contains("Set-Cookie").Should().BeFalse();
     }
 

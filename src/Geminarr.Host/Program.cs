@@ -1,5 +1,6 @@
 using Geminarr.Api.V1;
 using Geminarr.Core;
+using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
@@ -38,6 +39,12 @@ var app = builder.Build();
 // Singletons are created on first use: resolve the status service now, so that "started at" is the start of
 // the application and not the time of the first request for its status.
 _ = app.Services.GetRequiredService<ISystemStatusService>();
+
+// A container where nobody can sign in is alive and closed, and its sign-in page only says "wrong": the log is where the reason is told without a session.
+if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operatorStatus and not OperatorStatus.Ready)
+{
+    app.Logger.LogWarning("Nobody can sign in ({Status}); everything but the probes stays closed. The reason codes are in docs/runbook.md.", operatorStatus);
+}
 
 app.UseExceptionHandler();
 app.UseGeminarrSecurityHeaders();

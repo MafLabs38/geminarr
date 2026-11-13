@@ -24,6 +24,21 @@ public sealed class SignInServiceFixture
         sessions.IsActive(outcome.SessionId).Should().BeTrue();
     }
 
+    [Fact]
+    public void should_forget_the_failures_when_a_sign_in_succeeds()
+    {
+        var (service, _) = Subject();
+        for (var round = 0; round < 3; round++)
+        {
+            for (var attempt = 0; attempt < LoginThrottle.MaxFailures - 1; attempt++)
+            {
+                service.SignIn("operator-name", "wrong").Status.Should().Be(SignInStatus.Wrong);
+            }
+
+            service.SignIn("operator-name", "a long enough password").Status.Should().Be(SignInStatus.Signed);
+        }
+    }
+
     [Theory]
     [InlineData("operator-name", "wrong")]
     [InlineData("someone-else", "a long enough password")]

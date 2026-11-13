@@ -337,7 +337,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-SYS-02 | Health with reason codes (§10.3), shown on the page | M | 1 ✅ |
 | F-SYS-03 | Effective settings (read-only, secrets hidden) | S | 1 ✅ |
 | **F-ACC** | **Operator access** | | |
-| F-ACC-01 | A first administrator from a name and a password file (as Mnemarr, ADR 0016); a session cookie; the header of writes | M | 1 ✅ |
+| F-ACC-01 | The operator: a name and a password file (D-19, ADR 0011); a session cookie; the header of writes; the outcome of each sign-in in the log, never what was typed | M | 1 ✅ |
 | F-ACC-02 | Behind the proxy's single sign-on **and** Geminarr's own login (nothing is reachable anonymously except the probes) | M | 1 ✅ |
 | F-ACC-03 | The API description (`/openapi`) behind the sign-in; `AllowedHostNames` restricted to the loopback names and the host of `PUBLICURL` (a DNS-rebinding page must not reach the loopback address) | M | 1 ✅ |
 | F-ACC-04 | The server **enforces** the `X-Geminarr-Request` header on every write that is not a GET, HEAD or OPTIONS, with a test, before the first write endpoint ships | M | 1 ✅ |
