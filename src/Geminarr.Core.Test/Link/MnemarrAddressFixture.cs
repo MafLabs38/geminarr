@@ -41,6 +41,34 @@ public sealed class MnemarrAddressFixture
         MnemarrAddress.IsSecure(address).Should().Be(secure);
     }
 
+    [Theory]
+    [InlineData("https://geminarr.homelab.example", "https://geminarr.homelab.example/")]
+    [InlineData("https://homelab.example/geminarr", "https://homelab.example/geminarr/")]
+    [InlineData("http://localhost:8282", "http://localhost:8282/")]
+    [InlineData("  https://geminarr.homelab.example/  ", "https://geminarr.homelab.example/")]
+    public void should_give_the_address_of_the_page_that_mnemarr_would_keep(string address, string expected)
+    {
+        MnemarrAddress.AttentionLink(address).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("http://geminarr.homelab.example")]
+    [InlineData("https://user:secret@geminarr.homelab.example")]
+    [InlineData("https://geminarr.homelab.example/?token=x")]
+    [InlineData("ftp://geminarr.homelab.example")]
+    public void should_give_no_address_that_mnemarr_would_drop(string? address)
+    {
+        MnemarrAddress.AttentionLink(address).Should().BeNull();
+    }
+
+    [Fact]
+    public void should_give_no_address_longer_than_mnemarr_keeps()
+    {
+        MnemarrAddress.AttentionLink("https://geminarr.homelab.example/" + new string('a', 520)).Should().BeNull();
+    }
+
     [Fact]
     public void should_validate_the_options_and_name_the_setting()
     {

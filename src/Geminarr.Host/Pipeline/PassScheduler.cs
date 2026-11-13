@@ -15,6 +15,9 @@ public sealed class PassScheduler : BackgroundService
     /// <summary>A short wait at start, so that the application answers its probes before the first pass.</summary>
     private static readonly TimeSpan DefaultStartDelay = TimeSpan.FromSeconds(3);
 
+    /// <summary>How often a pairing that waits is asked about (Mnemarr asks for about three seconds).</summary>
+    private static readonly TimeSpan PairingInterval = TimeSpan.FromSeconds(3);
+
     private readonly PassRunner _runner;
     private readonly PassTrigger _trigger;
     private readonly LinkService _link;
@@ -40,15 +43,49 @@ public sealed class PassScheduler : BackgroundService
         {
             await Task.Delay(_startDelay, stoppingToken);
             await EnrolAsync(stoppingToken);
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                await PassAsync(stoppingToken);
-                await _trigger.WaitAsync(NextDelay(), stoppingToken);
-            }
+            await Task.WhenAll(PassesAsync(stoppingToken), PairingAsync(stoppingToken));
         }
         catch (OperationCanceledException)
         {
             // The application is stopping.
+        }
+    }
+
+    private async Task PassesAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await PassAsync(stoppingToken);
+            await _trigger.WaitAsync(NextDelay(), stoppingToken);
+        }
+    }
+
+    /// <summary>A pairing that waits is asked about every few seconds by the server, so that it completes when a person approves it even if the page was closed.</summary>
+    private async Task PairingAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(PairingInterval, stoppingToken);
+            await CheckPairingAsync(stoppingToken);
+        }
+    }
+
+    private async Task CheckPairingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_link.Pairing().State == PairingStates.Pending)
+            {
+                await _link.PollPairingAsync(cancellationToken);
+            }
+        }
+        catch (SinkException ex)
+        {
+            _logger.LogWarning(ex, "Mnemarr could not be asked about the pairing ({Failure}).", ex.Failure);
+        }
+        catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+        {
+            _logger.LogWarning(ex, "The pairing could not be kept: the database cannot be reached.");
         }
     }
 

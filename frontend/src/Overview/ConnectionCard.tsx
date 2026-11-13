@@ -7,6 +7,7 @@ import LoadingIndicator from 'Components/LoadingIndicator';
 import StatusLabel from 'Components/Status/StatusLabel';
 import { type Connection, useConnection } from 'Connection/useConnection';
 import { type Kind, kinds } from 'Helpers/Props/kinds';
+import { hostOf } from 'Mnemarr/hostOf';
 import { useMnemarr } from 'Mnemarr/useMnemarr';
 import { useRunNow, useRuns } from 'Runs/useRuns';
 import type { TranslationKey } from 'Utilities/String/en';
@@ -20,14 +21,6 @@ const states: Readonly<Record<Connection['state'], { kind: Kind; text: Translati
   NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
   Degraded: { kind: kinds.WARNING, text: 'ConnectionDegraded' },
   NotConnected: { kind: kinds.INFO, text: 'ConnectionNotConnected' },
-};
-
-const hostOf = (address: string): string => {
-  try {
-    return new URL(address).host;
-  } catch {
-    return address;
-  }
 };
 
 /** Where Geminarr stands: connected to an assistant or not, linked to a Mnemarr or not, and a button to run a pass now. */

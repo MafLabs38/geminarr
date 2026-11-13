@@ -1,4 +1,6 @@
 using Geminarr.Core.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Link;
@@ -7,11 +9,13 @@ public sealed class KeyStore : IKeyStore
 {
     private readonly IOptions<MnemarrOptions> _mnemarr;
     private readonly IOptions<GeminarrOptions> _geminarr;
+    private readonly ILogger<KeyStore> _logger;
 
-    public KeyStore(IOptions<MnemarrOptions> mnemarr, IOptions<GeminarrOptions> geminarr)
+    public KeyStore(IOptions<MnemarrOptions> mnemarr, IOptions<GeminarrOptions> geminarr, ILogger<KeyStore>? logger = null)
     {
         _mnemarr = mnemarr;
         _geminarr = geminarr;
+        _logger = logger ?? NullLogger<KeyStore>.Instance;
     }
 
     private string Path => string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) ? System.IO.Path.Combine(_geminarr.Value.DataFolder, "mnemarr", "key") : _mnemarr.Value.KeyFile;
@@ -23,8 +27,18 @@ public sealed class KeyStore : IKeyStore
             var text = File.ReadAllText(Path).Trim();
             return text.Length == 0 ? null : text;
         }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            // A key that is there and cannot be read is not a key that is missing: the page says "not linked", and this says why.
+            _logger.LogWarning(ex, "The file of the Mnemarr key exists and cannot be read: check its permissions.");
             return null;
         }
     }

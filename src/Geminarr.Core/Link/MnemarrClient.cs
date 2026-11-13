@@ -26,6 +26,9 @@ public sealed class MnemarrClient
     /// <summary>A write that does not carry an API key (pairing, enrolment) needs this header on Mnemarr; the ones that do not need it, and it does no harm.</summary>
     private const string RequestHeader = "X-Mnemarr-Request";
 
+    /// <summary>The largest answer that is read: a list of positions for tens of thousands of conversations fits well inside.</summary>
+    private const int MaxAnswerBytes = 16 * 1024 * 1024;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly IHttpClientFactory _factory;
@@ -116,7 +119,17 @@ public sealed class MnemarrClient
                 throw Failure(response.StatusCode);
             }
 
-            return response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0 ? default : await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
+            {
+                return default;
+            }
+
+            // An answer is read up to a limit, counting what arrives: an endpoint that never stops must not fill the memory of the container.
+            await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var limited = new MemoryStream();
+            await CopyAtMostAsync(body, limited, MaxAnswerBytes, cancellationToken);
+            limited.Position = 0;
+            return await JsonSerializer.DeserializeAsync<T>(limited, Json, cancellationToken);
         }
         catch (Exception ex) when (IsFailureOfTheCall(ex, cancellationToken))
         {
@@ -128,6 +141,21 @@ public sealed class MnemarrClient
     /// <summary>A failure of the call itself (the network, a timeout, an answer that is not what was expected), and not the caller giving up.</summary>
     private static bool IsFailureOfTheCall(Exception exception, CancellationToken cancellationToken) =>
         !cancellationToken.IsCancellationRequested && exception is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException;
+
+    private static async Task CopyAtMostAsync(Stream source, Stream target, int limit, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[8_192];
+        int read;
+        while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            if (target.Length + read > limit)
+            {
+                throw new JsonException("The answer is larger than this version reads.");
+            }
+
+            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+    }
 
     private static SinkException Failure(HttpStatusCode status) => (int)status switch
     {

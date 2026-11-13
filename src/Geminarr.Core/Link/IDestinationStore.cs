@@ -4,7 +4,7 @@ public interface IDestinationStore
 {
     DestinationRecord? Get();
 
-    /// <summary>Keeps the address the settings give, when no row has it yet: nothing else changes.</summary>
+    /// <summary>Keeps an address when there is no row yet: a row that exists, with the address a key was given for, is never changed by this.</summary>
     void EnsureAddress(string url);
 
     /// <summary>Keeps the address (and forgets the machine and the link: it is another Mnemarr).</summary>

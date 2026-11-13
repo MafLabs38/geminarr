@@ -6,8 +6,11 @@ public interface IOutboxStore
     /// <summary>Replaces what waits for a conversation by these batches (they are contiguous from where Mnemarr stands), in one step.</summary>
     void Replace(string conversationId, IReadOnlyList<(long From, IReadOnlyList<string> Lines)> batches, DateTimeOffset at);
 
-    /// <summary>The waiting batches, oldest first, at most <paramref name="limit"/>.</summary>
-    IReadOnlyList<OutboxBatch> Waiting(int limit);
+    /// <summary>The waiting batches after the one of this id, oldest first, at most <paramref name="limit"/>: a pass reads them by pages, so that a long wait does not put every turn in memory at once.</summary>
+    IReadOnlyList<OutboxBatch> Waiting(int limit, long afterId = 0);
+
+    /// <summary>Forgets everything that waits: unlinking leaves no text of a conversation behind.</summary>
+    void Clear();
 
     void Delete(long id);
 

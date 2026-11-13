@@ -57,7 +57,6 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
-        services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();
         services.AddSingleton<EffectiveSettings>();
         return services;

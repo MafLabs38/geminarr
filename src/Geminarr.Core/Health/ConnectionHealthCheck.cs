@@ -28,7 +28,7 @@ public sealed class ConnectionHealthCheck : IHealthCheck
         }
         catch (Exception ex) when (Storage.StorageErrors.IsUnavailable(ex))
         {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The state of the connection cannot be read."));
+            return Task.FromResult(HealthReasons.Degraded(HealthReasons.DatabaseUnreadable, "The state of the connection cannot be read: the database cannot be reached."));
         }
     }
 }

@@ -15,6 +15,9 @@ public sealed class PassRunner
     /// <summary>The positions Mnemarr holds are asked for at the first pass and about every hour (SPEC §5.3).</summary>
     private static readonly TimeSpan PositionsRefresh = TimeSpan.FromHours(1);
 
+    /// <summary>How many waiting batches are read at a time.</summary>
+    private const int OutboxPageSize = 20;
+
     private readonly IConversationSink _sink;
     private readonly IConversationStore _conversations;
     private readonly IOutboxStore _outbox;
@@ -26,6 +29,8 @@ public sealed class PassRunner
     private readonly ILogger<PassRunner> _logger;
     private readonly SemaphoreSlim _running = new(1, 1);
     private DateTimeOffset? _positionsAt;
+    private long _generation = -1;
+    private SinkPositions? _positions;
 
     public PassRunner(IConversationSink sink, PassStores stores, ConnectionTracker connection, LinkService link, PassSettings settings, TimeProvider clock, ILogger<PassRunner> logger)
     {
@@ -54,8 +59,9 @@ public sealed class PassRunner
         try
         {
             var options = _settings.Reading;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromMinutes(options.PassTimeoutMinutes));
+            // The time limit follows the clock of the application, so that a test moves it.
+            using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(options.PassTimeoutMinutes), _clock);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
             return await RunOnceAsync(timeout.Token);
         }
         finally
@@ -80,6 +86,12 @@ public sealed class PassRunner
         {
             // The pass ran out of time, or the application is stopping: what was queued stays queued, and the run says so.
             state.Fail(RunOutcomes.Partial, "pass-timeout");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Something this version did not foresee (a value in the database that cannot be read, a batch that cannot be unpacked): the run says so, the next pass tries again, and the application stays up.
+            _logger.LogError(ex, "A pass failed with an error that was not foreseen.");
+            state.Fail(RunOutcomes.Failed, "internal-error");
         }
 
         var result = new PassResult(state.Outcome, state.Reason, state.Listed, state.Opened, state.TurnsSent);
@@ -132,7 +144,9 @@ public sealed class PassRunner
         return headers.Where(header =>
         {
             var known = _conversations.Get(header.Id);
+            // The most recent conversation is looked at every pass: new turns do not move it up a list that it already heads.
             return known is null
+                || header.Rank == 0
                 || header.Rank < known.ListRank
                 || !string.Equals(header.Title, known.Title, StringComparison.Ordinal)
                 || (known.TurnsKnown > known.TurnsSent && !waiting.Contains(header.Id));
@@ -144,7 +158,8 @@ public sealed class PassRunner
     {
         var now = _clock.GetUtcNow();
         var known = _conversations.Get(header.Id);
-        var sent = Math.Min(known?.TurnsSent ?? 0, turns.Count);
+        // A conversation that was never seen here but that Mnemarr already holds (this database was lost, or another Geminarr sent it): it goes on from where Mnemarr stands.
+        var sent = Math.Min(known?.TurnsSent ?? HeldTurns(header.Id), turns.Count);
         var hash = turns.Count > 0 ? ConversationLines.HashOf(turns[^1]) : null;
         // The last turn that was known is not what it was (an edit, a regenerated answer): it is counted and shown, never sent again, because the position model cannot update a line.
         var rewritten = (known?.RewrittenTurns ?? 0) + (IsRewritten(known, turns) ? 1 : 0);
@@ -152,7 +167,7 @@ public sealed class PassRunner
         var lines = new List<string>();
         if (sent == 0)
         {
-            lines.Add(ConversationLines.Meta(header.Id, header.Title, ConversationSources.Web));
+            lines.Add(ConversationLines.Meta(header.Id, header.Title, _settings.Reader!.Source));
         }
 
         lines.AddRange(turns.Skip(sent).Select(ConversationLines.TurnLine));
@@ -170,7 +185,7 @@ public sealed class PassRunner
             sent,
             hash,
             rewritten,
-            ConversationSources.Web,
+            _settings.Reader!.Source,
             turns.Count == sent ? ConversationStates.Synced : ConversationStates.New,
             null));
     }
@@ -200,6 +215,13 @@ public sealed class PassRunner
     /// <summary>Step 1: Mnemarr's positions are the truth about what it holds; they are asked for at the first pass and about every hour, before anything is read, so that what is queued starts from where it stands.</summary>
     private async Task ReconcileAsync(PassState state, CancellationToken cancellationToken)
     {
+        // Another Mnemarr (unlinked, another address, another machine name): what was asked of the last one is not the truth about this one.
+        if (_generation != _link.Generation)
+        {
+            _generation = _link.Generation;
+            _positionsAt = null;
+        }
+
         if (_positionsAt is { } at && _clock.GetUtcNow() - at < PositionsRefresh)
         {
             return;
@@ -207,7 +229,8 @@ public sealed class PassRunner
 
         try
         {
-            ApplyPositions(await _sink.PositionsAsync(cancellationToken));
+            _positions = await _sink.PositionsAsync(cancellationToken);
+            ApplyPositions(_positions);
             _positionsAt = _clock.GetUtcNow();
         }
         catch (SinkException ex)
@@ -216,6 +239,9 @@ public sealed class PassRunner
             state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
         }
     }
+
+    private int HeldTurns(string conversationId) =>
+        _positions is { } positions && positions.Lines.TryGetValue(ConversationLines.Session(conversationId), out var lines) ? (int)Math.Max(0, lines - 1) : 0;
 
     private void ApplyPositions(SinkPositions positions)
     {
@@ -236,31 +262,40 @@ public sealed class PassRunner
     private async Task FlushAsync(PassState state, CancellationToken cancellationToken)
     {
         var skipped = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var batch in _outbox.Waiting(int.MaxValue))
+        var after = 0L;
+        // By pages: a long wait (Mnemarr down for days while the reader backfills) must not put every waiting turn in memory at once.
+        for (var page = _outbox.Waiting(OutboxPageSize, after); page.Count > 0; page = _outbox.Waiting(OutboxPageSize, after))
         {
-            if (skipped.Contains(batch.ConversationId))
+            foreach (var batch in page)
             {
-                continue;
+                after = batch.Id;
+                if (!skipped.Contains(batch.ConversationId))
+                {
+                    await SendBatchAsync(batch, skipped, state, cancellationToken);
+                }
             }
+        }
+    }
 
-            try
-            {
-                var result = await _sink.SendAsync(ConversationLines.Session(batch.ConversationId), batch.FromPosition, batch.Lines, cancellationToken);
-                Acknowledge(batch, result, state);
-            }
-            catch (SinkException ex) when (ex.Failure == SinkFailure.Rejected)
-            {
-                // Mnemarr said no to this batch: it is kept with the reason, the rest of its conversation waits behind it, and the other conversations go on.
-                _outbox.RecordFailure(batch.Id, ex.Message);
-                skipped.Add(batch.ConversationId);
-                state.Destination = ex.Failure;
-                state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
-            }
-            catch (SinkException ex)
-            {
-                _outbox.RecordFailure(batch.Id, ex.Message);
-                throw;
-            }
+    private async Task SendBatchAsync(OutboxBatch batch, HashSet<string> skipped, PassState state, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _sink.SendAsync(ConversationLines.Session(batch.ConversationId), batch.FromPosition, batch.Lines, cancellationToken);
+            Acknowledge(batch, result, state);
+        }
+        catch (SinkException ex) when (ex.Failure == SinkFailure.Rejected)
+        {
+            // Mnemarr said no to this batch: it is kept with the reason, the rest of its conversation waits behind it, and the other conversations go on.
+            _outbox.RecordFailure(batch.Id, ex.Message);
+            skipped.Add(batch.ConversationId);
+            state.Destination = ex.Failure;
+            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+        }
+        catch (SinkException ex)
+        {
+            _outbox.RecordFailure(batch.Id, ex.Message);
+            throw;
         }
     }
 
@@ -281,6 +316,13 @@ public sealed class PassRunner
     private async Task SignalAsync(PassState state, CancellationToken cancellationToken)
     {
         var connection = _connection.Current();
+        // Mnemarr could not be reached, or refused the key, or there is none: a heartbeat would fail the same way, and a call that fails takes up to its time limit.
+        if (state.Destination is not (null or SinkFailure.Rejected))
+        {
+            RecordTalk(state);
+            return;
+        }
+
         try
         {
             await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), ErrorOf(connection), AttentionOf(connection)), cancellationToken);
@@ -291,6 +333,11 @@ public sealed class PassRunner
             state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
         }
 
+        RecordTalk(state);
+    }
+
+    private void RecordTalk(PassState state)
+    {
         if (state.Destination != SinkFailure.NotLinked && state.Destination != SinkFailure.InsecureAddress)
         {
             _link.RecordTalk(state.Destination is { } failure ? ProblemOf(failure) : null);
@@ -339,9 +386,7 @@ public sealed class PassRunner
             return null;
         }
 
-        var address = MnemarrAddress.Normalize(_settings.PublicUrl);
-        var usable = address is { Length: <= 512 } && MnemarrAddress.IsSecure(address);
-        return new Attention(code, usable ? new Uri(address!).AbsoluteUri : null);
+        return new Attention(code, MnemarrAddress.AttentionLink(_settings.PublicUrl));
     }
 
     private sealed class PassState

@@ -29,7 +29,7 @@ public sealed class MnemarrHealthCheck : IHealthCheck
         }
         catch (Exception ex) when (Storage.StorageErrors.IsUnavailable(ex))
         {
-            return Task.FromResult(HealthReasons.Degraded(DestinationProblems.NotLinked, "The destination cannot be read."));
+            return Task.FromResult(HealthReasons.Degraded(HealthReasons.DatabaseUnreadable, "The destination cannot be read: the database cannot be reached."));
         }
     }
 }

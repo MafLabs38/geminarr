@@ -26,7 +26,7 @@ public sealed class DestinationHealthFixture : IDisposable
     private static string? Reason(HealthCheckResult result) => result.Data.TryGetValue(HealthReasons.Key, out var reason) ? reason as string : null;
 
     private LinkService Link(MnemarrOptions? options = null) =>
-        new(Options.Of(options ?? new MnemarrOptions()), new DestinationStore(_workspace.Database), _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        new(Options.Of(options ?? new MnemarrOptions()), new DestinationStore(_workspace.Database), _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, new OutboxStore(_workspace.Database));
 
     [Fact]
     public async Task should_say_the_database_is_healthy_when_it_opens()
@@ -117,7 +117,7 @@ public sealed class DestinationHealthFixture : IDisposable
             _keys,
             new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))),
             _clock,
-            NullLogger<LinkService>.Instance);
+            NullLogger<LinkService>.Instance, new OutboxStore(_workspace.Database));
 
         var result = await new MnemarrHealthCheck(broken).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 

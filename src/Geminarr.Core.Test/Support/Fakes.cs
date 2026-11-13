@@ -6,6 +6,8 @@ namespace Geminarr.Core.Test.Support;
 /// <summary>A reader whose conversations are what the test says.</summary>
 public sealed class FakeReader : IConversationReader
 {
+    public string Source => ConversationSources.Web;
+
     public SessionCheck Session { get; set; } = SessionCheck.SignedIn;
 
     public Exception? FailWith { get; set; }
@@ -104,9 +106,18 @@ public sealed class FakeKeys : IKeyStore
 {
     public string? Key { get; set; }
 
+    /// <summary>A key on a read-only mount: it cannot be deleted.</summary>
+    public bool Stuck { get; set; }
+
     public string? Read() => Key;
 
     public void Write(string key) => Key = key;
 
-    public void Delete() => Key = null;
+    public void Delete()
+    {
+        if (!Stuck)
+        {
+            Key = null;
+        }
+    }
 }

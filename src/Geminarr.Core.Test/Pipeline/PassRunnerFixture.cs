@@ -20,6 +20,7 @@ public sealed class PassRunnerFixture : IDisposable
     private readonly RunStore _runs;
     private readonly ConnectionTracker _connection;
     private readonly DestinationStore _destination;
+    private LinkService _link = null!;
     private readonly FakeKeys _keys = new() { Key = "mnm_key" };
 
     public PassRunnerFixture()
@@ -35,9 +36,9 @@ public sealed class PassRunnerFixture : IDisposable
 
     private PassRunner Subject(bool withReader = true, ReaderOptions? options = null, string? publicUrl = null)
     {
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        _link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null));
-        return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, _link, settings, _clock, NullLogger<PassRunner>.Instance);
     }
 
     private static string Session(string id) => ConversationLines.Session(id);
@@ -70,8 +71,8 @@ public sealed class PassRunnerFixture : IDisposable
         await subject.RunAsync(TestContext.Current.CancellationToken);
 
         await subject.RunAsync(TestContext.Current.CancellationToken);
-        _sink.Sent.Should().ContainSingle("nothing changed: the conversation is not even a candidate");
-        _reader.Opened.Should().ContainSingle();
+        _sink.Sent.Should().ContainSingle("nothing changed: the conversation is looked at, as it heads the list, and nothing is sent");
+        _reader.Opened.Should().Equal("c1", "c1");
 
         _reader.Say("c1", "T", "a", "b", "c", "d");
         _reader.Conversations["c1"] = ("T renamed", _reader.Conversations["c1"].Turns);
@@ -100,8 +101,8 @@ public sealed class PassRunnerFixture : IDisposable
 
         var second = await subject.RunAsync(TestContext.Current.CancellationToken);
 
-        second!.Opened.Should().Be(1, "the one that waited is the candidate now");
-        _reader.Opened.Should().Equal("a", "b", "c");
+        second!.Opened.Should().Be(2, "the one that heads the list is looked at every pass, and the one that waited is the candidate now");
+        _reader.Opened.Should().Equal("a", "b", "a", "c");
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public sealed class PassRunnerFixture : IDisposable
         failed.TurnsSent.Should().Be(0);
         _outbox.PendingLines().Should().Be(3);
         _outbox.Waiting(10).Single().Attempts.Should().Be(1);
-        _sink.Heartbeats.Single().PendingLines.Should().Be(3, "Mnemarr is told how much waits");
+        _sink.Heartbeats.Should().BeEmpty("Mnemarr could not be reached, and a heartbeat would have waited as long for the same answer");
         _destination.Get()!.LastProblem.Should().Be(DestinationProblems.Unreachable);
 
         _sink.FailSend = null;
@@ -221,7 +222,7 @@ public sealed class PassRunnerFixture : IDisposable
         result!.Outcome.Should().Be(RunOutcomes.Partial);
         result.Reason.Should().Be(DestinationProblems.NotLinked);
         _outbox.PendingLines().Should().Be(2);
-        _sink.Heartbeats.Should().ContainSingle("the heartbeat is tried, and it is the sink that says there is nowhere to send");
+        _sink.Heartbeats.Should().BeEmpty("there is nowhere to send a heartbeat either");
     }
 
     [Fact]
@@ -368,7 +369,7 @@ public sealed class PassRunnerFixture : IDisposable
         var gate = new TaskCompletionSource();
         var slow = new SlowReader(gate.Task);
         var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
 
         var first = subject.RunAsync(TestContext.Current.CancellationToken);
@@ -388,18 +389,93 @@ public sealed class PassRunnerFixture : IDisposable
         var never = new TaskCompletionSource();
         var slow = new SlowReader(never.Task);
         var settings = new PassSettings(Options.Of(new ReaderOptions { PassTimeoutMinutes = 1 }), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
-        using var stop = new CancellationTokenSource();
 
-        var run = subject.RunAsync(stop.Token);
+        var run = subject.RunAsync(TestContext.Current.CancellationToken);
         await slow.Started.Task;
-        await stop.CancelAsync();
+        _clock.Advance(TimeSpan.FromMinutes(2));
         var result = await run;
 
         result!.Outcome.Should().Be(RunOutcomes.Partial);
         result.Reason.Should().Be("pass-timeout");
         _runs.Recent(1).Single().Outcome.Should().Be(RunOutcomes.Partial);
+    }
+
+    [Fact]
+    public async Task should_say_a_pass_failed_when_something_it_did_not_foresee_happens_and_stay_up()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        using (var connection = _workspace.Database.Open())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE conversations SET first_seen_at = 'not a date';";
+            command.ExecuteNonQuery();
+        }
+
+        _reader.Say("c1", "T2", "a", "b");
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        result!.Outcome.Should().Be(RunOutcomes.Failed);
+        result.Reason.Should().Be("internal-error");
+        _runs.Recent(1).Single().Outcome.Should().Be(RunOutcomes.Failed);
+    }
+
+    [Fact]
+    public async Task should_ask_mnemarr_again_for_its_positions_when_the_destination_changes()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.PositionCalls.Should().Be(1);
+
+        _link.Unlink();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.PositionCalls.Should().Be(2, "another Mnemarr: what the last one said is not the truth about it");
+    }
+
+    [Fact]
+    public async Task should_adopt_what_mnemarr_holds_when_it_holds_more_than_was_believed_and_not_send_it_again()
+    {
+        _reader.Say("c1", "T", "a", "b", "c");
+        _sink.Held[Session("c1")] = 4;
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        result!.TurnsSent.Should().Be(0);
+        _sink.Sent.Should().BeEmpty();
+        _conversations.Get("c1")!.TurnsSent.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task should_send_the_batches_of_a_long_wait_by_pages_in_order()
+    {
+        for (var conversation = 0; conversation < 45; conversation++)
+        {
+            _outbox.Replace($"c{conversation:00}", [(0, [ConversationLines.Meta($"c{conversation:00}", "T", "web")])], _clock.GetUtcNow());
+        }
+
+        var result = await Subject(withReader: false).RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Sent.Should().HaveCount(45);
+        _sink.Sent.Select(sent => sent.Session).Should().Equal(Enumerable.Range(0, 45).Select(index => Session($"c{index:00}")));
+        _outbox.PendingLines().Should().Be(0);
+        result!.Outcome.Should().Be(RunOutcomes.Skipped);
+    }
+
+    [Fact]
+    public async Task should_send_the_address_of_a_page_under_a_sub_path_of_a_proxy()
+    {
+        var subject = Subject(publicUrl: "https://homelab.example/geminarr");
+        _reader.Session = SessionCheck.SignedOut;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Heartbeats.Last().Attention!.Url.Should().Be("https://homelab.example/geminarr/");
     }
 
     private sealed class SlowReader : IConversationReader
@@ -410,6 +486,8 @@ public sealed class PassRunnerFixture : IDisposable
         {
             _release = release;
         }
+
+        public string Source => ConversationSources.Web;
 
         public TaskCompletionSource Started { get; } = new();
 

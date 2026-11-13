@@ -112,9 +112,10 @@ public sealed class MnemarrClientFixture
     [InlineData(HttpStatusCode.BadRequest, SinkFailure.Rejected)]
     [InlineData(HttpStatusCode.RequestEntityTooLarge, SinkFailure.Rejected)]
     [InlineData(HttpStatusCode.UnprocessableEntity, SinkFailure.Rejected)]
-    [InlineData(HttpStatusCode.TooManyRequests, SinkFailure.Unreachable)]
+    [InlineData(HttpStatusCode.NotFound, SinkFailure.Rejected)]
+    [InlineData(HttpStatusCode.Conflict, SinkFailure.Rejected)]
+    [InlineData(HttpStatusCode.RequestTimeout, SinkFailure.Unreachable)]
     [InlineData(HttpStatusCode.InternalServerError, SinkFailure.Unreachable)]
-    [InlineData(HttpStatusCode.BadGateway, SinkFailure.Unreachable)]
     [InlineData(HttpStatusCode.Redirect, SinkFailure.Unreachable)]
     public async Task should_say_which_kind_of_failure_it_was_from_the_status(HttpStatusCode status, SinkFailure expected)
     {
@@ -156,6 +157,17 @@ public sealed class MnemarrClientFixture
         (await ((Func<Task>)(() => client.EnrolAsync(Url, "c", "gemini", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
         (await ((Func<Task>)(() => client.PairStartAsync(Url, "gemini", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
         (await ((Func<Task>)(() => client.PairPollAsync(Url, "d", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
+    }
+
+    [Fact]
+    public async Task should_not_read_an_answer_that_never_stops()
+    {
+        var huge = new string('x', 17 * 1024 * 1024);
+        var http = new FakeHttp(_ => FakeHttp.Json($"[{{\"session\":\"{huge}\",\"lines\":1}}]"));
+
+        var read = () => new MnemarrClient(http).PositionsAsync(Url, "k", "gemini", TestContext.Current.CancellationToken);
+
+        (await read.Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Unreachable);
     }
 
     [Fact]
