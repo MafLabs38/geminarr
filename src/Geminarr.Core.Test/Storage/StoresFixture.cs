@@ -84,6 +84,22 @@ public sealed class StoresFixture : IDisposable
     }
 
     [Fact]
+    public void should_keep_a_batch_that_is_wanted_again_as_it_was_and_replace_one_that_changed()
+    {
+        var store = new OutboxStore(_workspace.Database);
+        store.Replace("c1", [(0, ["a", "b"]), (2, ["c"])], Now);
+        var before = store.Waiting(10);
+        store.RecordFailure(before[0].Id, "Mnemarr said no (400).");
+
+        store.Replace("c1", [(0, ["a", "b"]), (2, ["c", "d"])], Now.AddMinutes(5));
+
+        var after = store.Waiting(10);
+        after[0].Should().Match<OutboxBatch>(batch => batch.Id == before[0].Id && batch.Attempts == 1 && batch.CreatedAt == Now);
+        after[1].Lines.Should().Equal("c", "d");
+        store.Waiting(10).Should().HaveCount(2);
+    }
+
+    [Fact]
     public void should_forget_a_batch_that_was_acknowledged_and_count_the_failures_of_one_that_was_not()
     {
         var store = new OutboxStore(_workspace.Database);

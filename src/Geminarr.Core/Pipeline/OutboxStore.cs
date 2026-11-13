@@ -18,23 +18,53 @@ public sealed class OutboxStore : IOutboxStore
     {
         using var connection = _database.Open();
         using var transaction = connection.BeginTransaction();
-        using (var delete = connection.CreateCommand())
+        var wanted = batches.Select(batch => (batch.From, Packed: Pack(batch.Lines), batch.Lines.Count)).ToList();
+        var kept = new HashSet<int>();
+        using (var read = connection.CreateCommand())
         {
-            delete.Transaction = transaction;
-            delete.CommandText = "DELETE FROM outbox WHERE conversation_id = $id;";
-            delete.Parameters.AddWithValue("$id", conversationId);
-            delete.ExecuteNonQuery();
+            read.Transaction = transaction;
+            read.CommandText = "SELECT id, from_position, line_count, lines FROM outbox WHERE conversation_id = $id;";
+            read.Parameters.AddWithValue("$id", conversationId);
+            var stale = new List<long>();
+            using (var reader = read.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    // A batch that is the same as one that is wanted stays as it is, with its attempts and the moment it was made: queueing a conversation again does not forget how it went.
+                    var match = wanted.FindIndex(batch => batch.From == reader.GetInt64(1) && batch.Count == reader.GetInt32(2) && batch.Packed.AsSpan().SequenceEqual((byte[])reader[3]));
+                    if (match >= 0 && kept.Add(match))
+                    {
+                        continue;
+                    }
+
+                    stale.Add(reader.GetInt64(0));
+                }
+            }
+
+            foreach (var id in stale)
+            {
+                using var delete = connection.CreateCommand();
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM outbox WHERE id = $id;";
+                delete.Parameters.AddWithValue("$id", id);
+                delete.ExecuteNonQuery();
+            }
         }
 
-        foreach (var (from, lines) in batches)
+        for (var index = 0; index < wanted.Count; index++)
         {
+            if (kept.Contains(index))
+            {
+                continue;
+            }
+
             using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
             insert.CommandText = "INSERT INTO outbox (conversation_id, from_position, line_count, lines, created_at) VALUES ($id, $from, $count, $lines, $at);";
             insert.Parameters.AddWithValue("$id", conversationId);
-            insert.Parameters.AddWithValue("$from", from);
-            insert.Parameters.AddWithValue("$count", lines.Count);
-            insert.Parameters.AddWithValue("$lines", Pack(lines));
+            insert.Parameters.AddWithValue("$from", wanted[index].From);
+            insert.Parameters.AddWithValue("$count", wanted[index].Count);
+            insert.Parameters.AddWithValue("$lines", wanted[index].Packed);
             insert.Parameters.AddWithValue("$at", StorageText.Moment(at));
             insert.ExecuteNonQuery();
         }
