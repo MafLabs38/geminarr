@@ -25,7 +25,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
 
-# Every job has a time limit: a stuck step (a package mirror that does not answer, a runner that hangs) is stopped and reported in minutes instead of
+# Every job of this workflow has a time limit: a stuck step (a package mirror that does not answer, a runner that hangs) is stopped and reported in minutes instead of
 # holding a pull request for an hour. The limits are three to five times what the job takes.
 jobs:
   lint:
