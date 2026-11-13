@@ -215,6 +215,7 @@ jobs:
   sonar-not-configured:
     name: sonar-not-configured
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SONAR_HOST_URL == '' }}
     steps:
       - run: echo "::warning title=No release::SONAR_HOST_URL is not set, so the SonarQube analysis was skipped; a release needs it to have passed. Nothing was released or published (docs/releasing.md)."
