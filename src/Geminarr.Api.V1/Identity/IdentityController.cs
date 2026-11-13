@@ -45,15 +45,7 @@ public sealed class IdentityController : ControllerBase
         Response.Headers.CacheControl = v == logo.Hash ? "private, max-age=31536000, immutable" : "private, max-age=300";
         Response.Headers.ContentSecurityPolicy = "default-src 'none'; sandbox";
         Response.Headers.XContentTypeOptions = "nosniff";
-        var etag = new EntityTagHeaderValue($"\"{logo.Hash}\"");
-        Response.Headers.ETag = etag.ToString();
-
-        // A browser that has the image says so: it is not read again to be told it has not changed.
-        if (Request.Headers.IfNoneMatch.Any(value => value == etag.ToString() || value == "*"))
-        {
-            return StatusCode(StatusCodes.Status304NotModified);
-        }
-
-        return logo.Load() is { } content ? File(content, logo.ContentType, logo.Modified, etag) : NotFound();
+        // File() answers 304 to a browser that has the image (If-None-Match, If-Modified-Since): it is not sent again to be told it has not changed.
+        return File(logo.Content, logo.ContentType, logo.Modified, new EntityTagHeaderValue($"\"{logo.Hash}\""));
     }
 }

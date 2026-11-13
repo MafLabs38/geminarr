@@ -170,7 +170,7 @@ public static partial class IdentityRules
                 || value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
                 || value.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase)
                 || (element.LocalName == "href" && value.Length > 0 && !value.StartsWith('#'))
-                || (element.LocalName == "style" && LoadsFromOutside(value)))
+                || LoadsFromOutside(value))
             {
                 return true;
             }

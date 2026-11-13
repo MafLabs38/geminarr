@@ -31,7 +31,7 @@ public sealed class BrandingOptionsValidator : IValidateOptions<BrandingOptions>
 {
     public ValidateOptionsResult Validate(string? name, BrandingOptions options)
     {
-        var problem = (options.Name is { Length: > 0 } text ? IdentityRules.ValidateName(text) : null)
+        var problem = (options.Name?.Trim() is { Length: > 0 } text ? IdentityRules.ValidateName(text) : null)
             ?? (options.Colors.Name is { Length: > 0 } nameColor ? IdentityRules.ValidateColor("name", nameColor) : null)
             ?? (options.Colors.Version is { Length: > 0 } versionColor ? IdentityRules.ValidateColor("version", versionColor) : null);
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail($"Identity (GEMINARR__IDENTITY__*): {problem}");

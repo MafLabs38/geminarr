@@ -14,6 +14,13 @@ public sealed class BrandingOptionsValidatorFixture
     }
 
     [Fact]
+    public void should_accept_a_name_of_exactly_forty_characters_even_with_spaces_around_it()
+    {
+        _subject.Validate(null, new BrandingOptions { Name = new string('a', 40) }).Succeeded.Should().BeTrue();
+        _subject.Validate(null, new BrandingOptions { Name = $"  {new string('a', 40)}  " }).Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
     public void should_refuse_a_name_that_is_too_long_and_name_the_setting()
     {
         var result = _subject.Validate(null, new BrandingOptions { Name = new string('a', 41) });

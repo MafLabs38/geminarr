@@ -36,4 +36,30 @@ describe('Settings', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not read the settings');
   });
+
+  it('says why the picture of the menu is not used, and says nothing when it is', async () => {
+    const identity = {
+      name: 'Geminarr',
+      logoUrl: null,
+      version: '0.1.0',
+      logoProblem: null,
+      colors: { name: 'accent', version: 'accent' },
+    };
+    stubApi({
+      '/settings': { settings: [] },
+      '/identity': { ...identity, logoProblem: 'The logo file of the settings is not there.' },
+    });
+    const { unmount } = renderAt(<Settings />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The picture of the menu is not used. The logo file of the settings is not there.',
+    );
+    unmount();
+
+    stubApi({ '/settings': { settings: [] }, '/identity': identity });
+    renderAt(<Settings />);
+    await screen.findByText(/changed in its manifest, not here/);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

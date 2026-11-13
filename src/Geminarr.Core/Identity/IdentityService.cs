@@ -3,8 +3,8 @@ using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Identity;
 
-/// <summary>An image that is the logo: how it is served, the hash that goes in its address, when the file was written, and a way to read its bytes.</summary>
-public sealed record IdentityLogoFile(string ContentType, string Hash, DateTimeOffset Modified, Func<byte[]?> Load);
+/// <summary>An image that is the logo: how it is served, the hash that goes in its address, when the file was written, and its bytes.</summary>
+public sealed record IdentityLogoFile(string ContentType, string Hash, DateTimeOffset Modified, byte[] Content);
 
 /// <summary>The colors of the two texts, resolved: each is a theme token name or a hex color.</summary>
 public sealed record IdentityColors(string Name, string Version);
@@ -94,7 +94,7 @@ public sealed class IdentityService
             var (format, error) = IdentityRules.InspectLogo(content, info.Extension);
             return format is null
                 ? (null, $"The logo file of the settings is not used: {error}")
-                : (new IdentityLogoFile(format.ContentType, Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(), info.LastWriteTimeUtc, () => content), null);
+                : (new IdentityLogoFile(format.ContentType, Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(), info.LastWriteTimeUtc, content), null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

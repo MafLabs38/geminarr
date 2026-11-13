@@ -13,7 +13,7 @@ public sealed class IdentityRulesFixture
 
     [Theory]
     [InlineData("Lab")]
-    [InlineData("MafLabs")]
+    [InlineData("Example Lab")]
     public void should_accept_a_name_of_one_line(string name)
     {
         IdentityRules.ValidateName(name).Should().BeNull();
@@ -75,6 +75,15 @@ public sealed class IdentityRulesFixture
         IdentityRules.InspectLogo("RIFF....WAVEfmt  "u8, "webp").Error.Should().NotBeNull();
     }
 
+    [Theory]
+    [InlineData("RIFF\0\0\0\0WEBP", false)]
+    [InlineData("RIFF\0\0\0\0WEBPV", true)]
+    [InlineData("RIFF\0\0\0\0WAVEV", false)]
+    public void should_need_more_than_the_header_of_a_webp(string content, bool valid)
+    {
+        (IdentityRules.InspectLogo(Encoding.ASCII.GetBytes(content), "webp").Format is not null).Should().Be(valid);
+    }
+
     [Fact]
     public void should_accept_a_plain_svg()
     {
@@ -87,6 +96,13 @@ public sealed class IdentityRulesFixture
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"/>")]
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><a href=\"javascript:alert(1)\"/></svg>")]
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><image href=\"https://elsewhere.example/x.png\"/></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><rect fill=\"url(https://elsewhere.example/x)\"/></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><rect fill=\"url( 'https://elsewhere.example/x' )\"/></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\" ONLOAD=\"alert(1)\"/>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><set attributeName=\"href\" to=\"javascript:alert(1)\"/></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><image href=\"data:text/html,x\"/></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><style><![CDATA[@import url(https://elsewhere.example/x.css);]]></style></svg>")]
+    [InlineData("<!-- nothing here -->")]
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><style>@import url(https://elsewhere.example/x.css);</style></svg>")]
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><style>a{background:url(https://elsewhere.example/x.png)}</style></svg>")]
     [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><rect style=\"fill:url(https://elsewhere.example/x)\"/></svg>")]

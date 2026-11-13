@@ -1,5 +1,5 @@
 /** The theme tokens a color of the badge may name: the same list as the server's (ADR 0013). */
-export const COLOR_TOKENS = ['accent', 'accentDeep', 'secondary', 'ink', 'inkSoft', 'inkMuted'] as const;
+const COLOR_TOKENS = ['accent', 'accentDeep', 'secondary', 'ink', 'inkSoft', 'inkMuted'] as const;
 
 const TOKENS = new Set<string>(COLOR_TOKENS);
 

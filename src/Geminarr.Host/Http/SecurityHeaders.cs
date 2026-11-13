@@ -25,14 +25,16 @@ public static class SecurityHeaders
                 headers["Referrer-Policy"] = "no-referrer";
                 // An endpoint that says it keeps its own headers (the logo of the identity: an image that is the same until its hash changes, with the strictest policy, kept by the browser;
                 // ADR 0013) does so when it is served. An error of the same endpoint has the application's policy and is not cached, like every other answer.
-                var logo = context.Response.StatusCode is StatusCodes.Status200OK or StatusCodes.Status304NotModified
-                    && context.GetEndpoint()?.Metadata.GetMetadata<KeepsItsOwnHeadersAttribute>() is not null;
-                if (!logo)
+                // It must also have said a policy: the marker alone does not leave an answer without one.
+                var keepsOwnHeaders = context.Response.StatusCode is StatusCodes.Status200OK or StatusCodes.Status304NotModified
+                    && context.GetEndpoint()?.Metadata.GetMetadata<KeepsItsOwnHeadersAttribute>() is not null
+                    && headers.ContainsKey("Content-Security-Policy");
+                if (!keepsOwnHeaders)
                 {
                     headers["Content-Security-Policy"] = ContentSecurityPolicy;
                 }
 
-                if (ApiPaths.IsApi(context.Request.Path) && !logo)
+                if (ApiPaths.IsApi(context.Request.Path) && !keepsOwnHeaders)
                 {
                     // What the API says is for the person who asked: no cache keeps it.
                     headers.CacheControl = "no-store";

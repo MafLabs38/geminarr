@@ -40,7 +40,7 @@ public sealed class IdentityServiceFixture : IDisposable
         identity.Colors.Should().Be(new IdentityColors("#3ee0c5", "inkMuted"));
         identity.Logo!.ContentType.Should().Be("image/png");
         identity.Logo.Hash.Should().HaveLength(64);
-        identity.Logo.Load().Should().Equal(IdentityRulesFixture.Png);
+        identity.Logo.Content.Should().Equal(IdentityRulesFixture.Png);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class IdentityServiceFixture : IDisposable
 
         var second = subject.Get().Logo!;
         second.Hash.Should().NotBe(first.Hash);
-        second.Load().Should().Equal(other);
+        second.Content.Should().Equal(other);
     }
 
     [Fact]

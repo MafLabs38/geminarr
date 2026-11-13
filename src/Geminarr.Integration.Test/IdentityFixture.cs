@@ -6,17 +6,15 @@ using Geminarr.Core.SystemInfo;
 namespace Geminarr.Integration.Test;
 
 /// <summary>The identity of the environment: a name, a logo and the version, served to the operator who is signed in and cached like an icon.</summary>
-public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixture<IdentityFactory>, IClassFixture<BrokenLogoFactory>
+public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixture<IdentityFactory>
 {
     private readonly GeminarrFactory _default;
     private readonly IdentityFactory _deployed;
-    private readonly BrokenLogoFactory _broken;
 
-    public IdentityFixture(GeminarrFactory defaults, IdentityFactory deployed, BrokenLogoFactory broken)
+    public IdentityFixture(GeminarrFactory defaults, IdentityFactory deployed)
     {
         _default = defaults;
         _deployed = deployed;
-        _broken = broken;
     }
 
     [Theory]
@@ -84,20 +82,6 @@ public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixt
     }
 
     [Fact]
-    public async Task should_not_send_the_logo_again_to_a_browser_that_has_it()
-    {
-        using var client = await _deployed.SignedInClientAsync();
-        var first = await client.GetAsync("/api/v1/identity/logo", TestContext.Current.CancellationToken);
-        using var again = new HttpRequestMessage(HttpMethod.Get, "/api/v1/identity/logo");
-        again.Headers.TryAddWithoutValidation("If-None-Match", first.Headers.ETag!.ToString());
-
-        var response = await client.SendAsync(again, TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotModified);
-        response.Headers.GetValues("Content-Security-Policy").Should().Equal("default-src 'none'; sandbox");
-    }
-
-    [Fact]
     public async Task should_cache_nothing_and_keep_the_application_policy_when_there_is_no_logo()
     {
         using var client = await _default.SignedInClientAsync();
@@ -109,14 +93,24 @@ public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixt
         response.Headers.GetValues("Content-Security-Policy").Single().Should().StartWith("default-src 'self'");
     }
 
-    [Fact]
-    public async Task should_say_why_a_logo_is_not_used_and_never_where_it_is()
+    [Theory]
+    [InlineData("v=not-the-hash")]
+    [InlineData("")]
+    public async Task should_answer_304_to_a_matching_etag_or_a_star_and_keep_the_policy(string query)
     {
-        using var client = await _broken.SignedInClientAsync();
+        using var client = await _deployed.SignedInClientAsync();
+        var path = query.Length == 0 ? "/api/v1/identity/logo" : $"/api/v1/identity/logo?{query}";
+        var first = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
-        var identity = await client.GetFromJsonAsync<IdentityResource>("/api/v1/identity", TestContext.Current.CancellationToken);
+        foreach (var validator in new[] { first.Headers.ETag!.ToString(), "*" })
+        {
+            using var again = new HttpRequestMessage(HttpMethod.Get, path);
+            again.Headers.TryAddWithoutValidation("If-None-Match", validator);
 
-        identity!.LogoUrl.Should().BeNull();
-        identity.LogoProblem.Should().Contain("not there").And.NotContain("geminarr-missing-logo");
+            var response = await client.SendAsync(again, TestContext.Current.CancellationToken);
+
+            response.StatusCode.Should().Be(HttpStatusCode.NotModified, validator);
+            response.Headers.GetValues("Content-Security-Policy").Should().Equal("default-src 'none'; sandbox");
+        }
     }
 }

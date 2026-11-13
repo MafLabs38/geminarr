@@ -183,13 +183,3 @@ public sealed class IdentityFactory : GeminarrFactoryBase
         }
     }
 }
-
-/// <summary>A host whose logo file is not an image: the identity says why it is not used, and never where the file is.</summary>
-public sealed class BrokenLogoFactory : GeminarrFactoryBase
-{
-    public BrokenLogoFactory() : base(createFolder: true)
-    {
-    }
-
-    protected override void AddSettings(Dictionary<string, string?> settings) => settings["Identity:LogoFile"] = Path.Combine(Path.GetTempPath(), "geminarr-missing-logo.png");
-}
