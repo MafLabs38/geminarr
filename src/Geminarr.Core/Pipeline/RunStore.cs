@@ -1,9 +1,12 @@
 using Geminarr.Core.Storage;
+using Microsoft.Data.Sqlite;
 
 namespace Geminarr.Core.Pipeline;
 
 public sealed class RunStore : IRunStore
 {
+    private const string Columns = "id, kind, started_at, ended_at, outcome, reason, listed, opened, turns_sent, duration_ms";
+
     private readonly IDatabase _database;
 
     public RunStore(IDatabase database)
@@ -37,31 +40,37 @@ public sealed class RunStore : IRunStore
         command.ExecuteNonQuery();
     }
 
-    public IReadOnlyList<RunRecord> Recent(int limit)
+    public IReadOnlyList<RunRecord> Recent(int limit) => Select("SELECT " + Columns + " FROM runs ORDER BY id DESC LIMIT $limit;", ("$limit", limit));
+
+    public RunRecord? Latest(string kind) => Select("SELECT " + Columns + " FROM runs WHERE kind = $kind ORDER BY id DESC LIMIT 1;", ("$kind", kind)).FirstOrDefault();
+
+    private List<RunRecord> Select(string sql, (string Name, object Value) parameter)
     {
         using var connection = _database.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, kind, started_at, ended_at, outcome, reason, listed, opened, turns_sent, duration_ms FROM runs ORDER BY id DESC LIMIT $limit;";
-        command.Parameters.AddWithValue("$limit", limit);
+        command.CommandText = sql;
+        command.Parameters.AddWithValue(parameter.Name, parameter.Value);
         using var reader = command.ExecuteReader();
         var result = new List<RunRecord>();
         while (reader.Read())
         {
-            result.Add(new RunRecord(
-                reader.GetInt64(0),
-                reader.GetString(1),
-                StorageText.ReadMoment(reader, 2),
-                StorageText.ReadNullableMoment(reader, 3),
-                StorageText.ReadNullableString(reader, 4),
-                StorageText.ReadNullableString(reader, 5),
-                reader.GetInt32(6),
-                reader.GetInt32(7),
-                reader.GetInt32(8),
-                reader.GetInt64(9)));
+            result.Add(Map(reader));
         }
 
         return result;
     }
+
+    private static RunRecord Map(SqliteDataReader reader) => new(
+        reader.GetInt64(0),
+        reader.GetString(1),
+        StorageText.ReadMoment(reader, 2),
+        StorageText.ReadNullableMoment(reader, 3),
+        StorageText.ReadNullableString(reader, 4),
+        StorageText.ReadNullableString(reader, 5),
+        reader.GetInt32(6),
+        reader.GetInt32(7),
+        reader.GetInt32(8),
+        reader.GetInt64(9));
 
     public void Prune(DateTimeOffset before)
     {

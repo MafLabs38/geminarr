@@ -3,6 +3,9 @@ namespace Geminarr.Core.Pipeline;
 public static class RunKinds
 {
     public const string Pass = "pass";
+
+    /// <summary>A pass between two readings that only sent what waited and told Mnemarr the machine is alive; written when its state changed or it sent turns.</summary>
+    public const string Heartbeat = "heartbeat";
 }
 
 public static class RunOutcomes

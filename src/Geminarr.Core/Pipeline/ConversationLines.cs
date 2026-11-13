@@ -39,10 +39,10 @@ public static class ConversationLines
     public static string TurnLine(Turn turn) =>
         JsonSerializer.Serialize(new { v = 1, role = turn.Role, at = turn.At?.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture), text = turn.Text }, Json);
 
-    /// <summary>A short hash of a turn, to see that a turn that was sent has been rewritten.</summary>
     /// <summary>A short hash of a title, to see that it changed without keeping it (a title is made of what the person asked).</summary>
     public static string? TitleHashOf(string? title) => string.IsNullOrWhiteSpace(title) ? null : Hash(title.Trim())[..16];
 
+    /// <summary>A short hash of a turn, to see that a turn that was sent has been rewritten.</summary>
     public static string HashOf(Turn turn) => Hash(turn.Role + "\n" + turn.Text)[..16];
 
     /// <summary>Cuts lines into batches Mnemarr takes: at most 500 lines and 3 MB, each with the position of its first line.</summary>

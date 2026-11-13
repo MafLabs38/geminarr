@@ -107,7 +107,7 @@ public sealed class PassRunner
                 return result;
             }
 
-            runId = _runs.Start(RunKinds.Pass, startedAt);
+            runId = _runs.Start(RunKinds.Heartbeat, startedAt);
         }
 
         _runs.Finish(runId.Value, _clock.GetUtcNow(), new RunOutcome(result.Outcome, result.Reason, result.Listed, result.Opened, result.TurnsSent, watch.ElapsedMilliseconds));
@@ -116,11 +116,13 @@ public sealed class PassRunner
         return result;
     }
 
-    /// <summary>A heartbeat is a run when it sent turns, or when its state is not the one of the last run (a change is written once, not every ten minutes: the health page says what lasts).</summary>
+    /// <summary>A heartbeat is a run when it sent turns, or when its state is not the one of the last heartbeat (a change is written once, not every ten minutes: the health page says what lasts; a reading says its own).</summary>
     private bool IsWorthARun(PassResult result)
     {
-        var last = _runs.Recent(1).FirstOrDefault();
-        return result.TurnsSent > 0 || last is null || !string.Equals(last.Outcome, result.Outcome, StringComparison.Ordinal) || !string.Equals(last.Reason, result.Reason, StringComparison.Ordinal);
+        var last = _runs.Latest(RunKinds.Heartbeat);
+        var lastOutcome = last?.Outcome ?? RunOutcomes.Ok;
+        var lastReason = last?.Reason;
+        return result.TurnsSent > 0 || !string.Equals(lastOutcome, result.Outcome, StringComparison.Ordinal) || !string.Equals(lastReason, result.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -133,7 +135,6 @@ public sealed class PassRunner
         {
             // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer, or a slow poll interval, must not make the machine look gone.
             // It is a heartbeat, not a reading: it leaves a run only when it sent something or went wrong.
-            state.Beat = true;
             return;
         }
 
@@ -456,9 +457,6 @@ public sealed class PassRunner
         public int Opened { get; set; }
 
         public int TurnsSent { get; set; }
-
-        /// <summary>A pass that did not read: only what waited was sent and Mnemarr was told the machine is alive.</summary>
-        public bool Beat { get; set; }
 
         public SinkFailure? Destination { get; set; }
 
