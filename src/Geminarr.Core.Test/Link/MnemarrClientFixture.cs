@@ -26,6 +26,26 @@ public sealed class MnemarrClientFixture
     }
 
     [Fact]
+    public async Task should_fail_as_unreachable_when_the_answer_stops_after_its_headers()
+    {
+        var http = new FakeHttp(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new HangingStream()) });
+
+        var call = () => new MnemarrClient(http, TimeSpan.FromMilliseconds(100)).PositionsAsync(Url, "mnm_key", "gemini", TestContext.Current.CancellationToken);
+
+        (await call.Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Unreachable);
+    }
+
+    [Fact]
+    public async Task should_fail_as_unreachable_when_the_connection_breaks_while_the_answer_is_read()
+    {
+        var http = new FakeHttp(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new BrokenStream()) });
+
+        var call = () => new MnemarrClient(http).PositionsAsync(Url, "mnm_key", "gemini", TestContext.Current.CancellationToken);
+
+        (await call.Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Unreachable);
+    }
+
+    [Fact]
     public async Task should_send_lines_in_the_format_chat_turns_as_the_application_gemini()
     {
         var http = new FakeHttp(_ => FakeHttp.Json("""{"next":3,"accepted":2}"""));
@@ -180,5 +200,61 @@ public sealed class MnemarrClientFixture
         var send = () => new MnemarrClient(http).HeartbeatAsync(Url, "k", new Heartbeat("v", 0, null, null), cancelled.Token);
 
         await send.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    /// <summary>An answer that has sent its headers and then nothing.</summary>
+    private sealed class HangingStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>An answer whose connection breaks while it is read.</summary>
+    private sealed class BrokenStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException("The connection was closed.");
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("The connection was closed.");
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

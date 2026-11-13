@@ -98,6 +98,12 @@ public sealed class PassRunner
         }
 
         var result = new PassResult(state.Outcome, state.Reason, state.Listed, state.Opened, state.TurnsSent);
+        if (state is { Beat: true, Outcome: RunOutcomes.Ok, TurnsSent: 0 })
+        {
+            _runs.Discard(runId);
+            return result;
+        }
+
         _runs.Finish(runId, _clock.GetUtcNow(), new RunOutcome(result.Outcome, result.Reason, result.Listed, result.Opened, result.TurnsSent, watch.ElapsedMilliseconds));
         _runs.Prune(_clock.GetUtcNow() - TimeSpan.FromDays(_settings.RunsDays));
         _logger.LogInformation("A pass ended: {Outcome}; listed {Listed}, opened {Opened}, sent {Turns} turns.", result.Outcome, result.Listed, result.Opened, result.TurnsSent);
@@ -112,8 +118,9 @@ public sealed class PassRunner
     {
         if (!reading)
         {
-            // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer must not make the machine look gone.
-            state.Fail(RunOutcomes.Skipped, "backoff");
+            // A pass that does not read still sends what waits and tells Mnemarr it is alive: a reader that fails and waits longer, or a slow poll interval, must not make the machine look gone.
+            // It is a heartbeat, not a reading: it leaves a run only when it sent something or went wrong.
+            state.Beat = true;
             return;
         }
 
@@ -431,6 +438,9 @@ public sealed class PassRunner
         public int Opened { get; set; }
 
         public int TurnsSent { get; set; }
+
+        /// <summary>A pass that did not read: only what waited was sent and Mnemarr was told the machine is alive.</summary>
+        public bool Beat { get; set; }
 
         public SinkFailure? Destination { get; set; }
 

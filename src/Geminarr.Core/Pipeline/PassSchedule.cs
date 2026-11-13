@@ -6,8 +6,11 @@ public static class PassSchedule
     /// <summary>The longest wait between two passes: Mnemarr calls an always-on machine silent after 30 minutes without a heartbeat, so slow reading never means a slow heartbeat (SPEC §5.5, §6.4).</summary>
     public static readonly TimeSpan LongestWake = TimeSpan.FromMinutes(10);
 
-    public static TimeSpan WakeDelay(int pollMinutes, int maxBackoffMinutes, double randomUnit) =>
-        TimeSpan.FromTicks(Math.Min(NextDelay(pollMinutes, failuresInARow: 0, maxBackoffMinutes, randomUnit).Ticks, LongestWake.Ticks));
+    /// <summary>The shortest wake, so that a reading that is just due is not a busy loop.</summary>
+    public static readonly TimeSpan ShortestWake = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long to sleep before the next pass: until the reading is due, but never longer than <see cref="LongestWake"/>.</summary>
+    public static TimeSpan WakeDelay(TimeSpan untilReading) => TimeSpan.FromTicks(Math.Clamp(untilReading.Ticks, ShortestWake.Ticks, LongestWake.Ticks));
 
 
     public static TimeSpan NextDelay(int pollMinutes, int failuresInARow, int maxBackoffMinutes, double randomUnit)
