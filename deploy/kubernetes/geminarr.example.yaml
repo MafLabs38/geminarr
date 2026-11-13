@@ -63,6 +63,11 @@ spec:
             # The name you reach the page by: its host is allowed, a request for any other name is refused (the probes are exempt).
             - name: GEMINARR__PUBLICURL
               value: https://geminarr.homelab.example
+            # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
+            # - name: GEMINARR__IDENTITY__NAME
+            #   value: My lab
+            # - name: GEMINARR__IDENTITY__LOGOFILE
+            #   value: /run/geminarr/branding/logo.png
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

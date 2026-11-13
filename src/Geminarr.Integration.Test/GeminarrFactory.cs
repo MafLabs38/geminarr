@@ -38,6 +38,11 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
 
     protected virtual int SessionHours => 12;
 
+    /// <summary>What a variant of the host adds to its configuration.</summary>
+    protected virtual void AddSettings(Dictionary<string, string?> settings)
+    {
+    }
+
     /// <summary>A clock the test moves, for the tests of lifetimes; none by default (the real one).</summary>
     public FakeTimeProvider? Clock { get; protected init; }
 
@@ -56,6 +61,7 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
             settings["Auth:AdminPasswordFile"] = _passwordFile;
         }
 
+        AddSettings(settings);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
         if (Clock is { } clock)
         {
@@ -146,4 +152,44 @@ public sealed class LockoutFactory : GeminarrFactoryBase
     public LockoutFactory() : base(createFolder: true)
     {
     }
+}
+
+/// <summary>A host whose deployment says who it is: a name, two colors and a logo file (a png) that is removed afterwards.</summary>
+public sealed class IdentityFactory : GeminarrFactoryBase
+{
+    public static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
+
+    private readonly string _logo = Path.Combine(Path.GetTempPath(), $"geminarr-logo-{Guid.NewGuid():N}.png");
+
+    public IdentityFactory() : base(createFolder: true)
+    {
+    }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        File.WriteAllBytes(_logo, Png);
+        settings["Identity:Name"] = "Lab";
+        settings["Identity:Colors:Name"] = "#3ee0c5";
+        settings["Identity:Colors:Version"] = "inkMuted";
+        settings["Identity:LogoFile"] = _logo;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            File.Delete(_logo);
+        }
+    }
+}
+
+/// <summary>A host whose logo file is not an image: the identity says why it is not used, and never where the file is.</summary>
+public sealed class BrokenLogoFactory : GeminarrFactoryBase
+{
+    public BrokenLogoFactory() : base(createFolder: true)
+    {
+    }
+
+    protected override void AddSettings(Dictionary<string, string?> settings) => settings["Identity:LogoFile"] = Path.Combine(Path.GetTempPath(), "geminarr-missing-logo.png");
 }

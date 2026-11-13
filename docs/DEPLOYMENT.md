@@ -14,6 +14,7 @@ Same as the other applications of the cluster:
 |---|---|---|
 | `namespace.yaml` | The namespace `geminarr` | — |
 | `pvc.yaml` | `geminarr-data` (database, outbox, Mnemarr key; ~2 Gi) **and `geminarr-profile`** (the browser profile; ~1 Gi) | Two claims on **local** storage with a retaining class, on the same node as the pod. **The profile claim is never backed up in the clear and never shared** (SPEC §11.2). |
+| `branding/` (optional) | The picture of the menu (a png, webp or svg), mounted as a file: `GEMINARR__IDENTITY__LOGOFILE`, with `GEMINARR__IDENTITY__NAME` | The same files as Portarr's and Mnemarr's GitOps folders hold; the picture is personal and never goes in this repository |
 | `secret-operator.enc.yaml` | The operator's password (SOPS-encrypted), mounted as a file: `GEMINARR__AUTH__ADMINPASSWORDFILE` | The operator's name is a plain setting; choose one that is not obvious. Rotating the secret needs no restart |
 | `secret-mnemarr.enc.yaml` | Either the Mnemarr **key** (provided) or a one-time **enrolment code** | The key is ingest-only and machine-bound |
 | `deployment.yaml` | One replica, `Recreate`, non-root (uid 1654), read-only root file system, no capabilities, no service-account token, `/tmp` and the browser's scratch space as `emptyDir`, probes on `/health/*`, the image line marked for the image policy | Memory limit 1.5 Gi (browser); the browser sandbox needs are decided by spike S1 (Q-10) |

@@ -18,6 +18,9 @@ services:
       GEMINARR__AUTH__ADMINPASSWORDFILE: /run/secrets/geminarr_operator_password
       # The name you reach the page by (the host of this address is allowed; a request for any other name is refused). Behind TLS leave the cookie secure.
       GEMINARR__PUBLICURL: https://geminarr.homelab.example
+      # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
+      # GEMINARR__IDENTITY__NAME: My lab
+      # GEMINARR__IDENTITY__LOGOFILE: /run/branding/logo.png
       # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
     secrets:
       - geminarr_operator_password

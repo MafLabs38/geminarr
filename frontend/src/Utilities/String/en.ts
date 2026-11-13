@@ -61,6 +61,7 @@ const en = {
   Unreachable: 'Unreachable',
   Uptime: 'Uptime',
   Version: 'Version',
+  VersionNumber: 'v{version}',
 } as const;
 
 export type TranslationKey = keyof typeof en;
