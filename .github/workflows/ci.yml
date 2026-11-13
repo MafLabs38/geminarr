@@ -25,10 +25,13 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
 
+# Every job of this workflow has a time limit: a stuck step (a package mirror that does not answer, a runner that hangs) is stopped and reported in minutes instead of
+# holding a pull request for an hour. The limits are three to five times what the job takes.
 jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -53,6 +56,7 @@ jobs:
   test-backend:
     name: test-backend
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -81,6 +85,7 @@ jobs:
   test-frontend:
     name: test-frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -100,6 +105,7 @@ jobs:
   e2e-smoke:
     name: e2e-smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: [test-backend, test-frontend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -133,6 +139,7 @@ jobs:
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: [test-backend, test-frontend]
     # Runs once a SonarQube server is configured (repository variable + secret). Not for the pull requests of Dependabot (a push to develop or main always analyses): its runs receive no Actions secret (they have their own
     # store of secrets), so the analysis could only fail; the code it brings is analysed when it reaches develop. A skipped job counts as passed.
@@ -180,6 +187,7 @@ jobs:
   security:
     name: security
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -207,6 +215,7 @@ jobs:
   sonar-not-configured:
     name: sonar-not-configured
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SONAR_HOST_URL == '' }}
     steps:
       - run: echo "::warning title=No release::SONAR_HOST_URL is not set, so the SonarQube analysis was skipped; a release needs it to have passed. Nothing was released or published (docs/releasing.md)."
@@ -215,6 +224,7 @@ jobs:
   release-tooling:
     name: release-tooling
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -233,6 +243,7 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # The same list as the `image` job below: a gate added to one is added to the other (tools/release/test checks it, and reads
     # `needs` as one inline list and `if` as a folded `>-` block: that format is load-bearing).
     needs: [lint, test-backend, test-frontend, e2e-smoke, sonarqube, security, release-tooling]
@@ -277,6 +288,7 @@ jobs:
   image:
     name: image
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # The same gates as the `release` job above, and that job.
     needs: [lint, test-backend, test-frontend, e2e-smoke, sonarqube, security, release-tooling, release]
     if: >-
