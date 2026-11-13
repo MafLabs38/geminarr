@@ -29,9 +29,13 @@ public sealed class FakeReader : IConversationReader
         return Task.FromResult(headers);
     }
 
+    /// <summary>Something that happens while a conversation is being opened (the operator unlinks, for example).</summary>
+    public Action? WhileOpening { get; set; }
+
     public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken)
     {
         Opened.Add(id);
+        WhileOpening?.Invoke();
         return Task.FromResult<IReadOnlyList<Turn>>([.. Conversations[id].Turns]);
     }
 

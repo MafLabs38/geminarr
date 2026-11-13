@@ -555,6 +555,19 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_queue_nothing_for_a_mnemarr_that_was_unlinked_while_the_pass_was_reading()
+    {
+        _reader.Say("c1", "T", "a", "b");
+        var subject = Subject();
+        _reader.WhileOpening = _link.Unlink;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _outbox.PendingLines().Should().Be(0, "the text of a conversation does not wait for a Mnemarr that is gone");
+        _conversations.Get("c1").Should().BeNull();
+    }
+
+    [Fact]
     public async Task should_open_nothing_new_while_mnemarr_cannot_be_asked_what_it_holds()
     {
         _reader.Say("c1", "T", "a");

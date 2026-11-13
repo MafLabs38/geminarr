@@ -28,6 +28,9 @@ public sealed class MnemarrOptions
 
 public sealed partial class MnemarrOptionsValidator : IValidateOptions<MnemarrOptions>
 {
+    /// <summary>Whether a machine name is one this version accepts: 1 to 40 lower-case letters, digits or hyphens, starting and ending with a letter or a digit. One rule, for the setting and for what Mnemarr gives back.</summary>
+    public static bool IsValidMachine(string? machine) => machine is not null && MachinePattern().IsMatch(machine);
+
     [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")]
     private static partial Regex MachinePattern();
 
@@ -38,7 +41,7 @@ public sealed partial class MnemarrOptionsValidator : IValidateOptions<MnemarrOp
             return ValidateOptionsResult.Fail("Mnemarr:Url (GEMINARR__MNEMARR__URL) must be an http or https address with a host, no user name and no path beyond a slash, for example https://mnemarr.homelab.example.");
         }
 
-        return MachinePattern().IsMatch(options.Machine)
+        return IsValidMachine(options.Machine)
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail("Mnemarr:Machine (GEMINARR__MNEMARR__MACHINE) must be 1 to 40 lower-case letters, digits or hyphens, starting and ending with a letter or a digit.");
     }

@@ -433,10 +433,13 @@ public sealed class LinkServiceFixture : IDisposable
         Subject(new MnemarrOptions { Url = Url }).Resolve().Key.Should().Be("mnm_given_by_a_pairing");
     }
 
-    [Fact]
-    public async Task should_use_its_own_machine_name_when_the_name_mnemarr_gives_is_not_one()
+    [Theory]
+    [InlineData("Not A Name!")]
+    [InlineData("-gemini-")]
+    [InlineData("gemini-")]
+    public async Task should_use_its_own_machine_name_when_the_name_mnemarr_gives_is_not_one(string given)
     {
-        _http.Answer = Mnemarr("approved", "mnm_new", "Not A Name!");
+        _http.Answer = Mnemarr("approved", "mnm_new", given);
         var subject = Subject(new MnemarrOptions { Machine = "gemini-3" });
         subject.SetAddress(Url);
         await subject.StartPairingAsync(TestContext.Current.CancellationToken);
