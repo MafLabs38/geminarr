@@ -616,6 +616,7 @@ public sealed class PassRunnerFixture : IDisposable
     [Theory]
     [InlineData(typeof(IOException), ConnectionReasons.Unreachable)]
     [InlineData(typeof(HttpRequestException), ConnectionReasons.Unreachable)]
+    [InlineData(typeof(TaskCanceledException), ConnectionReasons.Unreachable)]
     [InlineData(typeof(InvalidOperationException), ConnectionReasons.ReaderBroken)]
     [InlineData(typeof(KeyNotFoundException), ConnectionReasons.ReaderBroken)]
     public async Task should_take_any_error_of_a_reader_for_a_reader_that_fails_so_that_reading_backs_off(Type error, string reason)

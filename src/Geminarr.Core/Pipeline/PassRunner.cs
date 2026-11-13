@@ -174,18 +174,18 @@ public sealed class PassRunner
 
         try
         {
-            if (await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken)) == SessionCheck.SignedOut)
+            if (await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken) == SessionCheck.SignedOut)
             {
                 var record = _connection.SignedOut();
                 state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : "signed-out");
                 return;
             }
 
-            var headers = await FromReader(() => _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken));
+            var headers = await FromReader(() => _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken), cancellationToken);
             state.Listed = headers.Count;
             foreach (var header in Candidates(headers).Take(_settings.Reading.MaxOpenPerPass))
             {
-                Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken)));
+                Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken));
                 state.Opened++;
             }
 
@@ -202,7 +202,7 @@ public sealed class PassRunner
     /// What a reader throws is the reader's failure, whatever it is: a reader says why with a <see cref="ReaderException"/>, and any other error of a reader (a file, the network, a page it did not expect) is a page it cannot read,
     /// so that the reading backs off instead of trying the assistant again at every wake. Only the stopping of the application passes through.
     /// </summary>
-    private async Task<T> FromReader<T>(Func<Task<T>> call)
+    private async Task<T> FromReader<T>(Func<Task<T>> call, CancellationToken cancellationToken)
     {
         string failure;
         var reason = ConnectionReasons.ReaderBroken;
@@ -210,11 +210,12 @@ public sealed class PassRunner
         {
             return await call();
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or ReaderException or OutOfMemoryException))
+        catch (Exception ex) when (ex is not (ReaderException or OutOfMemoryException) && (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested))
         {
             failure = ex.GetType().Name;
-            // The network, a file and a time limit pass; what is left (a page that is not what was expected) is the reader that no longer knows its page.
-            if (ex is IOException or HttpRequestException or TimeoutException)
+            // The network, a file and a time limit pass (the reader's own time limit too: a cancellation that is not the stopping of the application nor the end of the time of the pass); what is left
+            // (a page that is not what was expected) is the reader that no longer knows its page.
+            if (ex is IOException or HttpRequestException or TimeoutException or OperationCanceledException)
             {
                 reason = ConnectionReasons.Unreachable;
             }
