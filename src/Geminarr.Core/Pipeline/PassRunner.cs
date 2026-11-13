@@ -174,18 +174,18 @@ public sealed class PassRunner
 
         try
         {
-            if (await _settings.Reader.CheckSessionAsync(cancellationToken) == SessionCheck.SignedOut)
+            if (await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken)) == SessionCheck.SignedOut)
             {
                 var record = _connection.SignedOut();
                 state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : "signed-out");
                 return;
             }
 
-            var headers = await _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken);
+            var headers = await FromReader(() => _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken));
             state.Listed = headers.Count;
             foreach (var header in Candidates(headers).Take(_settings.Reading.MaxOpenPerPass))
             {
-                Queue(header, await _settings.Reader.OpenAsync(header.Id, cancellationToken));
+                Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken)));
                 state.Opened++;
             }
 
@@ -196,6 +196,27 @@ public sealed class PassRunner
             _connection.Failed(ex.Reason);
             state.Fail(RunOutcomes.Failed, ex.Reason);
         }
+    }
+
+    /// <summary>
+    /// What a reader throws is the reader's failure, whatever it is: a reader says why with a <see cref="ReaderException"/>, and any other error of a reader (a file, the network, a page it did not expect) is a page it cannot read,
+    /// so that the reading backs off instead of trying the assistant again at every wake. Only the stopping of the application passes through.
+    /// </summary>
+    private async Task<T> FromReader<T>(Func<Task<T>> call)
+    {
+        string failure;
+        try
+        {
+            return await call();
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or ReaderException or OutOfMemoryException))
+        {
+            failure = ex.GetType().Name;
+        }
+
+        // The kind of error only: the message of an exception of a reader that reads something real may hold what was read.
+        _logger.LogWarning("A reader failed with an error that is not its own ({Type}).", failure);
+        throw new ReaderException(ConnectionReasons.ReaderBroken, "The reader failed.");
     }
 
     /// <summary>A conversation is a candidate when it is new, moved up the list, was renamed, or has turns that nothing is waiting to send (SPEC §6.2); best rank first.</summary>

@@ -143,8 +143,7 @@ spec:
       targetPort: http
 ---
 # Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
-# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. An egress policy (SPEC §11.2,
-# docs/network.md) is added with the vertical that gives the container its outbound destinations.
+# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -163,3 +162,40 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
+---
+# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to, and nothing else. The assistant's own origins are added with the
+# reader (vertical 4), and a new destination is a decision. Adjust the selectors to where DNS and Mnemarr run; for a Mnemarr outside the cluster use an
+# `ipBlock` with its address instead of the namespace selector.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geminarr-egress
+  namespace: geminarr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <mnemarr-namespace>
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mnemarr
+      ports:
+        - protocol: TCP
+          port: 8080
