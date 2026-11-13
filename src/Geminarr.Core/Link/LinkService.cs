@@ -292,6 +292,9 @@ public sealed class LinkService
 
     private sealed record PendingPairing(string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
     {
+        /// <summary>Never what it holds: a record that is printed by mistake must not print the device code.</summary>
+        public override string ToString() => nameof(PendingPairing);
+
         public PairingStatus ToStatus(string state) => new(state, UserCode, VerificationUrl, ExpiresAt);
     }
 }
