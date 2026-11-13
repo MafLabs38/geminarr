@@ -20,6 +20,18 @@ public sealed class StoresFixture : IDisposable
         new(id, "a1b2c3d4e5f60718", Now, Now, null, 3, known, sent, null, 0, ConversationSources.Web, ConversationStates.New, null);
 
     [Fact]
+    public void should_leave_nothing_of_an_acknowledged_batch_in_the_write_ahead_log()
+    {
+        var store = new OutboxStore(_workspace.Database);
+        store.Replace("c1", ConversationLines.Batches(0, [.. Enumerable.Range(0, 200).Select(index => $"line {index} " + new string('x', 400))]), Now);
+        var wal = Path.Combine(_workspace.Folder, "geminarr.db-wal");
+
+        store.Delete(store.Waiting(10).Single().Id);
+
+        (File.Exists(wal) ? new FileInfo(wal).Length : 0).Should().Be(0, "a deleted batch is not kept in the log either");
+    }
+
+    [Fact]
     public void should_keep_a_conversation_and_update_it_without_losing_when_it_was_first_seen()
     {
         var store = new ConversationStore(_workspace.Database);
