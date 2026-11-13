@@ -153,8 +153,9 @@ public sealed class PassScheduler : BackgroundService
             {
                 failures = _connection.Current().ConsecutiveFailures;
             }
-            catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // Whatever could not be read, the reading waits longer: the loop of passes must not end (a pass is tried again at the next wake).
                 failures = 1;
             }
         }
