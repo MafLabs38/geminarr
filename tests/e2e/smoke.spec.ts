@@ -191,11 +191,12 @@ test.describe('smoke @smoke', () => {
     // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
     const passes = page.getByRole('region', { name: 'Latest passes' });
     await expect(passes.getByText(/turns sent/).first()).toBeVisible({ timeout: 20_000 });
-    const before = await passes.getByText(/turns sent/).count();
+    // The card holds a few rows only, so a count could not grow: the id of the latest run does.
+    const latestRunId = async (): Promise<number> =>
+      ((await (await page.request.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ?? 0;
+    const before = await latestRunId();
     await connection.getByRole('button', { name: 'Run now' }).click();
-    await expect(async () => expect(await passes.getByText(/turns sent/).count()).toBeGreaterThan(before)).toPass({
-      timeout: 20_000,
-    });
+    await expect(async () => expect(await latestRunId()).toBeGreaterThan(before)).toPass({ timeout: 20_000 });
     // The health names what is not there yet, with a sentence and no code.
     const health = page.getByRole('region', { name: 'Health' });
     await expect(health.getByText(/No Mnemarr is linked: nothing is sent/)).toBeVisible();
