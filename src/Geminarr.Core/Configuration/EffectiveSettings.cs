@@ -20,12 +20,12 @@ public sealed class EffectiveSettings
     private readonly IOperatorCredentials _credentials;
     private readonly IOptions<IdentityOptions> _identity;
 
-    public EffectiveSettings(IOptions<GeminarrOptions> geminarr, IOptions<AuthOptions> auth, IOperatorCredentials credentials, IOptions<IdentityOptions> branding)
+    public EffectiveSettings(IOptions<GeminarrOptions> geminarr, IOptions<AuthOptions> auth, IOperatorCredentials credentials, IOptions<IdentityOptions> identity)
     {
         _geminarr = geminarr;
         _auth = auth;
         _credentials = credentials;
-        _identity = branding;
+        _identity = identity;
     }
 
     public IReadOnlyList<SettingValue> Read() =>

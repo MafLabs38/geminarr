@@ -15,7 +15,7 @@ homogeneous. The picture is personal: it must not be in this public repository.
 1. **A badge at the bottom of the menu, the same as Mnemarr's** (its CSS and its behavior are copied, not reinvented): the name (display font, 600), the image (at most 96 px, rounded corners, no card or border) and the version
    (`v0.1.0`, mono, small), straight on the sidebar. Under 768 px only the image remains, the texts stay available to assistive technology. The texts take the accent color unless a color is set. The version follows the system
    status (asked every 30 seconds), so that a new version shows up without a reload.
-2. **Two layers, the nearest wins**: what the **deployment** says (`GEMINARR__IDENTITY__NAME`, `…COLORS__NAME`, `…COLORS__VERSION`, `…LOGOFILE`: a file mounted into the container, checked like an upload), then the **product's own**
+2. **Two layers, the nearest wins**: what the **deployment** says (`GEMINARR__IDENTITY__NAME`, `…COLORS__NAME`, `…COLORS__VERSION`, `…LOGOFILE`: a file mounted into the container, checked by its content, see 3), then the **product's own**
    (its name, its drawing of two rings, the accent). There is no interface to change it and no database: Geminarr has one operator and is configured by environment variables and files (the *arr pattern), and each environment says its own in the
    repository that describes it (GitOps), which keeps the personal picture out of this repository. Mnemarr's third layer (an administrator's, stored) is not built here; it would be a decision of its own.
 3. **Everything that is given is checked, by the same rules as Mnemarr and Portarr**: the name is one line of at most 40 characters, a color is `#rgb`, `#rrggbb` or a theme token (a value never carries CSS, and the interface checks it

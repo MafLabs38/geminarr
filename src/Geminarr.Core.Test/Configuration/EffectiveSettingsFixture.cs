@@ -7,8 +7,8 @@ namespace Geminarr.Core.Test.Configuration;
 
 public sealed class EffectiveSettingsFixture
 {
-    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? branding = null) =>
-        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(branding ?? new IdentityOptions()));
+    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? identity = null) =>
+        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()));
 
     [Fact]
     public void should_never_show_a_secret_nor_the_path_of_its_file_nor_the_name_of_the_operator()
@@ -22,9 +22,9 @@ public sealed class EffectiveSettingsFixture
     [Fact]
     public void should_show_the_identity_but_not_the_path_of_the_logo()
     {
-        var branding = new IdentityOptions { Name = "Lab", LogoFile = "/run/branding/very-private-logo.png", Colors = { Name = "#3ee0c5" } };
+        var logoOptions = new IdentityOptions { Name = "Lab", LogoFile = "/run/identity/very-private-logo.png", Colors = { Name = "#3ee0c5" } };
 
-        var settings = Subject(new AuthOptions(), branding: branding).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+        var settings = Subject(new AuthOptions(), identity: logoOptions).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
 
         settings.Should().Contain("GEMINARR__IDENTITY__NAME", "Lab")
             .And.Contain("GEMINARR__IDENTITY__LOGOFILE", "set")
