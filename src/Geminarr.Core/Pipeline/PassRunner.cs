@@ -69,7 +69,9 @@ public sealed class PassRunner
     private async Task<PassResult> RunOnceAsync(CancellationToken cancellationToken, bool reading)
     {
         var watch = Stopwatch.StartNew();
-        var runId = _runs.Start(RunKinds.Pass, _clock.GetUtcNow());
+        var startedAt = _clock.GetUtcNow();
+        // A heartbeat between two readings writes its row at the end, and only if it has something to say: no row flickers in the list, and a process that dies leaves nothing half done.
+        long? runId = reading ? _runs.Start(RunKinds.Pass, startedAt) : null;
         var state = new PassState();
         string? unforeseen = null;
         try
@@ -98,16 +100,27 @@ public sealed class PassRunner
         }
 
         var result = new PassResult(state.Outcome, state.Reason, state.Listed, state.Opened, state.TurnsSent);
-        if (state is { Beat: true, Outcome: RunOutcomes.Ok, TurnsSent: 0 })
+        if (runId is null)
         {
-            _runs.Discard(runId);
-            return result;
+            if (!IsWorthARun(result))
+            {
+                return result;
+            }
+
+            runId = _runs.Start(RunKinds.Pass, startedAt);
         }
 
-        _runs.Finish(runId, _clock.GetUtcNow(), new RunOutcome(result.Outcome, result.Reason, result.Listed, result.Opened, result.TurnsSent, watch.ElapsedMilliseconds));
+        _runs.Finish(runId.Value, _clock.GetUtcNow(), new RunOutcome(result.Outcome, result.Reason, result.Listed, result.Opened, result.TurnsSent, watch.ElapsedMilliseconds));
         _runs.Prune(_clock.GetUtcNow() - TimeSpan.FromDays(_settings.RunsDays));
         _logger.LogInformation("A pass ended: {Outcome}; listed {Listed}, opened {Opened}, sent {Turns} turns.", result.Outcome, result.Listed, result.Opened, result.TurnsSent);
         return result;
+    }
+
+    /// <summary>A heartbeat is a run when it sent turns, or when its state is not the one of the last run (a change is written once, not every ten minutes: the health page says what lasts).</summary>
+    private bool IsWorthARun(PassResult result)
+    {
+        var last = _runs.Recent(1).FirstOrDefault();
+        return result.TurnsSent > 0 || last is null || !string.Equals(last.Outcome, result.Outcome, StringComparison.Ordinal) || !string.Equals(last.Reason, result.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -181,9 +194,14 @@ public sealed class PassRunner
         return headers.Where(header =>
         {
             var known = _conversations.Get(header.Id);
+            // A conversation that was never seen here waits until Mnemarr has been asked what it holds: it goes on from there, not from line 0.
+            if (known is null)
+            {
+                return _positions is not null;
+            }
+
             // The most recent conversation is looked at every pass: new turns do not move it up a list that it already heads.
-            return known is null
-                || header.Rank == 0
+            return header.Rank == 0
                 || header.Rank < known.ListRank
                 || !string.Equals(ConversationLines.TitleHashOf(header.Title), known.TitleHash, StringComparison.Ordinal)
                 || (known.TurnsKnown > known.TurnsSent && !waiting.Contains(header.Id));

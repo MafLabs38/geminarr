@@ -235,14 +235,16 @@ public sealed class LinkService
     {
         CancelPairing();
         _keys.Delete();
+        if (_keys.Read() is not null)
+        {
+            // Nothing else is touched: what waits is still wanted by the Mnemarr that still has its key.
+            throw new InvalidOperationException("The key is a file of the deployment and could not be removed: take it out of the manifest.");
+        }
+
         _store.Clear();
         // What waits for the Mnemarr that is left is text of conversations: it does not stay in the database with nobody to acknowledge it.
         _outbox.Clear();
         Interlocked.Increment(ref _generation);
-        if (_keys.Read() is not null)
-        {
-            throw new InvalidOperationException("The key is a file of the deployment and could not be removed: take it out of the manifest.");
-        }
     }
 
     /// <summary>The result of the last talk with Mnemarr: when, and the code of the problem (null when it worked).</summary>

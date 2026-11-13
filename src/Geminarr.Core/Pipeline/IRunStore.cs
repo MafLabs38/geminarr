@@ -6,9 +6,6 @@ public interface IRunStore
 
     void Finish(long id, DateTimeOffset at, RunOutcome outcome);
 
-    /// <summary>Forgets a run that has nothing to say (a heartbeat between two readings).</summary>
-    void Discard(long id);
-
     /// <summary>The latest runs, newest first.</summary>
     IReadOnlyList<RunRecord> Recent(int limit);
 

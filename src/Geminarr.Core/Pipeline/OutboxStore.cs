@@ -89,9 +89,9 @@ public sealed class OutboxStore : IOutboxStore
         return result;
     }
 
-    public void Clear() => Run("DELETE FROM outbox;");
+    public void Clear() => RunAndScrub("DELETE FROM outbox;");
 
-    public void Delete(long id) => Run("DELETE FROM outbox WHERE id = $id;", ("$id", id));
+    public void Delete(long id) => RunAndScrub("DELETE FROM outbox WHERE id = $id;", ("$id", id));
 
     public void RecordFailure(long id, string error) => Run("UPDATE outbox SET attempts = attempts + 1, last_error = $error WHERE id = $id;", ("$id", id), ("$error", error));
 
@@ -124,6 +124,16 @@ public sealed class OutboxStore : IOutboxStore
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Deletes, and then empties the write-ahead log: a deleted batch is overwritten in the file (<c>secure_delete</c>) but its frames would stay in the log until it is reused, and the log is
+    /// in the volume and in its backups.
+    /// </summary>
+    private void RunAndScrub(string sql, params (string Name, object Value)[] parameters)
+    {
+        Run(sql, parameters);
+        Run("PRAGMA wal_checkpoint(TRUNCATE);");
     }
 
     private void Run(string sql, params (string Name, object Value)[] parameters)

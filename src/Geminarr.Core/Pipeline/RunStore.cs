@@ -63,16 +63,6 @@ public sealed class RunStore : IRunStore
         return result;
     }
 
-    /// <summary>Forgets a run that has nothing to say (a heartbeat between two readings).</summary>
-    public void Discard(long id)
-    {
-        using var connection = _database.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM runs WHERE id = $id;";
-        command.Parameters.AddWithValue("$id", id);
-        command.ExecuteNonQuery();
-    }
-
     public void Prune(DateTimeOffset before)
     {
         using var connection = _database.Open();

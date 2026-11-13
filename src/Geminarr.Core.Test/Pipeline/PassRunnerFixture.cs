@@ -191,7 +191,7 @@ public sealed class PassRunnerFixture : IDisposable
         result!.Outcome.Should().Be(RunOutcomes.Partial);
         result.Reason.Should().Be(DestinationProblems.Refused);
         _sink.Sent.Should().BeEmpty();
-        _outbox.PendingLines().Should().Be(2, "what was read is queued, not lost");
+        _reader.Opened.Should().BeEmpty("nothing new is read while it is not known what Mnemarr holds: no text of a conversation waits with nowhere to go");
         _destination.Get()!.LastProblem.Should().Be(DestinationProblems.Refused);
     }
 
@@ -221,7 +221,7 @@ public sealed class PassRunnerFixture : IDisposable
 
         result!.Outcome.Should().Be(RunOutcomes.Partial);
         result.Reason.Should().Be(DestinationProblems.NotLinked);
-        _outbox.PendingLines().Should().Be(2);
+        _outbox.PendingLines().Should().Be(0, "nothing is read with nowhere to send it");
         _sink.Heartbeats.Should().BeEmpty("there is nowhere to send a heartbeat either");
     }
 
@@ -522,6 +522,36 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_open_nothing_new_while_mnemarr_cannot_be_asked_what_it_holds()
+    {
+        _reader.Say("c1", "T", "a");
+        _sink.FailPositions = new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer.");
+        var subject = Subject();
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _reader.Opened.Should().BeEmpty("it would be queued from line 0 without knowing where Mnemarr stands");
+        _sink.FailPositions = null;
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _reader.Opened.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task should_write_a_failing_heartbeat_once_and_not_at_every_wake()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        _sink.FailSend = new SinkException(SinkFailure.Rejected, "Mnemarr said no (400).");
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+        var runsAfterTheFirst = _runs.Recent(10).Count;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+
+        _runs.Recent(10).Count.Should().Be(runsAfterTheFirst, "a state that lasts is said by the health, not by a run every ten minutes");
+    }
+
+    [Fact]
     public async Task should_not_resume_from_the_positions_of_the_mnemarr_that_was_left_when_the_new_one_cannot_be_asked()
     {
         _reader.Say("c1", "T", "a", "b");
@@ -535,7 +565,7 @@ public sealed class PassRunnerFixture : IDisposable
 
         await subject.RunAsync(TestContext.Current.CancellationToken);
 
-        _outbox.Waiting(10).Single(batch => batch.ConversationId == "c2").FromPosition.Should().Be(0, "nothing is known of this Mnemarr: the conversation is queued from the start");
+        _outbox.Waiting(10).Should().NotContain(batch => batch.ConversationId == "c2", "nothing is known of this Mnemarr: a conversation is not queued from the start, it waits to be asked");
     }
 
     [Fact]
