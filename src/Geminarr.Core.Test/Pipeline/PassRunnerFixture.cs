@@ -568,6 +568,37 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_keep_what_waits_when_the_link_changed_but_a_destination_is_still_there()
+    {
+        _reader.Say("c1", "T", "a", "b");
+        var subject = Subject();
+        _sink.FailSend = new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer.");
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var waiting = _outbox.PendingLines();
+        _reader.Say("c2", "T", "x");
+        _reader.WhileOpening = () => _link.SetAddress("https://mnemarr.homelab.example");
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _outbox.PendingLines().Should().BeGreaterThanOrEqualTo(waiting, "a link that changes without leaving no destination does not lose what waits");
+    }
+
+    [Theory]
+    [InlineData(long.MaxValue, int.MaxValue - 0)]
+    [InlineData(-5L, 0)]
+    public async Task should_clamp_a_count_of_lines_that_does_not_fit(long lines, int expectedMax)
+    {
+        _reader.Say("c1", "T", "a", "b");
+        _sink.Held[Session("c1")] = lines;
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        result.Should().NotBeNull();
+        _conversations.Get("c1")!.TurnsSent.Should().BeInRange(0, expectedMax);
+        _outbox.Waiting(10).Should().OnlyContain(batch => batch.FromPosition >= 0);
+    }
+
+    [Fact]
     public async Task should_open_nothing_new_while_mnemarr_cannot_be_asked_what_it_holds()
     {
         _reader.Say("c1", "T", "a");

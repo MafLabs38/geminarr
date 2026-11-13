@@ -82,7 +82,7 @@ public sealed class PassRunner
         {
             await ReconcileAsync(state, cancellationToken);
             await ReadWithinItsTimeAsync(state, reading, cancellationToken);
-            if (_link.Generation != _passGeneration)
+            if (Unlinked())
             {
                 // Unlinked while this pass was reading: what it queued is text for a Mnemarr that is gone.
                 _outbox.Clear();
@@ -222,7 +222,7 @@ public sealed class PassRunner
     /// <summary>Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands.</summary>
     private void Queue(ConversationHeader header, IReadOnlyList<Turn> turns)
     {
-        if (_link.Generation != _passGeneration)
+        if (Unlinked())
         {
             return;
         }
@@ -263,6 +263,9 @@ public sealed class PassRunner
 
     private static bool IsRewritten(ConversationRecord? known, IReadOnlyList<Turn> turns) =>
         known is { TurnsKnown: > 0, LastTurnHash: { } before } && turns.Count >= known.TurnsKnown && ConversationLines.HashOf(turns[known.TurnsKnown - 1]) != before;
+
+    /// <summary>The link changed during this pass and there is no destination now (an unlink); a pairing that completes with the same Mnemarr changes it too, and loses nothing.</summary>
+    private bool Unlinked() => _link.Generation != _passGeneration && !_link.Status().Linked;
 
     /// <summary>Step 5: send what waits, in order, unless Mnemarr could not be reached before.</summary>
     private async Task SendAsync(PassState state, CancellationToken cancellationToken)
@@ -312,14 +315,17 @@ public sealed class PassRunner
         }
     }
 
+    /// <summary>Turns that a position stands for: line 0 is the meta line. What Mnemarr says is checked like anything that comes from outside: a count that does not fit is clamped.</summary>
+    private static int TurnsHeld(long lines) => (int)Math.Clamp(lines - 1, 0, int.MaxValue);
+
     private int HeldTurns(string conversationId) =>
-        _positions is { } positions && positions.Lines.TryGetValue(ConversationLines.Session(conversationId), out var lines) ? (int)Math.Max(0, lines - 1) : 0;
+        _positions is { } positions && positions.Lines.TryGetValue(ConversationLines.Session(conversationId), out var lines) ? TurnsHeld(lines) : 0;
 
     private void ApplyPositions(SinkPositions positions)
     {
         foreach (var conversation in _conversations.Recent(int.MaxValue))
         {
-            var held = positions.Lines.TryGetValue(ConversationLines.Session(conversation.Id), out var lines) ? (int)Math.Max(0, lines - 1) : 0;
+            var held = positions.Lines.TryGetValue(ConversationLines.Session(conversation.Id), out var lines) ? TurnsHeld(lines) : 0;
             if (held == conversation.TurnsSent)
             {
                 continue;
@@ -374,7 +380,7 @@ public sealed class PassRunner
     private void Acknowledge(OutboxBatch batch, SinkResult result, PassState state)
     {
         _outbox.Delete(batch.Id);
-        var turnsHeld = (int)Math.Max(0, result.Next - 1);
+        var turnsHeld = TurnsHeld(result.Next);
         _conversations.SetTurnsSent(batch.ConversationId, turnsHeld);
         if (_conversations.Get(batch.ConversationId) is { } conversation && conversation.TurnsKnown == turnsHeld && conversation.State != ConversationStates.Synced)
         {
