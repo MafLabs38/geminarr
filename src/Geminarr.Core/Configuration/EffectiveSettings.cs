@@ -1,5 +1,7 @@
 using Geminarr.Core.Access;
 using Geminarr.Core.Identity;
+using Geminarr.Core.Link;
+using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Configuration;
@@ -19,13 +21,26 @@ public sealed class EffectiveSettings
     private readonly IOptions<AuthOptions> _auth;
     private readonly IOperatorCredentials _credentials;
     private readonly IOptions<IdentityOptions> _identity;
+    private readonly IOptions<MnemarrOptions> _mnemarr;
+    private readonly IOptions<ReaderOptions> _reader;
+    private readonly IOptions<RetentionOptions> _retention;
 
-    public EffectiveSettings(IOptions<GeminarrOptions> geminarr, IOptions<AuthOptions> auth, IOperatorCredentials credentials, IOptions<IdentityOptions> identity)
+    public EffectiveSettings(
+        IOptions<GeminarrOptions> geminarr,
+        IOptions<AuthOptions> auth,
+        IOperatorCredentials credentials,
+        IOptions<IdentityOptions> identity,
+        IOptions<MnemarrOptions> mnemarr,
+        IOptions<ReaderOptions> reader,
+        IOptions<RetentionOptions> retention)
     {
         _geminarr = geminarr;
         _auth = auth;
         _credentials = credentials;
         _identity = identity;
+        _mnemarr = mnemarr;
+        _reader = reader;
+        _retention = retention;
     }
 
     public IReadOnlyList<SettingValue> Read() =>
@@ -41,5 +56,15 @@ public sealed class EffectiveSettings
         new("GEMINARR__IDENTITY__LOGOFILE", string.IsNullOrWhiteSpace(_identity.Value.LogoFile) ? NotSet : "set", false),
         new("GEMINARR__IDENTITY__COLORS__NAME", _identity.Value.Colors.Name is { Length: > 0 } nameColor ? nameColor : NotSet, false),
         new("GEMINARR__IDENTITY__COLORS__VERSION", _identity.Value.Colors.Version is { Length: > 0 } versionColor ? versionColor : NotSet, false),
+        new("GEMINARR__MNEMARR__URL", string.IsNullOrWhiteSpace(_mnemarr.Value.Url) ? NotSet : _mnemarr.Value.Url, false),
+        new("GEMINARR__MNEMARR__MACHINE", _mnemarr.Value.Machine, false),
+        new("GEMINARR__MNEMARR__KEYFILE", string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) ? "default" : "set", false),
+        new("GEMINARR__MNEMARR__ENROLMENTCODEFILE", string.IsNullOrWhiteSpace(_mnemarr.Value.EnrolmentCodeFile) ? NotSet : "set", false),
+        new("GEMINARR__MNEMARR__ALLOWINSECUREHTTP", _mnemarr.Value.AllowInsecureHttp ? "true" : "false", false),
+        new("GEMINARR__READER__KIND", _reader.Value.Kind.ToString(), false),
+        new("GEMINARR__READER__POLLMINUTES", _reader.Value.PollMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__MAXLISTED", _reader.Value.MaxListed.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__MAXOPENPERPASS", _reader.Value.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__RETENTION__RUNSDAYS", _retention.Value.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

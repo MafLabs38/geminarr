@@ -63,6 +63,9 @@ spec:
             # The name you reach the page by: its host is allowed, a request for any other name is refused (the probes are exempt).
             - name: GEMINARR__PUBLICURL
               value: https://geminarr.homelab.example
+            # The Mnemarr to send to (https). Leave it out to give the address on the page and pair there; a one-time code or a key can be mounted as a file instead.
+            # - name: GEMINARR__MNEMARR__URL
+            #   value: https://mnemarr.homelab.example
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab

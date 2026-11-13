@@ -18,7 +18,7 @@ The full model, with the threats and their controls, is [SPEC §11](docs/SPEC.md
 
 **The one rule that matters to you as an operator: sign Geminarr in to a dedicated Google account, never to your main one.** A Google session is valid across all the services of an account, mailbox included, and a copy of it bypasses 2-step verification. A leak of this container must reach nothing but Gemini conversations.
 
-**True today** (foundation and operator access)
+**True today** (foundation, operator access, the link to Mnemarr)
 
 - **Closed by default** ([ADR 0011](docs/adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md)). Anonymous are the probes (`/health/live`, `/health/ready`), the static shell of the interface and the sign-in call. **Every other call, the API description included, needs a session; an unknown API path is a 401 too.** A fallback policy requires it everywhere, so an endpoint nobody thought about is closed.
 - **One operator**: a name and a password in a mounted file (at least twelve characters, read at each sign-in). Without them nobody can sign in: the container stays alive and closed. The comparison takes the same time whatever is wrong, a wrong name and a wrong password are told the same, and **five wrong passwords lock a name for fifteen minutes** (counted per name whether it exists or not, in memory).
@@ -29,14 +29,15 @@ The full model, with the threats and their controls, is [SPEC §11](docs/SPEC.md
 - Every response, errors included, carries conservative security headers (nosniff, no framing, no referrer, a Content-Security-Policy that lets everything come from the application only); the API and its description are never cached; an unknown path under `/api` is never the HTML shell; an error never shows its cause; a body larger than a sign-in can be is a 413.
 - The image runs as a non-root user with no shell; the deployment examples run it with a read-only root file system, no capability, no service-account token and an ingress-only network policy.
 - The CI scans for secrets and vulnerable dependencies, and the code is analysed by CodeQL and SonarQube; Dependabot waits a week before taking a new version.
-- It still **reads nothing**, holds no Google session and no key: those come with the next verticals, behind this access.
+- **The Mnemarr key** (vertical 2) is ingest-only and bound to the machine, and is **a file** (mode `0600`, written by a move over the old one) that is never in the database, a log, an answer of the API or the page; it goes only to the address that was configured, over HTTPS (a loopback address or an explicit sandbox switch excepted), redirects are not followed, every call is bounded, and a failure says what kind it was and never what was sent or where. Unlinking forgets it.
+- **What waits for Mnemarr** is the only text of a conversation that Geminarr ever holds, in a database file that only its owner reads, until Mnemarr acknowledges it; the database has no column for a turn, and **no log line holds a title or a turn** (counts, codes and durations only).
+- It still **reads nothing real** (a demonstration reader with invented conversations is a setting for a sandbox), holds no Google session: those come with the next verticals, behind this access.
 
 **The target model** (decided, not yet built)
 
 - **The profile** (the session) lives on a volume of its own, mode `0700`, readable by the container's user only; never in logs, an API response, a health page, a crash dump or a backup in the clear; no extension, no sync, no saved password in the browser; *Disconnect* destroys it.
 - **Read-only, on the assistant's own pages.** The browser has a route filter that loads no other origin (the account provider's sign-in only, during the live view); the container's network policy repeats the list ([network.md](docs/network.md)).
 - **The live view** (where the operator signs in) is behind the proxy's single sign-on and Geminarr's own sign-in (D-19), opened by an authenticated call that mints a single-use token, checked for origin, one viewer at a time, ten minutes at most; its frames never reach a log or a disk.
-- **The Mnemarr key** is ingest-only and bound to the machine, in a file only the container's user can read, over HTTPS without redirects.
-- **No second copy** of a conversation, and **nothing a conversation said is ever logged**; secrets are masked before anything leaves the container, and again by Mnemarr.
+- **Secrets are masked before anything leaves the container**, and again by Mnemarr (with the reader that reads something real, vertical 4).
 - **A Takeout archive is hostile input**: read without extracting by name, with bounds on entries and sizes.
 - **Geminarr sends no mail** and holds no mail credential: it signals Mnemarr, which writes to the operator from its own mailbox, pointing to Mnemarr's own page and never repeating anything Geminarr wrote ([ADR 0012](docs/adr/0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md)).

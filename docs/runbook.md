@@ -27,6 +27,13 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `operator-not-configured` | No name and password file: nobody can sign in, everything but the probes is closed | Set `GEMINARR__AUTH__ADMINUSER` and `…ADMINPASSWORDFILE` in the manifest and restart |
 | `operator-password-unreadable` | The password file is missing, empty or not readable by uid 1654 | Mount it, with the right permissions; it is read at each sign-in, no restart needed |
 | *(the container does not start, and its log names `GEMINARR__IDENTITY__…`)* | The name of the environment is longer than 40 characters or has a line break, or a color is not `#rgb`, `#rrggbb` or a theme token | Correct the setting: a typo in a name must not be a silent default |
+| `database-unreadable` / `database-step-unknown` | The database cannot be opened (the volume, its permissions), or was written by a newer version | Fix the volume; for a newer database, run the version that wrote it, or restore a copy. The readiness probe fails: the container is not sent traffic until it is fixed |
+| `mnemarr-not-linked` | No address, or no key | On the page *Mnemarr*: give the address, then *Pair with Mnemarr* and approve the code **in Mnemarr, as an always-on machine**; or give a one-time code file and restart |
+| `mnemarr-refused` | Mnemarr says the key is not good (revoked, machine removed) | Unlink, then pair again |
+| `mnemarr-unreachable` | Mnemarr does not answer | Wait: what waits is kept in the outbox and goes when it does |
+| `mnemarr-rejected` | Mnemarr said no to a batch (a limit, an unknown format) | The batch is kept with its reason; update Geminarr or Mnemarr to versions that agree (Mnemarr 0.4.0 or later) |
+| `mnemarr-insecure-address` | The address is plain http to a host that is not the loopback | Use https, or, in a sandbox only, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP=true` |
+| `outbox-growing` | Something has waited for Mnemarr for more than an hour | Look at the `mnemarr` check: it says why |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 | `profile-not-private` | The profile folder is readable by others | Fix the permissions (`0700`, the container's user) before anything else |
 

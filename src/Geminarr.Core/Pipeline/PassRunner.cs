@@ -1,0 +1,380 @@
+using System.Diagnostics;
+using Geminarr.Core.Connection;
+using Geminarr.Core.Link;
+using Geminarr.Core.SystemInfo;
+using Microsoft.Extensions.Logging;
+
+namespace Geminarr.Core.Pipeline;
+
+/// <summary>
+/// One pass, the unit of work (SPEC §3.3): check the connection, list what is recent, open what changed, queue what is new for Mnemarr, send what waits, tell Mnemarr how it went, write
+/// the run. Sending and the heartbeat happen even when reading failed: what an earlier pass queued still goes, and Mnemarr must hear that Geminarr is alive and what is wrong.
+/// </summary>
+public sealed class PassRunner
+{
+    /// <summary>The positions Mnemarr holds are asked for at the first pass and about every hour (SPEC §5.3).</summary>
+    private static readonly TimeSpan PositionsRefresh = TimeSpan.FromHours(1);
+
+    private readonly IConversationSink _sink;
+    private readonly IConversationStore _conversations;
+    private readonly IOutboxStore _outbox;
+    private readonly IRunStore _runs;
+    private readonly ConnectionTracker _connection;
+    private readonly LinkService _link;
+    private readonly PassSettings _settings;
+    private readonly TimeProvider _clock;
+    private readonly ILogger<PassRunner> _logger;
+    private readonly SemaphoreSlim _running = new(1, 1);
+    private DateTimeOffset? _positionsAt;
+
+    public PassRunner(IConversationSink sink, PassStores stores, ConnectionTracker connection, LinkService link, PassSettings settings, TimeProvider clock, ILogger<PassRunner> logger)
+    {
+        _sink = sink;
+        _conversations = stores.Conversations;
+        _outbox = stores.Outbox;
+        _runs = stores.Runs;
+        _connection = connection;
+        _link = link;
+        _settings = settings;
+        _clock = clock;
+        _logger = logger;
+    }
+
+    /// <summary>Whether a pass is running: a second one is not started alongside.</summary>
+    public bool IsRunning => _running.CurrentCount == 0;
+
+    /// <summary>Runs a pass, or returns null when one is already running.</summary>
+    public async Task<PassResult?> RunAsync(CancellationToken cancellationToken)
+    {
+        if (!await _running.WaitAsync(0, cancellationToken))
+        {
+            return null;
+        }
+
+        try
+        {
+            var options = _settings.Reading;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(options.PassTimeoutMinutes));
+            return await RunOnceAsync(timeout.Token);
+        }
+        finally
+        {
+            _running.Release();
+        }
+    }
+
+    private async Task<PassResult> RunOnceAsync(CancellationToken cancellationToken)
+    {
+        var watch = Stopwatch.StartNew();
+        var runId = _runs.Start(RunKinds.Pass, _clock.GetUtcNow());
+        var state = new PassState();
+        try
+        {
+            await ReconcileAsync(state, cancellationToken);
+            await ReadAsync(state, cancellationToken);
+            await SendAsync(state, cancellationToken);
+            await SignalAsync(state, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The pass ran out of time, or the application is stopping: what was queued stays queued, and the run says so.
+            state.Fail(RunOutcomes.Partial, "pass-timeout");
+        }
+
+        var result = new PassResult(state.Outcome, state.Reason, state.Listed, state.Opened, state.TurnsSent);
+        _runs.Finish(runId, _clock.GetUtcNow(), new RunOutcome(result.Outcome, result.Reason, result.Listed, result.Opened, result.TurnsSent, watch.ElapsedMilliseconds));
+        _runs.Prune(_clock.GetUtcNow() - TimeSpan.FromDays(_settings.RunsDays));
+        _logger.LogInformation("A pass ended: {Outcome}; listed {Listed}, opened {Opened}, sent {Turns} turns.", result.Outcome, result.Listed, result.Opened, result.TurnsSent);
+        return result;
+    }
+
+    /// <summary>Steps 1 to 4: may we read, is the session good, what is new.</summary>
+    private async Task ReadAsync(PassState state, CancellationToken cancellationToken)
+    {
+        if (_settings.Reader is null)
+        {
+            _connection.NotConnected();
+            state.Fail(RunOutcomes.Skipped, ConnectionReasons.NotConnected);
+            return;
+        }
+
+        try
+        {
+            if (await _settings.Reader.CheckSessionAsync(cancellationToken) == SessionCheck.SignedOut)
+            {
+                var record = _connection.SignedOut();
+                state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : "signed-out");
+                return;
+            }
+
+            var headers = await _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken);
+            state.Listed = headers.Count;
+            foreach (var header in Candidates(headers).Take(_settings.Reading.MaxOpenPerPass))
+            {
+                Queue(header, await _settings.Reader.OpenAsync(header.Id, cancellationToken));
+                state.Opened++;
+            }
+
+            _connection.Connected();
+        }
+        catch (ReaderException ex)
+        {
+            _connection.Failed(ex.Reason);
+            state.Fail(RunOutcomes.Failed, ex.Reason);
+        }
+    }
+
+    /// <summary>A conversation is a candidate when it is new, moved up the list, was renamed, or has turns that nothing is waiting to send (SPEC §6.2); best rank first.</summary>
+    private IEnumerable<ConversationHeader> Candidates(IReadOnlyList<ConversationHeader> headers)
+    {
+        var waiting = _outbox.ConversationsWaiting();
+        return headers.Where(header =>
+        {
+            var known = _conversations.Get(header.Id);
+            return known is null
+                || header.Rank < known.ListRank
+                || !string.Equals(header.Title, known.Title, StringComparison.Ordinal)
+                || (known.TurnsKnown > known.TurnsSent && !waiting.Contains(header.Id));
+        }).OrderBy(header => header.Rank);
+    }
+
+    /// <summary>Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands.</summary>
+    private void Queue(ConversationHeader header, IReadOnlyList<Turn> turns)
+    {
+        var now = _clock.GetUtcNow();
+        var known = _conversations.Get(header.Id);
+        var sent = Math.Min(known?.TurnsSent ?? 0, turns.Count);
+        var hash = turns.Count > 0 ? ConversationLines.HashOf(turns[^1]) : null;
+        // The last turn that was known is not what it was (an edit, a regenerated answer): it is counted and shown, never sent again, because the position model cannot update a line.
+        var rewritten = (known?.RewrittenTurns ?? 0) + (IsRewritten(known, turns) ? 1 : 0);
+
+        var lines = new List<string>();
+        if (sent == 0)
+        {
+            lines.Add(ConversationLines.Meta(header.Id, header.Title, ConversationSources.Web));
+        }
+
+        lines.AddRange(turns.Skip(sent).Select(ConversationLines.TurnLine));
+        var from = sent == 0 ? 0 : sent + 1L;
+        var nothingNew = lines.Count == (sent == 0 ? 1 : 0);
+        _outbox.Replace(header.Id, nothingNew ? [] : ConversationLines.Batches(from, lines), now);
+        _conversations.Save(new ConversationRecord(
+            header.Id,
+            header.Title,
+            known?.FirstSeenAt ?? now,
+            now,
+            now,
+            header.Rank,
+            turns.Count,
+            sent,
+            hash,
+            rewritten,
+            ConversationSources.Web,
+            turns.Count == sent ? ConversationStates.Synced : ConversationStates.New,
+            null));
+    }
+
+    private static bool IsRewritten(ConversationRecord? known, IReadOnlyList<Turn> turns) =>
+        known is { TurnsKnown: > 0, LastTurnHash: { } before } && turns.Count >= known.TurnsKnown && ConversationLines.HashOf(turns[known.TurnsKnown - 1]) != before;
+
+    /// <summary>Step 5: send what waits, in order, unless Mnemarr could not be reached before.</summary>
+    private async Task SendAsync(PassState state, CancellationToken cancellationToken)
+    {
+        if (state.Destination is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            await FlushAsync(state, cancellationToken);
+        }
+        catch (SinkException ex)
+        {
+            state.Destination = ex.Failure;
+            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+        }
+    }
+
+    /// <summary>Step 1: Mnemarr's positions are the truth about what it holds; they are asked for at the first pass and about every hour, before anything is read, so that what is queued starts from where it stands.</summary>
+    private async Task ReconcileAsync(PassState state, CancellationToken cancellationToken)
+    {
+        if (_positionsAt is { } at && _clock.GetUtcNow() - at < PositionsRefresh)
+        {
+            return;
+        }
+
+        try
+        {
+            ApplyPositions(await _sink.PositionsAsync(cancellationToken));
+            _positionsAt = _clock.GetUtcNow();
+        }
+        catch (SinkException ex)
+        {
+            state.Destination = ex.Failure;
+            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+        }
+    }
+
+    private void ApplyPositions(SinkPositions positions)
+    {
+        foreach (var conversation in _conversations.Recent(int.MaxValue))
+        {
+            var held = positions.Lines.TryGetValue(ConversationLines.Session(conversation.Id), out var lines) ? (int)Math.Max(0, lines - 1) : 0;
+            if (held == conversation.TurnsSent)
+            {
+                continue;
+            }
+
+            _conversations.SetTurnsSent(conversation.Id, held);
+            // What waits was cut from another place: it is made again from where Mnemarr stands, at the next opening of the conversation.
+            _outbox.Replace(conversation.Id, [], _clock.GetUtcNow());
+        }
+    }
+
+    private async Task FlushAsync(PassState state, CancellationToken cancellationToken)
+    {
+        var skipped = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var batch in _outbox.Waiting(int.MaxValue))
+        {
+            if (skipped.Contains(batch.ConversationId))
+            {
+                continue;
+            }
+
+            try
+            {
+                var result = await _sink.SendAsync(ConversationLines.Session(batch.ConversationId), batch.FromPosition, batch.Lines, cancellationToken);
+                Acknowledge(batch, result, state);
+            }
+            catch (SinkException ex) when (ex.Failure == SinkFailure.Rejected)
+            {
+                // Mnemarr said no to this batch: it is kept with the reason, the rest of its conversation waits behind it, and the other conversations go on.
+                _outbox.RecordFailure(batch.Id, ex.Message);
+                skipped.Add(batch.ConversationId);
+                state.Destination = ex.Failure;
+                state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+            }
+            catch (SinkException ex)
+            {
+                _outbox.RecordFailure(batch.Id, ex.Message);
+                throw;
+            }
+        }
+    }
+
+    private void Acknowledge(OutboxBatch batch, SinkResult result, PassState state)
+    {
+        _outbox.Delete(batch.Id);
+        var turnsHeld = (int)Math.Max(0, result.Next - 1);
+        _conversations.SetTurnsSent(batch.ConversationId, turnsHeld);
+        if (_conversations.Get(batch.ConversationId) is { } conversation && conversation.TurnsKnown == turnsHeld && conversation.State != ConversationStates.Synced)
+        {
+            _conversations.Save(conversation with { State = ConversationStates.Synced });
+        }
+
+        state.TurnsSent += Math.Max(0, result.Accepted - (batch.FromPosition == 0 ? 1 : 0));
+    }
+
+    /// <summary>Step 7: the sign of life, with what is wrong and what a person is asked to do; the outcome of the talk is kept for the page and the health.</summary>
+    private async Task SignalAsync(PassState state, CancellationToken cancellationToken)
+    {
+        var connection = _connection.Current();
+        try
+        {
+            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), ErrorOf(connection), AttentionOf(connection)), cancellationToken);
+        }
+        catch (SinkException ex)
+        {
+            state.Destination = ex.Failure;
+            state.Fail(RunOutcomes.Partial, ProblemOf(ex.Failure));
+        }
+
+        if (state.Destination != SinkFailure.NotLinked && state.Destination != SinkFailure.InsecureAddress)
+        {
+            _link.RecordTalk(state.Destination is { } failure ? ProblemOf(failure) : null);
+        }
+    }
+
+    private static string ProblemOf(SinkFailure failure) => failure switch
+    {
+        SinkFailure.NotLinked => DestinationProblems.NotLinked,
+        SinkFailure.InsecureAddress => DestinationProblems.InsecureAddress,
+        SinkFailure.Refused => DestinationProblems.Refused,
+        SinkFailure.Rejected => DestinationProblems.Rejected,
+        _ => DestinationProblems.Unreachable,
+    };
+
+    /// <summary>A short sentence with no path and no content: what Mnemarr shows next to the machine.</summary>
+    private static string? ErrorOf(ConnectionRecord connection) => connection.State switch
+    {
+        ConnectionState.Connected => null,
+        ConnectionState.NotConnected => "Not connected.",
+        ConnectionState.NeedsLogin => "The session has expired.",
+        _ => connection.LastReason switch
+        {
+            ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
+            ConnectionReasons.RateLimited => "The assistant asked to slow down.",
+            ConnectionReasons.Unreachable => "The assistant could not be reached.",
+            _ => "The last pass failed.",
+        },
+    };
+
+    /// <summary>What a person is asked for: only the two codes Mnemarr knows. The address is where to answer, given only when Mnemarr would keep it (https, or loopback).</summary>
+    private Attention? AttentionOf(ConnectionRecord connection)
+    {
+        string? code = null;
+        if (connection.State == ConnectionState.NeedsLogin)
+        {
+            code = "needs-login";
+        }
+        else if (connection.LastReason == ConnectionReasons.ReaderBroken)
+        {
+            code = "reader-broken";
+        }
+
+        if (code is null)
+        {
+            return null;
+        }
+
+        var address = MnemarrAddress.Normalize(_settings.PublicUrl);
+        var usable = address is { Length: <= 512 } && MnemarrAddress.IsSecure(address);
+        return new Attention(code, usable ? new Uri(address!).AbsoluteUri : null);
+    }
+
+    private sealed class PassState
+    {
+        public string Outcome { get; private set; } = RunOutcomes.Ok;
+
+        public string? Reason { get; private set; }
+
+        public int Listed { get; set; }
+
+        public int Opened { get; set; }
+
+        public int TurnsSent { get; set; }
+
+        public SinkFailure? Destination { get; set; }
+
+        /// <summary>Says something went wrong; the worst outcome of the pass is the one that counts, and the first reason.</summary>
+        public void Fail(string outcome, string reason)
+        {
+            if (Rank(outcome) > Rank(Outcome))
+            {
+                Outcome = outcome;
+            }
+
+            Reason ??= reason;
+        }
+
+        private static int Rank(string outcome) => outcome switch
+        {
+            RunOutcomes.Failed => 3,
+            RunOutcomes.Partial => 2,
+            RunOutcomes.Skipped => 1,
+            _ => 0,
+        };
+    }
+}

@@ -8,8 +8,10 @@ import { kinds } from 'Helpers/Props/kinds';
 import { useSystemStatus } from 'System/Status/useSystemStatus';
 import translate from 'Utilities/String/translate';
 
+import ConnectionCard from './ConnectionCard';
 import HealthCard from './HealthCard';
 import styles from './Overview.module.css';
+import RunsCard from './RunsCard';
 
 /**
  * Whether the API answers. Not whether Geminarr can do its job: that is the state of its session and of its link to Mnemarr (docs/SPEC.md),
@@ -50,6 +52,8 @@ export default function Overview() {
             </div>
           </div>
         </Card>
+        <ConnectionCard />
+        <RunsCard />
         <HealthCard />
       </PageContentBody>
     </PageContent>
