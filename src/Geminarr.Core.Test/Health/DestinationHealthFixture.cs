@@ -133,7 +133,7 @@ public sealed class DestinationHealthFixture : IDisposable
     {
         var store = new ConnectionStore(_workspace.Database, _clock);
         store.Save(new ConnectionRecord(state, _clock.GetUtcNow(), null, 0, reason));
-        var tracker = new ConnectionTracker(store, Options.Of(new ReaderOptions()), _clock);
+        var tracker = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
 
         var result = await new ConnectionHealthCheck(tracker).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 
@@ -147,7 +147,7 @@ public sealed class DestinationHealthFixture : IDisposable
         var store = new ConnectionStore(_workspace.Database, _clock);
         store.Save(new ConnectionRecord(ConnectionState.Degraded, _clock.GetUtcNow(), null, 1, null));
 
-        var result = await new ConnectionHealthCheck(new ConnectionTracker(store, Options.Of(new ReaderOptions()), _clock)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+        var result = await new ConnectionHealthCheck(Tracking.Of(store, Options.Of(new ReaderOptions()), _clock)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 
         Reason(result).Should().Be(ConnectionReasons.Unreachable);
     }
@@ -176,7 +176,7 @@ public sealed class DestinationHealthFixture : IDisposable
         var broken = new Database(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = Path.Combine(_workspace.Folder, "missing") }));
 
         var outbox = await new OutboxHealthCheck(new OutboxStore(broken), _clock).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
-        var connection = await new ConnectionHealthCheck(new ConnectionTracker(new ConnectionStore(broken, _clock), Options.Of(new ReaderOptions()), _clock)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+        var connection = await new ConnectionHealthCheck(Tracking.Of(new ConnectionStore(broken, _clock), Options.Of(new ReaderOptions()), _clock)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 
         outbox.Status.Should().Be(HealthStatus.Degraded);
         connection.Status.Should().Be(HealthStatus.Degraded);

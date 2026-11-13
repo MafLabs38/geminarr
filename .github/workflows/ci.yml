@@ -162,6 +162,7 @@ jobs:
       # The .NET scanner does not read SONAR_TOKEN for `begin`, so the token is an argument of `begin` and `end`. This job runs the
       # pull request's own code (the build): same-repository branch authors are trusted with this secret, and pull requests from
       # forks never get it.
+      # src/Geminarr.Browser/** drives a real Chromium: it is covered by the end-to-end test of the live view on the image (tests/e2e), not by a coverage report; every decision it needs is in Core, which is covered.
       # tools/** (the release tooling and the checker of the review decisions) is analysed, but left out of the coverage figure: no coverage report
       # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs).
       # Documented exception (CLAUDE.md): docker:S8431 asks for the tag or the digest of a base image, not both. The Dockerfile keeps
@@ -174,7 +175,7 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
-          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**,src/Geminarr.Browser/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.qualitygate.wait=true
           /d:sonar.issue.ignore.multicriteria=e1
@@ -302,6 +303,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      # The last stage of the image installs the browser in the target architecture (its system libraries): the arm64 image is built under emulation (docs/releasing.md).
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
@@ -325,8 +328,8 @@ jobs:
             type=sha
             type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
             type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
-      # The build stages run on the runner's own architecture and the final stage only copies files (Dockerfile), so the arm64
-      # image needs no emulation. It is built here and not started: the end-to-end test runs the amd64 image (docs/releasing.md).
+      # The build stages run on the runner's own architecture; the final stage installs Chromium and its libraries, so the arm64 image
+      # is built under QEMU. It is built here and not started: the end-to-end test runs the amd64 image (docs/releasing.md).
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .

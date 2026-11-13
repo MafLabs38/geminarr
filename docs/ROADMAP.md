@@ -15,7 +15,8 @@
 | Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Vertical 2: the link to Mnemarr | **Built**, in review |
-| Verticals 3 to 6 | Not started |
+| Vertical 3: the session and the live view | **Built**, in review |
+| Verticals 4 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*
 
@@ -52,11 +53,12 @@
 - Built with the demonstration reader (a sandbox setting, `GEMINARR__READER__KIND=Demo`) and proved on a real Mnemarr (pairing, 3 000 lines, found by search). [ADR 0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md). **"Run now" and the list of passes are here** (they were planned for vertical 4: the demonstration needs them); the full *Runs* page is still vertical 4.
 - Not now: the browser, the real assistant, masking (nothing real is read yet).
 
-## Vertical 3 — The session and the live view
+## Vertical 3 — The session and the live view *(built)*
 
 *Demo: press Sign in; the container's browser appears on the page; sign in to the dedicated account with the phone; the state is Connected; restart the container and it is still connected; Disconnect and the profile is gone.*
 
 - F-CON-01..04, the browser project, the profile volume, the route filter, the Dockerfile stage for the browser by `TARGETARCH`, a smoke test of the arm64 image.
+- Built with a fake assistant on its own host and proved with a real Chromium on the image (the live view, the session that holds, its expiry, disconnect). [ADR 0015](adr/0015-the-browser-the-live-view-and-the-profile.md). **The moment to sign in to the dedicated Google account is here**: the sandbox is ready for it (see the pull request).
 - Not now: reading conversations.
 
 ## Vertical 4 — Read the conversations

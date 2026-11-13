@@ -8,6 +8,9 @@ public enum ReaderKind
     /// <summary>None yet: Geminarr is not connected to any assistant, and a pass only sends what is waiting and says so to Mnemarr.</summary>
     None,
 
+    /// <summary>The browser: the signed-in session of the assistant is checked and its live view is available. The conversations are read by the next vertical; until then a pass lists none.</summary>
+    Web,
+
     /// <summary>A demonstration reader with synthetic conversations that grow: for a sandbox and the tests, never for a real deployment.</summary>
     Demo,
 }

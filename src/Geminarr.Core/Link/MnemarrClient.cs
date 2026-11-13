@@ -76,7 +76,7 @@ public sealed class MnemarrClient
             version = heartbeat.Version,
             pendingLines = heartbeat.PendingLines,
             error = heartbeat.Error,
-            paused = false,
+            paused = heartbeat.Paused,
             attention = heartbeat.Attention is { } attention ? new { code = attention.Code, url = attention.Url } : null,
         };
         using var request = Build(HttpMethod.Post, $"{url}/api/v1/ingest/heartbeat", key, body);

@@ -11,7 +11,7 @@ public interface IConversationSink
 }
 
 /// <summary>The signal at the end of a pass: the version, the lines still to send, a short sentence when something is wrong, and what a person is asked to do.</summary>
-public sealed record Heartbeat(string Version, long PendingLines, string? Error, Attention? Attention);
+public sealed record Heartbeat(string Version, long PendingLines, string? Error, Attention? Attention, bool Paused = false);
 
 /// <summary>What the operator is asked for: a code from the closed list of Mnemarr (<c>needs-login</c>, <c>reader-broken</c>) and where they can answer.</summary>
 public sealed record Attention(string Code, string? Url);

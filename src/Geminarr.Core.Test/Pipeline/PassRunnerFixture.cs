@@ -21,6 +21,7 @@ public sealed class PassRunnerFixture : IDisposable
     private readonly ConnectionTracker _connection;
     private readonly DestinationStore _destination;
     private LinkService _link = null!;
+    private readonly Geminarr.Core.Browser.LiveViewService _views;
     private readonly FakeKeys _keys = new() { Key = "mnm_key" };
 
     public PassRunnerFixture()
@@ -29,7 +30,8 @@ public sealed class PassRunnerFixture : IDisposable
         _outbox = new OutboxStore(_workspace.Database);
         _runs = new RunStore(_workspace.Database);
         _destination = new DestinationStore(_workspace.Database);
-        _connection = new ConnectionTracker(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
+        _views = new Geminarr.Core.Browser.LiveViewService(Options.Of(new Geminarr.Core.Browser.BrowserOptions()), _clock);
+        _connection = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock, views: _views);
     }
 
     public void Dispose() => _workspace.Dispose();
@@ -235,6 +237,41 @@ public sealed class PassRunnerFixture : IDisposable
         var heartbeat = _sink.Heartbeats.Single();
         heartbeat.Error.Should().Be("Not connected.");
         heartbeat.Attention.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_read_nothing_while_a_person_signs_in_or_the_passes_are_paused_and_say_it_is_paused()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        _views.Start();
+        _connection.Connecting();
+
+        var signingIn = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        signingIn!.Reason.Should().Be(ConnectionReasons.Connecting);
+        _reader.Opened.Should().BeEmpty();
+
+        _connection.Paused(until: null);
+        var paused = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        paused!.Reason.Should().Be(ConnectionReasons.Paused);
+        _reader.Opened.Should().BeEmpty();
+        _sink.Heartbeats.Last().Paused.Should().BeTrue();
+        _sink.Heartbeats.Last().Error.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_say_not_connected_when_the_reader_finds_no_profile()
+    {
+        _reader.Session = SessionCheck.NoProfile;
+        _connection.Connected();
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        result!.Reason.Should().Be(ConnectionReasons.NotConnected);
+        _connection.Current().State.Should().Be(ConnectionState.NotConnected);
+        _sink.Heartbeats.Last().Error.Should().Be("Not connected.");
     }
 
     [Fact]
