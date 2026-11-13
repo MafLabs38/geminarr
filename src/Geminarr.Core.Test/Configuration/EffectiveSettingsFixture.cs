@@ -1,13 +1,14 @@
 using Geminarr.Core.Access;
 using Geminarr.Core.Configuration;
+using Geminarr.Core.Identity;
 using Geminarr.Core.Test.Access;
 
 namespace Geminarr.Core.Test.Configuration;
 
 public sealed class EffectiveSettingsFixture
 {
-    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name") =>
-        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name));
+    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? identity = null) =>
+        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()));
 
     [Fact]
     public void should_never_show_a_secret_nor_the_path_of_its_file_nor_the_name_of_the_operator()
@@ -16,6 +17,20 @@ public sealed class EffectiveSettingsFixture
 
         settings.Should().OnlyContain(setting => !setting.Value.Contains("very-private-path") && !setting.Value.Contains("operator-name"));
         settings.Where(setting => setting.Secret).Should().OnlyContain(setting => setting.Value == "set");
+    }
+
+    [Fact]
+    public void should_show_the_identity_but_not_the_path_of_the_logo()
+    {
+        var logoOptions = new IdentityOptions { Name = "Lab", LogoFile = "/run/identity/very-private-logo.png", Colors = { Name = "#3ee0c5" } };
+
+        var settings = Subject(new AuthOptions(), identity: logoOptions).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+
+        settings.Should().Contain("GEMINARR__IDENTITY__NAME", "Lab")
+            .And.Contain("GEMINARR__IDENTITY__LOGOFILE", "set")
+            .And.Contain("GEMINARR__IDENTITY__COLORS__NAME", "#3ee0c5")
+            .And.Contain("GEMINARR__IDENTITY__COLORS__VERSION", "not set");
+        settings.Values.Should().NotContain(value => value.Contains("very-private-logo"));
     }
 
     [Fact]

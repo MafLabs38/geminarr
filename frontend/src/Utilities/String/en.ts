@@ -41,6 +41,7 @@ const en = {
   SessionError: 'Could not find out whether you are signed in.',
   SettingsIntro:
     'The settings this container runs with. They are changed in its manifest, not here; a secret is shown only as set or not set.',
+  SettingsLogoNotUsed: 'The picture of the menu is not used. {reason}',
   SettingsLoadError: 'Could not read the settings: {message}',
   SettingsSecret: 'secret',
   SettingsTitle: 'Settings',
@@ -61,6 +62,7 @@ const en = {
   Unreachable: 'Unreachable',
   Uptime: 'Uptime',
   Version: 'Version',
+  VersionNumber: 'v{version}',
 } as const;
 
 export type TranslationKey = keyof typeof en;

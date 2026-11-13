@@ -1,5 +1,6 @@
 using Geminarr.Core.Access;
 using Geminarr.Core.Configuration;
+using Geminarr.Core.Identity;
 using Geminarr.Core.SystemInfo;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<SessionRegistry>();
         services.AddSingleton<SignInService>();
         services.AddSingleton<AllowedHostList>();
+        services.AddSingleton<IValidateOptions<IdentityOptions>, IdentityOptionsValidator>();
+        services.AddOptions<IdentityOptions>().Bind(configuration.GetSection(IdentityOptions.SectionName)).ValidateOnStart();
+        services.AddSingleton<IdentityService>();
         services.AddSingleton<EffectiveSettings>();
         return services;
     }

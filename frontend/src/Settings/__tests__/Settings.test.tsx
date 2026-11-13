@@ -3,6 +3,14 @@ import { screen } from '@testing-library/react';
 import { renderAt, stubApi } from '__tests__/render';
 import Settings from 'Settings/Settings';
 
+const identity = {
+  name: 'Geminarr',
+  logoUrl: null,
+  version: '0.1.0',
+  logoProblem: null,
+  colors: { name: 'accent', version: 'accent' },
+};
+
 describe('Settings', () => {
   it('lists the settings by their variable, and marks a secret as such without showing more than set or not set', async () => {
     stubApi({
@@ -35,5 +43,30 @@ describe('Settings', () => {
     renderAt(<Settings />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not read the settings');
+  });
+
+  it('says why the picture of the menu is not used', async () => {
+    stubApi({
+      '/settings': { settings: [] },
+      '/identity': { ...identity, logoProblem: 'The logo file of the settings is not there.' },
+    });
+
+    renderAt(<Settings />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The picture of the menu is not used. The logo file of the settings is not there.',
+    );
+  });
+
+  it('says nothing about the picture of the menu when it is used', async () => {
+    stubApi({
+      '/settings': { settings: [{ name: 'GEMINARR__DATAFOLDER', value: '/config', secret: false }] },
+      '/identity': identity,
+    });
+
+    renderAt(<Settings />);
+    await screen.findByText('GEMINARR__DATAFOLDER');
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
