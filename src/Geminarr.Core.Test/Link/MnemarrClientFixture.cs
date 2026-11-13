@@ -26,6 +26,13 @@ public sealed class MnemarrClientFixture
     }
 
     [Fact]
+    public void should_never_print_a_key_or_a_device_code_when_a_record_is_printed()
+    {
+        new[] { new Enrolled("mnm_secret_key", "gemini").ToString(), new PairPolled("approved", "mnm_secret_key", "gemini").ToString(), new PairStarted("ABCD", "device_secret", "https://x.example", 600, 3).ToString() }
+            .Should().OnlyContain(text => !text.Contains("secret") && !text.Contains("ABCD"));
+    }
+
+    [Fact]
     public async Task should_fail_as_unreachable_when_the_answer_stops_after_its_headers()
     {
         var http = new FakeHttp(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new HangingStream()) });

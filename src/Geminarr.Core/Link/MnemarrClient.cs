@@ -7,13 +7,25 @@ using Geminarr.Core.Pipeline;
 namespace Geminarr.Core.Link;
 
 /// <summary>What Mnemarr answers when a machine asks to be paired: the code to show, the secret to ask with, the page where a person answers, and how long and how often.</summary>
-public sealed record PairStarted(string UserCode, string DeviceCode, string VerificationUrl, int ExpiresInSeconds, int IntervalSeconds);
+public sealed record PairStarted(string UserCode, string DeviceCode, string VerificationUrl, int ExpiresInSeconds, int IntervalSeconds)
+{
+    /// <summary>Never what it holds: a record that is printed by mistake must not print the secret of the pairing.</summary>
+    public override string ToString() => nameof(PairStarted);
+}
 
 /// <summary>The answer so far to a pairing: <c>pending</c>, <c>approved</c> (with the key, once), <c>rejected</c> or <c>expired</c>.</summary>
-public sealed record PairPolled(string State, string? Key, string? Machine);
+public sealed record PairPolled(string State, string? Key, string? Machine)
+{
+    /// <summary>Never what it holds: a record that is printed by mistake must not print a key.</summary>
+    public override string ToString() => nameof(PairPolled);
+}
 
 /// <summary>What a machine is given when it enrols: its key (once) and the name it was made for.</summary>
-public sealed record Enrolled(string Key, string Machine);
+public sealed record Enrolled(string Key, string Machine)
+{
+    /// <summary>Never what it holds: a record that is printed by mistake must not print a key.</summary>
+    public override string ToString() => nameof(Enrolled);
+}
 
 /// <summary>
 /// Mnemarr's ingest API, as a machine uses it (SPEC §5; Mnemarr's ADR 0024, 0027, 0030, 0041): positions, conversations, heartbeat, and the two ways to get a key. Redirects are not
