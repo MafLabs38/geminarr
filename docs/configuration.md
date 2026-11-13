@@ -22,13 +22,24 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | `GEMINARR__MNEMARR__KEYFILE` | `<data folder>/mnemarr/key` | Where the key of the machine is kept: a file only the container's user can read. A key that was given as a file (mounted from a sealed secret) is used as it is. **The key is never in the database, a log or an answer of the API.** |
 | `GEMINARR__MNEMARR__ENROLMENTCODEFILE` | none | A file with a one-time code from Mnemarr (a deployment as code): exchanged for the key at start, when there is none. |
 | `GEMINARR__MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only: talk to Mnemarr over plain http to a host that is not the loopback. |
-| `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so), or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
+| `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so); `Web` (the browser: the session is checked and the live view is available; **the conversations are read by the next vertical**); or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
 | `GEMINARR__READER__POLLMINUTES` | **`20`** | Minutes between two readings (a random 20 % either way is added; doubled for each pass that failed in a row, up to `MAXBACKOFFMINUTES`). |
 | `GEMINARR__READER__MAXLISTED`, `…MAXOPENPERPASS` | **`40`**, **`5`** | How many conversations of the list are looked at, and how many are opened in a pass. |
 | `GEMINARR__READER__PASSTIMEOUTMINUTES`, `…MAXBACKOFFMINUTES` | **`5`**, **`360`** | Reading never lasts longer than the first; a failing reader is read again after at most the second. Whatever the poll interval, the machine says it is alive at least every 10 minutes. |
 | `GEMINARR__READER__LOGINFAILURES` | **`3`** | Passes in a row that find nobody signed in before the state is `needs-login`. |
 | `GEMINARR__READER__DEMOGROWSECONDS` | **`60`** | The demonstration reader only: seconds between two new turns. |
 | `GEMINARR__RETENTION__RUNSDAYS` | **`90`** | How many days the runs are kept. |
+| `GEMINARR__BROWSER__PROFILEFOLDER` | **`/profile`** | The folder of the browser profile, where the signed-in session lives: **a volume of its own**, mode `0700`, owned by the container's user, never in a backup in the clear. *Disconnect* empties it. |
+| `GEMINARR__BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that the browser opens; its host is the only origin it may talk to besides the hosts below. |
+| `GEMINARR__BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages of the account provider (a name or `*.suffix`, separated by `;`): loaded **only during a live view**. |
+| `GEMINARR__BROWSER__ALLOWEDHOSTS` | **`*.gstatic.com;*.googleusercontent.com;*.googleapis.com;apis.google.com`** | The hosts the assistant's page loads its files from. Every other origin is refused by the browser. The first spike writes down the exact list. |
+| `GEMINARR__BROWSER__LIVEVIEWMINUTES` | **`10`** | How long a live view lasts (1 to 60). |
+| `GEMINARR__BROWSER__SCREENCASTQUALITY` | **`60`** | The quality of the pictures of the live view (1 to 100). |
+| `GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **`30`** | How long the assistant's page may take to load when the session is checked. |
+| `GEMINARR__BROWSER__VIEWPORTWIDTH`, `…VIEWPORTHEIGHT` | **`1280`**, **`800`** | The size of the browser's screen. |
+| `GEMINARR__BROWSER__SIGNINDETECTION` | **`Confirm`** | How the end of a sign-in is known: `Confirm` (the operator presses *I am signed in*, and the server checks that the browser is on the assistant's page: the address alone is not enough, as an assistant may show its page to somebody who is not signed in) or `Page` (the page the browser is on decides: for an assistant that sends everybody who is not signed in to a sign-in page, and for the tests). |
+| `GEMINARR__BROWSER__ALLOWINSECUREASSISTANT` | **`false`** | A sandbox or a test only: plain http for the assistant and its sign-in pages. |
+| `GEMINARR__BROWSER__EXECUTABLEPATH` | none | The path of a Chromium to use instead of the one installed in the image. |
 | `Logging__LogLevel__Default` | **`Information`** | Standard ASP.NET logging. The logs carry ids, counts, durations and reason codes, **never** the text of a conversation, a password or a cookie. |
 
 The `GEMINARR__*` names are the supported contract (they are read after `appsettings.json`, so they win over it); the command line is not a channel for settings, and a secret, or the path of one, never goes there (arguments are visible to every process of the host).
@@ -39,7 +50,6 @@ The `GEMINARR__*` names are the supported contract (they are read after `appsett
 
 | Variable | Vertical | Purpose |
 |---|---|---|
-| `GEMINARR__PROFILEFOLDER` | 3 | The browser profile: **a volume of its own**, mode `0700` |
 | `GEMINARR__READER__BACKFILLPERPASS`, `…RATELIMITPAUSEHOURS` | 4 | Backfill and the pause after a block |
 | `GEMINARR__IMPORT__*`, `GEMINARR__IMPORTFOLDER` | 5 | The Takeout import |
 

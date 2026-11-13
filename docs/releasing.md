@@ -66,7 +66,7 @@ image: ghcr.io/<owner>/geminarr:0.1.0
 
 ## The browser (from vertical 3)
 
-The reader's browser is part of the image and architecture-specific. It is chosen with `TARGETARCH`, never by the architecture of the builder. The end-to-end test runs the amd64 image only: **a smoke test of the pushed arm64 image is a precondition of the vertical that adds the browser**, as it was for Mnemarr's vector library. A browser upgrade is an image version with a line in the [runbook](runbook.md).
+The session's browser (Chromium, with its system libraries) is part of the image, installed in the last stage by Playwright's own driver, for the architecture of that stage: the `image` job installs QEMU so that the arm64 image is built too, and that stage is the slow one (several minutes). The base of the image is Ubuntu, no longer chiseled. The end-to-end test runs the amd64 image only: **a smoke test of the pushed arm64 image is a precondition of the vertical that adds the browser**, as it was for Mnemarr's vector library. A browser upgrade is an image version with a line in the [runbook](runbook.md).
 
 ## The seed tag
 

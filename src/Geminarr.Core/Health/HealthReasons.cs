@@ -25,6 +25,15 @@ public static class HealthReasons
     /// <summary>The password of the operator is too short: nobody can sign in with it.</summary>
     public const string OperatorPasswordWeak = "operator-password-weak";
 
+    /// <summary>The folder of the browser profile does not exist (a volume that was not mounted).</summary>
+    public const string ProfileMissing = "profile-missing";
+
+    /// <summary>The folder of the browser profile cannot be read.</summary>
+    public const string ProfileUnreadable = "profile-unreadable";
+
+    /// <summary>The folder of the browser profile can be read by others: it holds a signed-in session.</summary>
+    public const string ProfileNotPrivate = "profile-not-private";
+
     /// <summary>The database cannot be opened or read.</summary>
     public const string DatabaseUnreadable = "database-unreadable";
 

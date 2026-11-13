@@ -1,6 +1,21 @@
 # The stack the end-to-end tests run against: the image built from this repository, with an empty data folder.
 name: geminarr-e2e
 services:
+  # A fake assistant: a synthetic page that needs a sign-in, reachable as `assistant` (the page) and `signin` (the sign-in page, a host of its own).
+  assistant:
+    image: node:22-alpine
+    working_dir: /app
+    command: ['node', 'server.js']
+    volumes:
+      - ./assistant/server.js:/app/server.js:ro
+    # Published only so that a test can end its session, as an expiry would.
+    ports:
+      - '8091:8081'
+    networks:
+      default:
+        aliases:
+          - assistant
+          - signin
   geminarr:
     build:
       context: ../../..
@@ -9,11 +24,22 @@ services:
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
       - /config:uid=1654,gid=1654
+      - /profile:uid=1654,gid=1654,mode=0700
+    depends_on:
+      - assistant
     # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
     environment:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
       GEMINARR__AUTH__ADMINPASSWORDFILE: /run/admin-password
       GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
+      # The reader is the browser, and the "assistant" is a fake one on this network (a synthetic page that needs a sign-in, on its own host like the real one).
+      GEMINARR__READER__KIND: Web
+      GEMINARR__READER__LOGINFAILURES: '1'
+      GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
+      GEMINARR__BROWSER__SIGNINHOSTS: signin
+      GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
+      # The fake assistant sends everybody who is not signed in to its sign-in page: the page the browser is on says it.
+      GEMINARR__BROWSER__SIGNINDETECTION: Page
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg

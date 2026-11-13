@@ -5,6 +5,9 @@ public enum SessionCheck
 {
     SignedIn,
     SignedOut,
+
+    /// <summary>There is no profile yet: nobody has signed in, so there is nothing to check and nothing to ask for.</summary>
+    NoProfile,
 }
 
 /// <summary>A conversation in the list of the assistant: its own id, its title if it shows one, and its rank (0 is the most recent).</summary>

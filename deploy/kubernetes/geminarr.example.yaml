@@ -19,6 +19,19 @@ spec:
     requests:
       storage: 2Gi
 ---
+---
+# The browser profile: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0015).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geminarr-profile
+  namespace: geminarr
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -73,6 +86,9 @@ spec:
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
+            # The browser reads the session of the assistant and gives the operator a live view to sign in through: set it to Web (the default, None, reads nothing).
+            # - name: GEMINARR__READER__KIND
+            #   value: Web
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -90,15 +106,17 @@ spec:
             periodSeconds: 15
           resources:
             requests:
-              cpu: 50m
-              memory: 96Mi
+              cpu: 100m
+              memory: 256Mi
               ephemeral-storage: 64Mi
             limits:
-              memory: 256Mi
-              ephemeral-storage: 256Mi
+              memory: 1Gi   # the browser (Chromium) needs about 300 MB while it is open
+              ephemeral-storage: 512Mi
           volumeMounts:
             - name: data
               mountPath: /config
+            - name: profile
+              mountPath: /profile
             - name: tmp
               mountPath: /tmp
             - name: operator
@@ -125,6 +143,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data
+        - name: profile
+          persistentVolumeClaim:
+            claimName: geminarr-profile
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

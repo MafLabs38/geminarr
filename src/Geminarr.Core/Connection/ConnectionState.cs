@@ -14,6 +14,12 @@ public enum ConnectionState
 
     /// <summary>The session is gone (several passes in a row found nobody signed in): a person must sign in again.</summary>
     NeedsLogin,
+
+    /// <summary>A live view is open: a person is signing in. Nothing is read meanwhile.</summary>
+    Connecting,
+
+    /// <summary>The operator asked for quiet, until a moment or until they resume.</summary>
+    Paused,
 }
 
 /// <summary>The reasons a connection is not simply connected: the same codes as the health, the signal to Mnemarr and the page.</summary>
@@ -24,7 +30,9 @@ public static class ConnectionReasons
     public const string ReaderBroken = "reader-broken";
     public const string RateLimited = "rate-limited";
     public const string Unreachable = "unreachable";
+    public const string Paused = "paused";
+    public const string Connecting = "connecting";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>
-public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason);
+public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason, DateTimeOffset? PausedUntil = null);

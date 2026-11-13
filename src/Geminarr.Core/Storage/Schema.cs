@@ -66,6 +66,10 @@ public static class Schema
             duration_ms INTEGER NOT NULL DEFAULT 0
         );
         """,
+        // 2: the operator can pause the passes until a moment.
+        """
+        ALTER TABLE connection ADD COLUMN paused_until TEXT;
+        """,
     ];
 
     /// <summary>The version this code writes: the number of its steps.</summary>

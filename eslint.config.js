@@ -8,7 +8,16 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['_output/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'reports/**'] },
+  {
+    ignores: [
+      'tests/e2e/stack/**',
+      '_output/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      'reports/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.strict,
   // The rules of the SonarQube server, in the editor and in `yarn lint`: SonarJS is its engine (S3776, S5852, S5332, S1313...).
@@ -44,7 +53,9 @@ export default tseslint.config(
           groups: [
             [String.raw`^\u0000`],
             [String.raw`^@?\w`],
-            ['^(__tests__|App|Components|Connection|Helpers|Identity|Login|Mnemarr|Overview|Runs|Session|Settings|Styles|System|Utilities)(/|$)'],
+            [
+              '^(__tests__|App|Components|Connection|Helpers|Identity|Login|Mnemarr|Overview|Runs|Session|Settings|Styles|System|Utilities)(/|$)',
+            ],
             [String.raw`^\.`],
           ],
         },

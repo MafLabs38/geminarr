@@ -19,6 +19,8 @@ public static class HeartbeatContent
     public static string? ErrorOf(ConnectionRecord connection) => connection.State switch
     {
         ConnectionState.Connected => null,
+        ConnectionState.Paused => null,
+        ConnectionState.Connecting => null,
         ConnectionState.NotConnected => "Not connected.",
         ConnectionState.NeedsLogin => "The session has expired.",
         _ => connection.LastReason switch

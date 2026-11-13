@@ -105,6 +105,15 @@ describe('apiSend', () => {
     });
   });
 
+  it('gives nothing for an answer with no body that is not a 204, such as a 202 for what runs in the background', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(null, { status: 202 }))),
+    );
+
+    await expect(apiSend('POST', '/runs')).resolves.toBeUndefined();
+  });
+
   it('fails with the reason of the server', async () => {
     vi.stubGlobal(
       'fetch',

@@ -256,3 +256,41 @@ public sealed class MnemarrFactory : GeminarrFactoryBase
         }
     }
 }
+
+/// <summary>A host whose reader is the browser (a fake one, in memory), as a deployment with the live view is.</summary>
+public sealed class BrowserFactory : GeminarrFactoryBase
+{
+    public BrowserFactory(bool detectByPage = false)
+        : base(createFolder: true)
+    {
+        Browser = new Support.FakeBrowserHost();
+        DetectByPage = detectByPage;
+    }
+
+    private bool DetectByPage { get; }
+
+    public Support.FakeBrowserHost Browser { get; }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        settings["Reader:Kind"] = "Web";
+        settings["Browser:LiveViewMinutes"] = "1";
+        if (DetectByPage)
+        {
+            settings["Browser:SignInDetection"] = "Page";
+        }
+    }
+
+    protected override void ConfigureServices(IServiceCollection services) =>
+        services.AddSingleton<Geminarr.Core.Browser.IBrowserHost>(Browser);
+
+    /// <summary>The cookie of a signed-in operator, as a header value: what the WebSocket of the live view presents.</summary>
+    public async Task<string> SessionCookieAsync()
+    {
+        using var client = CreateClient();
+        using var login = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = JsonContent.Create(new { name = OperatorName, password = OperatorPassword }) };
+        login.Headers.Add("X-Geminarr-Request", "1");
+        using var response = await client.SendAsync(login, TestContext.Current.CancellationToken);
+        return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+    }
+}

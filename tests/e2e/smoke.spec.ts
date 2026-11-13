@@ -6,6 +6,14 @@ import { randomUUID } from 'node:crypto';
 const OPERATOR = { name: 'e2e-operator', password: 'e2e-admin-password' };
 
 /** A name that nobody else uses: the lockout counts per name, and the operator's must stay free for the other tests. */
+/** A value that a test needs and that the configuration must give: its absence is a failure of the setup, said as one. */
+function required<T>(value: T | undefined | null): T {
+  if (value === undefined || value === null) {
+    throw new Error('A value that the test needs is missing.');
+  }
+  return value;
+}
+
 const unique = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 
 /** A request context that has signed in: it keeps the session cookie, and sends the header a write needs. */
@@ -231,6 +239,115 @@ test.describe('smoke @smoke', () => {
     }
     expect((await request.post('/api/v1/mnemarr/pairing')).status()).toBe(403);
   });
+
+  test('the operator signs in through the live view, the session holds, expires and is destroyed', async ({
+    page,
+    request,
+    playwright,
+    baseURL,
+    browserName,
+  }) => {
+    // The browser of the container is one and the two projects share one server: the live view is walked once.
+    test.skip(browserName !== 'chromium', 'one live view at a time, on one server');
+    test.setTimeout(240_000);
+    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the session.
+    const api = await signedInRequest(playwright, required(baseURL));
+    expect((await api.delete('/api/v1/mnemarr')).status()).toBe(204);
+    await signIn(page);
+    await page.getByRole('link', { name: 'Connection' }).first().click();
+    await expect(page.getByText('Not connected', { exact: true })).toBeVisible();
+
+    // The live view: the screen of the container's browser on a canvas.
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByText(/Time left/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('You are controlling the browser of the Geminarr container.')).toBeVisible();
+    const canvas = page.locator('canvas');
+    // The fake sign-in page is laid out in absolute positions: click the fields on the canvas and type with the keyboard, as a person would.
+    // Wait for the sign-in page itself to be on the screen: the button of the fake page is grey on a white page, at a known place.
+    await expect(async () => {
+      const onScreen = await canvas.evaluate((c: HTMLCanvasElement) => {
+        const context = c.getContext('2d');
+        const red = context ? (context.getImageData(150, 235, 1, 1).data[0] ?? 255) : 255;
+        return red < 250;
+      });
+      expect(onScreen).toBe(true);
+    }).toPass({ timeout: 30_000 });
+    await expect(page.getByText('You are controlling the browser of the Geminarr container.')).toBeInViewport();
+    // The page may scroll while it is used: the place of the canvas is read again before each click, and it is kept in view.
+    const click = async (x: number, y: number) => {
+      await canvas.scrollIntoViewIfNeeded();
+      const box = await canvas.boundingBox();
+      if (!box) {
+        throw new Error('The screen is not on the page.');
+      }
+      const scale = box.width / 1280;
+      await page.mouse.click(box.x + x * scale, box.y + y * scale);
+    };
+    await click(200, 120);
+    await page.keyboard.type('dedicated-account');
+    await click(200, 180);
+    await page.keyboard.type('a password with spaces');
+    await click(200, 240);
+
+    // The live view sees the assistant's page: the session is made and the live view closes by itself.
+    await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Time left/)).toHaveCount(0);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    // A pass checks the session in a browser without a window, with the profile: it is good, and the state stays connected.
+    await page.getByRole('link', { name: 'Overview' }).click();
+    const passes = page.getByRole('region', { name: 'Latest passes' });
+    const connection = page.getByRole('region', { name: 'Connection' });
+    await expect(passes.getByText(/turns sent/).first()).toBeVisible({ timeout: 30_000 });
+    const before = await passes.getByText(/turns sent/).count();
+    await connection.getByRole('button', { name: 'Run now' }).click();
+    await expect(async () => expect(await passes.getByText(/turns sent/).count()).toBeGreaterThan(before)).toPass({
+      timeout: 60_000,
+    });
+    await expect(connection.getByText('Connected', { exact: true })).toBeVisible();
+
+    // The assistant ends the session (an expiry): the next pass finds nobody signed in, and the state asks to sign in again.
+    expect((await request.post('http://localhost:8091/admin/expire')).status()).toBe(204);
+    await connection.getByRole('button', { name: 'Run now' }).click();
+    await expect(connection.getByText('Sign in again', { exact: true })).toBeVisible({ timeout: 90_000 });
+
+    // Disconnect destroys the profile: the state is not connected, and a pass has nothing to check.
+    await page.getByRole('link', { name: 'Connection' }).first().click();
+    await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await page.getByRole('button', { name: 'Yes, disconnect' }).click();
+    await expect(page.getByText('Not connected', { exact: true })).toBeVisible({ timeout: 30_000 });
+  });
+
+  test(
+    'the live view refuses a viewer that has no token, and another origin',
+    { tag: '@browserless' },
+    async ({ playwright, baseURL }) => {
+      const api = await playwright.request.newContext({
+        baseURL: required(baseURL),
+        extraHTTPHeaders: { 'X-Geminarr-Request': '1' },
+      });
+      expect((await api.post('/api/v1/auth/login', { data: OPERATOR })).status()).toBe(200);
+      const ticket = (await (await api.post('/api/v1/connection/live-views')).json()) as {
+        id: string;
+        token: string;
+        path: string;
+      };
+      // A WebSocket upgrade without the right token, or from another origin, is refused before the browser starts.
+      const cookie = (await api.storageState()).cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+      const open = async (origin: string, token: string) => {
+        const socket = new WebSocket(`ws://${new URL(required(baseURL)).host}${ticket.path}?token=${token}`, {
+          headers: { Cookie: cookie, Origin: origin },
+        } as never);
+        return await new Promise<string>((resolve) => {
+          socket.onopen = () => resolve('open');
+          socket.onerror = () => resolve('refused');
+        });
+      };
+      expect(await open('http://evil.example', ticket.token)).toBe('refused');
+      expect(await open(required(baseURL), 'not-the-token')).toBe('refused');
+      expect((await api.delete('/api/v1/connection/live-views')).status()).toBe(204);
+    },
+  );
 
   test('the system status page shows the version of the running build', async ({ page }) => {
     await signIn(page, '/system/status');

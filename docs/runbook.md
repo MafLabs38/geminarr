@@ -37,11 +37,15 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `mnemarr-rejected` | Mnemarr said no to a batch (a limit, an unknown format) | The batch is kept with its reason; update Geminarr or Mnemarr to versions that agree (Mnemarr 0.4.0 or later) |
 | `mnemarr-insecure-address` | The address is plain http to a host that is not the loopback | Use https, or, in a sandbox only, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP=true` |
 | `outbox-growing` | Something has waited for Mnemarr for more than an hour | Look at the `mnemarr` check: it says why |
+| `profile-missing` / `profile-unreadable` / `profile-not-private` | The profile volume is not mounted, cannot be read by uid 1654, or can be read by others (it holds a signed-in session) | Mount the volume at `/profile`, owned by 1654, mode `0700`; fix it before anything else |
+| `connecting` | A person is signing in through the live view | Nothing: it ends by itself (ten minutes at most) |
+| `paused` | The operator asked for quiet | *Resume* on the page *Connection* |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 | `profile-not-private` | The profile folder is readable by others | Fix the permissions (`0700`, the container's user) before anything else |
 
 ## Recover
 
+- **The live view stays black, or says the browser could not be started**: look at the log of the container (the error is named, never the content), at the `profile` check and at the memory limit (Chromium needs about 300 MB); a profile folder that cannot be written is the usual cause.
 - **A lost profile** (volume lost, *Disconnect*, a restore): the state is `not-connected`; sign in again through the live view. Nothing else is lost: positions come from Mnemarr.
 - **A restored Mnemarr** (fewer lines than Geminarr believes it sent): Geminarr goes back to Mnemarr's positions by itself and sends again what is missing.
 - **A suspected leak of the profile**: *Disconnect* in Geminarr, then in the dedicated Google account's security page sign out of all sessions and remove the device, change its password; only then sign in again. Revoke the machine in Mnemarr if the key may have leaked too.

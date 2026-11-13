@@ -10,7 +10,8 @@ services:
       - "127.0.0.1:8282:8282"
     volumes:
       # - ./geminarr-logo.png:/run/identity/logo.png:ro   # the picture of the menu (see GEMINARR__IDENTITY__LOGOFILE below); not in git
-      - geminarr-data:/config               # database and settings: back this up. The browser profile will have a volume of its own (SPEC §7.1).
+      - geminarr-data:/config               # database and settings: back this up.
+      - geminarr-profile:/profile           # the browser profile: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (SPEC §7.1).
     environment:
       GEMINARR__DATAFOLDER: /config
       # The operator: a name that is not obvious (whoever knows it can lock it out for fifteen minutes) and the password in a file (a secret).
@@ -48,3 +49,4 @@ secrets:
 
 volumes:
   geminarr-data:
+  geminarr-profile:
