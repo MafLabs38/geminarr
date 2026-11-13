@@ -82,7 +82,7 @@ public sealed class PassRunner
         catch (OperationCanceledException)
         {
             // The application is stopping: what was queued stays queued, and the run says so.
-            state.Fail(RunOutcomes.Partial, "pass-timeout");
+            state.Fail(RunOutcomes.Partial, "stopped");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -125,6 +125,8 @@ public sealed class PassRunner
         }
         catch (OperationCanceledException) when (limit.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            // A reader that hangs is a reader that failed: the connection says so, and the reading backs off, instead of hanging for its whole time at every pass.
+            _connection.Failed(ConnectionReasons.Unreachable);
             state.Fail(RunOutcomes.Partial, "pass-timeout");
         }
     }
