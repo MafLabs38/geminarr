@@ -49,4 +49,14 @@ public sealed class OptionsFixture
     {
         PassSchedule.NextDelay(poll, failures, max, random).TotalMinutes.Should().BeApproximately(minutes, 0.001);
     }
+
+    [Theory]
+    [InlineData(5, 0.5, 5)]
+    [InlineData(10, 0.5, 10)]
+    [InlineData(20, 0, 10)]
+    [InlineData(1440, 1, 10)]
+    public void should_wake_for_a_heartbeat_at_least_every_ten_minutes_whatever_the_poll_interval(int poll, double random, double minutes)
+    {
+        PassSchedule.WakeDelay(poll, 360, random).TotalMinutes.Should().BeApproximately(minutes, 0.001);
+    }
 }

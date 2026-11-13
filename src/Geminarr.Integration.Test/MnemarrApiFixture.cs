@@ -155,6 +155,7 @@ public sealed class MnemarrApiFixture
         mnemarr!.Linked.Should().BeFalse();
         mnemarr.Url.Should().BeNull();
         File.Exists(Path.Combine(factory.DataFolder, "mnemarr", "key")).Should().BeFalse();
+        File.Exists(Path.Combine(factory.DataFolder, "mnemarr", "key.address")).Should().BeFalse();
     }
 
     [Fact]

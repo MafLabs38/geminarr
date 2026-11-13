@@ -215,6 +215,7 @@ public sealed class LinkService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            _logger.LogWarning(ex, "The enrolment code file cannot be read: check that it exists and who may read it.");
             return;
         }
 

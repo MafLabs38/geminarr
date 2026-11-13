@@ -5,7 +5,7 @@ namespace Geminarr.Core.Pipeline;
 
 public sealed class ConversationStore : IConversationStore
 {
-    private const string Columns = "id, title, first_seen_at, last_seen_at, last_opened_at, list_rank, turns_known, turns_sent, last_turn_hash, rewritten_turns, source, state, last_error";
+    private const string Columns = "id, title_hash, first_seen_at, last_seen_at, last_opened_at, list_rank, turns_known, turns_sent, last_turn_hash, rewritten_turns, source, state, last_error";
 
     private readonly IDatabase _database;
 
@@ -54,12 +54,12 @@ public sealed class ConversationStore : IConversationStore
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             INSERT INTO conversations ({Columns})
-            VALUES ($id, $title, $first, $last, $opened, $rank, $known, $sent, $hash, $rewritten, $source, $state, $error)
-            ON CONFLICT (id) DO UPDATE SET title = $title, last_seen_at = $last, last_opened_at = $opened, list_rank = $rank, turns_known = $known, turns_sent = $sent,
+            VALUES ($id, $titleHash, $first, $last, $opened, $rank, $known, $sent, $hash, $rewritten, $source, $state, $error)
+            ON CONFLICT (id) DO UPDATE SET title_hash = $titleHash, last_seen_at = $last, last_opened_at = $opened, list_rank = $rank, turns_known = $known, turns_sent = $sent,
                 last_turn_hash = $hash, rewritten_turns = $rewritten, source = $source, state = $state, last_error = $error;
             """;
         command.Parameters.AddWithValue("$id", record.Id);
-        command.Parameters.AddWithValue("$title", StorageText.Value(record.Title));
+        command.Parameters.AddWithValue("$titleHash", StorageText.Value(record.TitleHash));
         command.Parameters.AddWithValue("$first", StorageText.Moment(record.FirstSeenAt));
         command.Parameters.AddWithValue("$last", StorageText.Moment(record.LastSeenAt));
         command.Parameters.AddWithValue("$opened", StorageText.Value(StorageText.Moment(record.LastOpenedAt)));
