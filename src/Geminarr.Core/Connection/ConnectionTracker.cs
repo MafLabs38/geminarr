@@ -32,14 +32,16 @@ public sealed class ConnectionTracker
     public ConnectionRecord SignedOut()
     {
         var current = _store.Get();
-        var failures = current.ConsecutiveFailures + 1;
+        // A streak of signed-out passes is its own: failures of another kind (the network, a limit, a page that changed) are not people being signed out and do not count towards it.
+        var afterAnotherFailure = current.LastReason is not (null or ConnectionReasons.NeedsLogin);
+        var failures = afterAnotherFailure ? 1 : current.ConsecutiveFailures + 1;
         if (failures >= _options.Value.LoginFailures)
         {
             return Move(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, failures, ok: false);
         }
 
-        // Not yet: the state stays what it was (a connection that was never made is now one that is in doubt).
-        if (current.State == ConnectionState.NotConnected)
+        // Not yet: the state stays what it was (a connection that was never made, or one that failed otherwise, is now one that is in doubt for this reason).
+        if (afterAnotherFailure)
         {
             return Move(ConnectionState.Degraded, ConnectionReasons.NeedsLogin, failures, ok: false);
         }

@@ -23,6 +23,18 @@ public sealed class ConnectionTrackerFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_count_failures_of_another_kind_towards_needing_a_login()
+    {
+        var subject = Subject(loginFailures: 2);
+        subject.Connected();
+        subject.Failed(ConnectionReasons.Unreachable);
+        subject.Failed(ConnectionReasons.Unreachable);
+
+        subject.SignedOut().State.Should().NotBe(ConnectionState.NeedsLogin, "two network failures and one signed-out are not two times signed out");
+        subject.SignedOut().State.Should().Be(ConnectionState.NeedsLogin, "the second signed-out in a row is");
+    }
+
+    [Fact]
     public void should_be_connected_after_a_good_pass_and_remember_when()
     {
         var subject = Subject();

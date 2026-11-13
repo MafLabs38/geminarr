@@ -22,6 +22,9 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `reader-broken` | The assistant's page no longer looks like what the reader knows | Nothing is lost (the outbox is kept, the position stays). Update Geminarr to a version of the reader that knows the new page; until then it only signals |
 | `rate-limited` | The provider limited or challenged the session | Geminarr pauses by itself (six hours by default); look at the account's security page; do not shorten the pause |
 | `unreachable` | The provider or the network is down | Wait: it backs off by itself |
+| `not-connected` | No reader is configured (the default): nothing is read, and the machine still says it is alive to Mnemarr | Nothing, until the reader of the assistant is set (`GEMINARR__READER__KIND`) |
+| `internal-error` (a run) | Something this version did not foresee ended the pass; the next one tries again, and the log names the kind of error | Update Geminarr; if it stays, open an issue with the kind of error (never what was read) |
+| `pass-timeout` / `stopped` (a run) | Reading ran out of its time (the reader hangs: it counts as `unreachable` and backs off), or the container was stopping | `pass-timeout`: wait; `stopped`: nothing, the next pass resumes |
 | `mnemarr-refused` | The key was revoked or the machine removed in Mnemarr | Pair again (page *Mnemarr*) |
 | `mnemarr-unreachable` | Mnemarr does not answer | Wait; the outbox keeps the turns. `outbox-growing` appears after an hour |
 | `operator-not-configured` | No name and password file: nobody can sign in, everything but the probes is closed | Set `GEMINARR__AUTH__ADMINUSER` and `…ADMINPASSWORDFILE` in the manifest and restart |

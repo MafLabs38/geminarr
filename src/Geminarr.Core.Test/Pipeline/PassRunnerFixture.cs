@@ -614,6 +614,19 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_take_any_error_of_a_reader_for_a_reader_that_fails_so_that_reading_backs_off()
+    {
+        _reader.Say("c1", "T", "a");
+        _reader.FailWith = new IOException("A file of the reader.");
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Failed, ConnectionReasons.ReaderBroken));
+        _connection.Current().State.Should().Be(ConnectionState.Degraded);
+        _connection.Current().ConsecutiveFailures.Should().Be(1, "the backoff counts it");
+    }
+
+    [Fact]
     public async Task should_open_nothing_new_while_mnemarr_cannot_be_asked_what_it_holds()
     {
         _reader.Say("c1", "T", "a");
