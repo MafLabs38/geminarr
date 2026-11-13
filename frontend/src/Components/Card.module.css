@@ -13,3 +13,8 @@
   font-size: var(--fontSizeCardTitle);
   font-weight: 700;
 }
+
+/* Two cards one after the other do not touch. */
+.card + .card {
+  margin-top: 16px;
+}

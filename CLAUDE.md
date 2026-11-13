@@ -2,7 +2,7 @@
 
 > A satellite of Mnemarr: brings the conversation history of a web assistant (Gemini) into Mnemarr's memory, in the spirit of the *arr suite.
 
-**Project stage: foundation.** The architecture and the security model are decided: the decisions are in [docs/SPEC.md](docs/SPEC.md) and [docs/adr/](docs/adr/README.md) (see [docs/VISION.md](docs/VISION.md) for the original need). The foundation vertical (pipeline, quality chain and a walking skeleton) is built; **how Gemini can be read from a container is not known yet** and is the object of spike S1 ([docs/ROADMAP.md](docs/ROADMAP.md)): do not design the reader beyond SPEC §6 before it has been answered.
+**Project stage: foundation and operator access.** The architecture and the security model are decided: the decisions are in [docs/SPEC.md](docs/SPEC.md) and [docs/adr/](docs/adr/README.md) (see [docs/VISION.md](docs/VISION.md) for the original need). The foundation (pipeline, quality chain, a walking skeleton) and the operator access (sign-in, a closed API, health, settings) are built, and Mnemarr's side of the contract is delivered ([ROADMAP.md](docs/ROADMAP.md)); **how Gemini can be read from a container is not known yet** and is the object of spike S1 ([docs/ROADMAP.md](docs/ROADMAP.md)): do not design the reader beyond SPEC §6 before it has been answered.
 
 This file is read automatically by Claude Code. It applies to every task in this repository. It is the same as [Mnemarr's](https://github.com/MafLabs38/mnemarr/blob/develop/CLAUDE.md), adapted: where it differs, it says so.
 
@@ -20,7 +20,7 @@ This file is read automatically by Claude Code. It applies to every task in this
 
 Same as Mnemarr and Portarr, so the products share conventions ([ADR 0002](docs/adr/0002-the-family-stack-and-structure.md)):
 
-- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`, and `Geminarr.Browser` (Playwright adapter) from vertical 2.
+- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`, and `Geminarr.Browser` (Playwright adapter) from vertical 3.
 - **Frontend**: React, TypeScript (strict), Vite, TanStack Query, CSS Modules
 - **Tests**: xUnit v3 + NSubstitute + AwesomeAssertions, Vitest + Testing Library, Playwright
 - **CI/CD**: GitHub Actions, single multi-arch container image on GHCR, semantic-release

@@ -1,4 +1,4 @@
-import { ApiError, apiGet } from 'Helpers/Api/apiGet';
+import { ApiError, apiGet, apiSend } from 'Helpers/Api/apiGet';
 
 describe('apiGet', () => {
   it('reads JSON from the API under /api/v1 and passes the signal on', async () => {
@@ -74,5 +74,46 @@ describe('apiGet with a body that is not JSON', () => {
     );
 
     await expect(apiGet('/x')).rejects.toMatchObject({ status: 200, message: 'The server did not answer with data.' });
+  });
+});
+
+describe('apiSend', () => {
+  it('sends a JSON body with the header that a write needs, and returns the answer', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ name: 'operator-name' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const answer = await apiSend<{ name: string }>('POST', '/auth/login', { name: 'operator-name' });
+
+    expect(answer).toEqual({ name: 'operator-name' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'X-Geminarr-Request': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'operator-name' }),
+    });
+  });
+
+  it('sends no body and no content type when there is nothing to say, and reads nothing from a 204', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiSend('POST', '/auth/logout')).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { 'X-Geminarr-Request': '1' },
+      body: undefined,
+    });
+  });
+
+  it('fails with the reason of the server', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ title: 'Too many failed attempts.' }, { status: 429 })),
+    );
+
+    await expect(apiSend('POST', '/auth/login', {})).rejects.toMatchObject({
+      status: 429,
+      message: 'Too many failed attempts.',
+    });
   });
 });

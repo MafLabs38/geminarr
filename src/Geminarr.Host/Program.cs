@@ -1,8 +1,10 @@
 using Geminarr.Api.V1;
 using Geminarr.Core;
+using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
+using Geminarr.Host.Security;
 using Microsoft.OpenApi;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -17,8 +19,10 @@ builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrHealthChecks();
+builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ClientErrorExceptionHandler>();
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
 {
     document.Info = new OpenApiInfo
@@ -36,13 +40,21 @@ var app = builder.Build();
 // the application and not the time of the first request for its status.
 _ = app.Services.GetRequiredService<ISystemStatusService>();
 
+// A container where nobody can sign in is alive and closed, and its sign-in page only says "wrong": the log is where the reason is told without a session.
+if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operatorStatus and not OperatorStatus.Ready)
+{
+    app.Logger.LogWarning("Nobody can sign in ({Status}); everything but the probes stays closed. The reason codes are in docs/runbook.md.", operatorStatus);
+}
+
 app.UseExceptionHandler();
 app.UseGeminarrSecurityHeaders();
+app.UseMiddleware<AllowedHostsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
+app.UseGeminarrSecurity();
 app.MapControllers();
-// The description of the API is served as it is while nothing sensitive exists; it goes behind the sign-in with the first vertical (docs/SPEC.md, F-ACC-03).
+// The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();
 app.MapGeminarrFrontendFallback();

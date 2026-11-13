@@ -15,6 +15,8 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0008](0008-the-agent-merges-technical-pull-requests.md) | The agent merges technical pull requests; the maintainer decides verticals, releases and the rules | rule 12 |
 | [0009](0009-default-port.md) | Default port 8282 | D-17 |
 | [0010](0010-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | D-18 |
+| [0011](0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) | One operator, a session in memory, and everything closed but the probes | D-19 |
+| [0012](0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) | The attention mail points to Mnemarr, not to the satellite | D-20 |
 
 ## Template
 

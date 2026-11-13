@@ -19,8 +19,21 @@ public sealed class SecurityHeadersFixture
     [InlineData("/openapi/v1.json", HttpStatusCode.OK)]
     public async Task should_keep_the_security_headers_and_cache_nothing_on_what_the_api_says_even_when_it_says_no(string path, HttpStatusCode expected)
     {
-        var response = await _factory.CreateClient().GetAsync(path, TestContext.Current.CancellationToken);
+        using var client = await _factory.SignedInClientAsync();
 
+        AssertHeaders(await client.GetAsync(path, TestContext.Current.CancellationToken), expected);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/system/status")]
+    [InlineData("/openapi/v1.json")]
+    public async Task should_keep_the_security_headers_and_cache_nothing_on_a_refusal_too(string path)
+    {
+        AssertHeaders(await _factory.CreateClient().GetAsync(path, TestContext.Current.CancellationToken), HttpStatusCode.Unauthorized);
+    }
+
+    private static void AssertHeaders(HttpResponseMessage response, HttpStatusCode expected)
+    {
         response.StatusCode.Should().Be(expected);
         response.Headers.CacheControl!.NoStore.Should().BeTrue();
         response.Headers.GetValues("Pragma").Should().Equal("no-cache");

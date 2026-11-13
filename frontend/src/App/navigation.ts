@@ -22,5 +22,6 @@ export const menuEntries: ReadonlyArray<MenuEntry> = [
   { to: '/runs', label: 'Runs', icon: icons.RUNS, available: false },
   { to: '/import', label: 'Import', icon: icons.IMPORT, available: false },
   { to: '/mnemarr', label: 'Mnemarr', icon: icons.MNEMARR, available: false },
+  { to: '/settings', label: 'Settings', icon: icons.SETTINGS, available: true },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM, available: true },
 ];

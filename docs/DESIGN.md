@@ -19,15 +19,20 @@ Geminarr's page tells the operator whether it works and lets them act on the con
 
 | Entry | Content | State |
 |---|---|---|
-| Overview | Is Geminarr up, is the session connected, is Mnemarr reached, the last runs | built (API state) |
-| Connection | The state of the session, *Sign in* (the live view), *Pause*, *Disconnect* | soon (vertical 2) |
-| Conversations | Metadata only: title, turns known and sent, rewritten turns, state | soon (vertical 3) |
-| Runs | Outcome, counts, reason of each pass | soon (vertical 3) |
-| Import | Upload a Takeout archive, see the result | soon (vertical 4) |
-| Mnemarr | The destination, its state, pairing | soon (vertical 1) |
-| System | Status, health, settings | built (Status) |
+| Overview | Is Geminarr up (the API answers), and the **health**: each check with its state and, when something is wrong, the sentence of its reason code. Later: the session, Mnemarr, the last runs | built (API state, health) |
+| Settings | The settings the container runs with, read only, a secret as *set* or *not set* | built |
+| Connection | The state of the session, *Sign in* (the live view), *Pause*, *Disconnect* | soon (vertical 3) |
+| Conversations | Metadata only: title, turns known and sent, rewritten turns, state | soon (vertical 4) |
+| Runs | Outcome, counts, reason of each pass | soon (vertical 4) |
+| Import | Upload a Takeout archive, see the result | soon (vertical 5) |
+| Mnemarr | The destination, its state, pairing | soon (vertical 2) |
+| System | Version, runtime, start and uptime | built |
 
 An entry whose page is not built is **shown, marked "Soon", and is not a link** (`aria-disabled`). It becomes a link in the pull request that builds its page.
+
+### 2.1a The sign-in comes first
+
+Nothing of the application is shown, and nothing is asked of the API, until somebody is signed in: the sign-in page is the first screen, a failed call answered 401 puts it back and forgets what was read, and the answer to a wrong name and a wrong password is the same sentence. Who is signed in is in the header, with the way out.
 
 ### 2.2 States are never conveyed by color alone
 

@@ -2,7 +2,7 @@
 
 > Bring your Gemini conversations to your memory. A satellite of [Mnemarr](https://github.com/MafLabs38/mnemarr), in the spirit of the *arr suite.
 
-**Status: foundation.** The container runs, its page answers, the whole quality chain is in place, and the specification is written. **It does not read Gemini yet**: how to read a product that has no API from a container is the first thing to be measured ([roadmap](docs/ROADMAP.md)).
+**Status: foundation and operator access.** The container runs, its page is closed behind a sign-in and shows its health and its settings, the whole quality chain is in place, and the specification is written. **It does not read Gemini yet**: how to read a product that has no API from a container is the first thing to be measured ([roadmap](docs/ROADMAP.md)).
 
 Gemini keeps your conversations to itself: no API gives access to the history, and a good idea told by voice a year ago cannot be found again. Geminarr signs in to a **dedicated Google account** (the one that shares your Google AI plan), reads the conversations that appeared or grew since its last visit, and sends their new turns to Mnemarr, which stores them as notes and finds them **by meaning** and by text. It keeps no copy of its own, summarises nothing, and when its session ends it tells Mnemarr, which mails you a link to sign in again.
 
@@ -59,8 +59,14 @@ docs/           specification, decisions, testing strategy
 
 ```bash
 docker build -t geminarr:dev .
-docker run --rm -p 127.0.0.1:8282:8282 --tmpfs /config:uid=1654,gid=1654 geminarr:dev
-# http://localhost:8282 (published on this machine only: no sign-in exists yet)  ·  health: /health/live and /health/ready
+secrets="$(mktemp -d)"                               # a folder only you can enter
+openssl rand -base64 24 > "$secrets/operator-password"  # the operator's password: a file, never a variable
+chmod 644 "$secrets/operator-password"                   # the container's user must read it; the folder keeps everybody else out
+docker run --rm -p 127.0.0.1:8282:8282 --tmpfs /config:uid=1654,gid=1654 \
+  -v "$secrets/operator-password:/run/operator-password:ro" \
+  -e GEMINARR__AUTH__ADMINUSER=operator-name -e GEMINARR__AUTH__ADMINPASSWORDFILE=/run/operator-password \
+  -e GEMINARR__AUTH__COOKIESECURITY=SameAsRequest geminarr:dev   # SameAsRequest: this is plain HTTP; behind TLS leave the default
+# http://localhost:8282 (published on this machine only)  ·  health: /health/live and /health/ready  ·  every other call needs the operator's sign-in (see below)
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#development-setup) for the development setup.

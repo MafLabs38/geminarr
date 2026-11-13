@@ -6,14 +6,23 @@ namespace Geminarr.Host.Health;
 
 public static class HealthExtensions
 {
+    public const string LivePath = "/health/live";
+    public const string ReadyPath = "/health/ready";
+
     private const string ReadyTag = "ready";
+
+    /// <summary>Whether a path is one of the two probes of the platform (and nothing else under <c>/health</c>).</summary>
+    public static bool IsProbe(PathString path) =>
+        path.Equals(LivePath, StringComparison.OrdinalIgnoreCase) || path.Equals(ReadyPath, StringComparison.OrdinalIgnoreCase);
 
     public static IServiceCollection AddGeminarrHealthChecks(this IServiceCollection services)
     {
         // One instance: it keeps its last result, and AddCheck would otherwise build a new one for every probe.
         services.TryAddSingleton<DataFolderHealthCheck>();
         services.AddHealthChecks()
-            .AddCheck<DataFolderHealthCheck>("data-folder", tags: [ReadyTag]);
+            .AddCheck<DataFolderHealthCheck>("data-folder", tags: [ReadyTag])
+            // Not a readiness check: a container without an operator is alive and closed, and the platform must not restart it for that.
+            .AddCheck<OperatorHealthCheck>("operator");
         return services;
     }
 
@@ -23,8 +32,8 @@ public static class HealthExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapGeminarrHealthChecks(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
-        endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = registration => registration.Tags.Contains(ReadyTag) }).AllowAnonymous();
+        endpoints.MapHealthChecks(LivePath, new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+        endpoints.MapHealthChecks(ReadyPath, new HealthCheckOptions { Predicate = registration => registration.Tags.Contains(ReadyTag) }).AllowAnonymous();
         return endpoints;
     }
 }

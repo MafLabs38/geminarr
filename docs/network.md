@@ -8,7 +8,9 @@ Geminarr is **outbound only** towards the outside, and has **one inbound path**:
 |---|---|---|
 | 8282/tcp | The page, the API, the live view (a WebSocket on the same origin), `/health/*` | The operator, **through the reverse proxy with TLS and the single sign-on**. Nothing else is published. Probes (`/health/live`, `/health/ready`) may be reached by the platform. |
 
-The live view is the page where the operator types the dedicated account's password into the container's browser: it must never be anonymous. Geminarr's own login stands behind the proxy's (vertical 1); until it exists, publish nothing but the loopback address.
+**The names the page may be reached by are a list** (`GEMINARR__ALLOWEDHOSTNAMES`, and the host of `GEMINARR__PUBLICURL`): a request for any other `Host` is refused with a 400, so that a web page that points its own name at this address (DNS rebinding) cannot read what the container says. The default is the loopback names; **add the name or the address you reach it by** (for example the address of the machine for a sandbox, or the host of the public address behind a proxy that keeps the `Host` header). The probes are exempt, because a platform calls them by the address of the pod.
+
+The live view is the page where the operator types the dedicated account's password into the container's browser: it must never be anonymous. Geminarr's own sign-in stands behind the proxy's (D-19): every call but the probes needs the operator's session.
 
 ## Outbound (the list is the policy)
 
@@ -20,7 +22,7 @@ The live view is the page where the operator types the dedicated account's passw
 
 The browser has a **route filter** that refuses every other origin, and the container's network policy repeats the list at the cluster level. The exact host names the assistant's page needs are written down by the first spike and listed here, **and a new destination is a decision** (ADR 0008: the network policy is in the trust anchor).
 
-A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/connection/live-views/` (from vertical 2) and must not buffer them; and it must not cache `/api`.
+A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/connection/live-views/` (from vertical 3) and must not buffer them; and it must not cache `/api`.
 
 ## Firewalls and proxies at the other end
 

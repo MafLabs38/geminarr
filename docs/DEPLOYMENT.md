@@ -14,7 +14,7 @@ Same as the other applications of the cluster:
 |---|---|---|
 | `namespace.yaml` | The namespace `geminarr` | — |
 | `pvc.yaml` | `geminarr-data` (database, outbox, Mnemarr key; ~2 Gi) **and `geminarr-profile`** (the browser profile; ~1 Gi) | Two claims on **local** storage with a retaining class, on the same node as the pod. **The profile claim is never backed up in the clear and never shared** (SPEC §11.2). |
-| `secret-admin.enc.yaml` | The first administrator's password (SOPS-encrypted) | — |
+| `secret-operator.enc.yaml` | The operator's password (SOPS-encrypted), mounted as a file: `GEMINARR__AUTH__ADMINPASSWORDFILE` | The operator's name is a plain setting; choose one that is not obvious. Rotating the secret needs no restart |
 | `secret-mnemarr.enc.yaml` | Either the Mnemarr **key** (provided) or a one-time **enrolment code** | The key is ingest-only and machine-bound |
 | `deployment.yaml` | One replica, `Recreate`, non-root (uid 1654), read-only root file system, no capabilities, no service-account token, `/tmp` and the browser's scratch space as `emptyDir`, probes on `/health/*`, the image line marked for the image policy | Memory limit 1.5 Gi (browser); the browser sandbox needs are decided by spike S1 (Q-10) |
 | `service.yaml` | `ClusterIP` on 8282 | — |
@@ -25,7 +25,7 @@ Same as the other applications of the cluster:
 
 The settings are the environment variables of [configuration.md](configuration.md); secrets are mounted files (`…FILE`).
 
-## Order of a first deployment (vertical 5)
+## Order of a first deployment (vertical 6)
 
 1. The release `0.1.0` exists and its image is public (or the pull secret is in the folder).
 2. The folder is added to the GitOps repository; Flux applies it; the pod starts; `/health/ready` is green; the state is `not-connected`.

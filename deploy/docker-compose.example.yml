@@ -5,13 +5,22 @@ services:
     image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
     restart: unless-stopped
     ports:
-      # Loopback only: Geminarr speaks plain HTTP. Publish it through a reverse proxy with TLS and a login in front,
-      # or change the address on purpose. Until the first vertical has its own sign-in, nothing but the probes and the status is served.
+      # Loopback only: Geminarr speaks plain HTTP. Publish it through a reverse proxy with TLS and your single sign-on in front,
+      # or change the address on purpose. Everything but the probes needs the operator's sign-in.
       - "127.0.0.1:8282:8282"
     volumes:
       - geminarr-data:/config               # database and settings: back this up. The browser profile will have a volume of its own (SPEC §7.1).
     environment:
       GEMINARR__DATAFOLDER: /config
+      # The operator: a name that is not obvious (whoever knows it can lock it out for fifteen minutes) and the password in a file (a secret).
+      # Without them nobody can sign in. Rotating the secret needs no restart.
+      GEMINARR__AUTH__ADMINUSER: change-me-operator-name
+      GEMINARR__AUTH__ADMINPASSWORDFILE: /run/secrets/geminarr_operator_password
+      # The name you reach the page by (the host of this address is allowed; a request for any other name is refused). Behind TLS leave the cookie secure.
+      GEMINARR__PUBLICURL: https://geminarr.homelab.example
+      # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
+    secrets:
+      - geminarr_operator_password
     # Hardening: nothing writes outside the data folder and a temporary folder.
     read_only: true
     tmpfs:
@@ -24,6 +33,10 @@ services:
       resources:
         limits:
           memory: 256M
+
+secrets:
+  geminarr_operator_password:
+    file: ./geminarr-operator-password   # one line, at least 12 characters; not in git
 
 volumes:
   geminarr-data:

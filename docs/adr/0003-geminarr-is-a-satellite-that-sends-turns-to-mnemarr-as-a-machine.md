@@ -1,6 +1,6 @@
 # 0003 — Geminarr is a satellite that sends turns to Mnemarr as a machine
 
-- **Status**: accepted
+- **Status**: accepted; §6 (the link in the attention mail) is superseded by [0012](0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md)
 - **Date**: 2026-11-11
 - **Spec**: D-02, D-03, D-04, D-05, D-06, D-07, D-11
 
