@@ -64,6 +64,10 @@ public sealed class EffectiveSettings
         new("GEMINARR__READER__KIND", _reader.Value.Kind.ToString(), false),
         new("GEMINARR__READER__POLLMINUTES", _reader.Value.PollMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXLISTED", _reader.Value.MaxListed.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__PASSTIMEOUTMINUTES", _reader.Value.PassTimeoutMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__MAXBACKOFFMINUTES", _reader.Value.MaxBackoffMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__LOGINFAILURES", _reader.Value.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__DEMOGROWSECONDS", _reader.Value.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _reader.Value.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__RETENTION__RUNSDAYS", _retention.Value.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];

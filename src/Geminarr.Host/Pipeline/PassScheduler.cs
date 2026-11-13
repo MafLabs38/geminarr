@@ -25,9 +25,11 @@ public sealed class PassScheduler : BackgroundService
     private readonly IOptions<ReaderOptions> _options;
     private readonly ILogger<PassScheduler> _logger;
     private readonly TimeSpan _startDelay;
+    private readonly TimeProvider _clock;
 
-    public PassScheduler(PassRunner runner, PassTrigger trigger, LinkService link, ConnectionTracker connection, IOptions<ReaderOptions> options, ILogger<PassScheduler> logger, TimeSpan? startDelay = null)
+    public PassScheduler(PassRunner runner, PassTrigger trigger, LinkService link, ConnectionTracker connection, IOptions<ReaderOptions> options, ILogger<PassScheduler> logger, TimeProvider clock, TimeSpan? startDelay = null)
     {
+        _clock = clock;
         _startDelay = startDelay ?? DefaultStartDelay;
         _runner = runner;
         _trigger = trigger;
@@ -51,12 +53,23 @@ public sealed class PassScheduler : BackgroundService
         }
     }
 
+    /// <summary>
+    /// A pass at every poll interval, which sends what waits and tells Mnemarr it is alive. Reading waits longer after a pass that failed (doubled up to the limit): that backoff is the reader's, and a machine
+    /// that is backing off must not go silent in Mnemarr.
+    /// </summary>
     private async Task PassesAsync(CancellationToken stoppingToken)
     {
+        var nextRead = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
-            await PassAsync(stoppingToken);
-            await _trigger.WaitAsync(NextDelay(), stoppingToken);
+            var reading = _clock.GetUtcNow() >= nextRead;
+            var result = await PassAsync(reading, stoppingToken);
+            if (reading)
+            {
+                nextRead = _clock.GetUtcNow() + ReadDelay(result);
+            }
+
+            await _trigger.WaitAsync(Interval(), stoppingToken);
         }
     }
 
@@ -83,9 +96,10 @@ public sealed class PassScheduler : BackgroundService
         {
             _logger.LogWarning(ex, "Mnemarr could not be asked about the pairing ({Failure}).", ex.Failure);
         }
-        catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "The pairing could not be kept: the database cannot be reached.");
+            // The key could not be written, the database cannot be reached: it is said, and the loop goes on (an error here must not end the host).
+            _logger.LogWarning(ex, "The pairing could not be completed.");
         }
     }
 
@@ -105,32 +119,43 @@ public sealed class PassScheduler : BackgroundService
         }
     }
 
-    private async Task PassAsync(CancellationToken cancellationToken)
+    private async Task<PassResult?> PassAsync(bool reading, CancellationToken cancellationToken)
     {
         try
         {
-            await _runner.RunAsync(cancellationToken);
+            return await _runner.RunAsync(cancellationToken, reading);
         }
-        catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // The probes say it (the database check); the next pass tries again.
-            _logger.LogWarning(ex, "A pass could not run: the database cannot be reached.");
+            // The probes say what is wrong (the database check); the next pass tries again, and an error that nobody foresaw does not stop the application.
+            _logger.LogWarning(ex, "A pass could not run.");
+            return null;
         }
     }
 
-    private TimeSpan NextDelay()
+    /// <summary>The interval between two passes: the poll interval, with its random twenty percent.</summary>
+    private TimeSpan Interval() => PassSchedule.NextDelay(_options.Value.PollMinutes, failuresInARow: 0, _options.Value.MaxBackoffMinutes, Random.Shared.NextDouble());
+
+    /// <summary>How long reading waits after this pass: the interval, doubled for each pass that failed in a row up to the limit.</summary>
+    private TimeSpan ReadDelay(PassResult? result)
     {
-        var options = _options.Value;
         var failures = 0;
-        try
-        {
-            failures = _connection.Current().ConsecutiveFailures;
-        }
-        catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+        if (result is null)
         {
             failures = 1;
         }
+        else
+        {
+            try
+            {
+                failures = _connection.Current().ConsecutiveFailures;
+            }
+            catch (Exception ex) when (StorageErrors.IsUnavailable(ex))
+            {
+                failures = 1;
+            }
+        }
 
-        return PassSchedule.NextDelay(options.PollMinutes, failures, options.MaxBackoffMinutes, Random.Shared.NextDouble());
+        return PassSchedule.NextDelay(_options.Value.PollMinutes, failures, _options.Value.MaxBackoffMinutes, Random.Shared.NextDouble());
     }
 }

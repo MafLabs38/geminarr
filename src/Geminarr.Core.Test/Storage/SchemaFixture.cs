@@ -84,4 +84,14 @@ public sealed class SchemaFixture : IDisposable
 
         File.GetUnixFileMode(Path.Combine(_workspace.Folder, Database.FileName)).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
+
+    [Fact]
+    public void should_overwrite_what_is_deleted_and_not_only_forget_it()
+    {
+        using var connection = _workspace.Database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA secure_delete;";
+
+        Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture).Should().Be(1);
+    }
 }

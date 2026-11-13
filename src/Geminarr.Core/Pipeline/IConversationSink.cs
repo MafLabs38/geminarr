@@ -31,7 +31,7 @@ public enum SinkFailure
     /// <summary>Mnemarr does not answer, or not with an answer: wait, the outbox keeps the turns.</summary>
     Unreachable,
 
-    /// <summary>Mnemarr said no to what was sent (400, 413, 422): a bug or a limit, never retried as it is.</summary>
+    /// <summary>Mnemarr said no to what was sent (400, 413, 422): a bug or a limit. The batch is kept with the reason and tried again at the next pass (a Mnemarr that is updated may take it).</summary>
     Rejected,
 }
 

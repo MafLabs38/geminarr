@@ -438,6 +438,41 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_send_what_waits_and_tell_mnemarr_it_is_alive_in_a_pass_that_does_not_read()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        _sink.FailSend = new SinkException(SinkFailure.Rejected, "Mnemarr said no (400).");
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.FailSend = null;
+        _reader.Opened.Clear();
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+
+        _reader.Opened.Should().BeEmpty("a pass that does not read does not open anything");
+        result!.Reason.Should().Be("backoff");
+        _sink.Sent.Should().ContainSingle("what waited went");
+        _sink.Heartbeats.Should().HaveCount(2, "and Mnemarr heard from the machine");
+    }
+
+    [Fact]
+    public async Task should_not_resume_from_the_positions_of_the_mnemarr_that_was_left_when_the_new_one_cannot_be_asked()
+    {
+        _reader.Say("c1", "T", "a", "b");
+        _sink.Held[Session("c1")] = 3;
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _conversations.SetTurnsSent("c1", 0);
+        _link.Unlink();
+        _sink.FailPositions = new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer.");
+        _reader.Say("c2", "T", "x", "y");
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _outbox.Waiting(10).Single(batch => batch.ConversationId == "c2").FromPosition.Should().Be(0, "nothing is known of this Mnemarr: the conversation is queued from the start");
+    }
+
+    [Fact]
     public async Task should_adopt_what_mnemarr_holds_when_it_holds_more_than_was_believed_and_not_send_it_again()
     {
         _reader.Say("c1", "T", "a", "b", "c");

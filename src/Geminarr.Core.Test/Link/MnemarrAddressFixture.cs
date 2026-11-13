@@ -92,10 +92,11 @@ public sealed class MnemarrAddressFixture
             var store = new KeyStore(Options.Of(new MnemarrOptions()), Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = folder }));
             store.Read().Should().BeNull();
 
-            store.Write("mnm_secret-key");
-            store.Write("mnm_other-key");
+            store.Write("mnm_secret-key", "https://mnemarr.homelab.example");
+            store.Write("mnm_other-key", "https://other.homelab.example");
 
             store.Read().Should().Be("mnm_other-key");
+            store.AddressOf().Should().Be("https://other.homelab.example");
             var file = Path.Combine(folder, "mnemarr", "key");
             File.Exists(file).Should().BeTrue();
             File.Exists(file + ".new").Should().BeFalse();
@@ -107,6 +108,7 @@ public sealed class MnemarrAddressFixture
 
             store.Delete();
             store.Read().Should().BeNull();
+            store.AddressOf().Should().BeNull();
             store.Delete();
         }
         finally

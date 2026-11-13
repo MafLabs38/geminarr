@@ -36,6 +36,13 @@ public sealed class Database : IDatabase
         try
         {
             connection.Open();
+            // What is deleted (an acknowledged batch, a conversation that was unlinked) is overwritten in the file, not only forgotten by it: the outbox holds the text of conversations.
+            using (var pragma = connection.CreateCommand())
+            {
+                pragma.CommandText = "PRAGMA secure_delete = ON;";
+                pragma.ExecuteNonQuery();
+            }
+
             EnsureSchema(connection);
             return connection;
         }

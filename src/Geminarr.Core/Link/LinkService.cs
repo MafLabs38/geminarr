@@ -10,6 +10,11 @@ namespace Geminarr.Core.Link;
 /// </summary>
 public sealed class LinkService
 {
+    /// <summary>A pairing lives at least this long and at most this long, whatever Mnemarr says.</summary>
+    private const int MinPairingSeconds = 30;
+
+    private const int MaxPairingSeconds = 3_600;
+
     private readonly IOptions<MnemarrOptions> _options;
     private readonly IDestinationStore _store;
     private readonly IKeyStore _keys;
@@ -65,7 +70,8 @@ public sealed class LinkService
     /// A key that a pairing or an enrolment gave belongs to the Mnemarr that gave it: it is never sent to another address, whoever changed the address (the settings included). A key that was given as a
     /// file by the deployment is the deployment's to bind to its address.
     /// </summary>
-    private static bool KeyBelongsTo(DestinationRecord? row, string? url) => row is not { LinkedAt: not null } || string.Equals(row.Url, url, StringComparison.OrdinalIgnoreCase);
+    private bool KeyBelongsTo(DestinationRecord? row, string? url) =>
+        (_keys.AddressOf() ?? (row is { LinkedAt: not null } ? row.Url : null)) is not { } bound || string.Equals(bound, url, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The code of what is wrong with the destination, or null. A problem the last talk left (refused, unreachable) is kept until the next one works.</summary>
     private string? ProblemOf(string? url, bool hasKey, string? problem)
@@ -106,7 +112,7 @@ public sealed class LinkService
 
         _store.EnsureAddress(url);
         var started = await _client.PairStartAsync(url, _options.Value.Machine, cancellationToken);
-        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, 30, 3600)));
+        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
         lock (_gate)
         {
             _pairing = pairing;
@@ -161,15 +167,20 @@ public sealed class LinkService
         switch (polled.State)
         {
             case PairingStates.Approved when !string.IsNullOrWhiteSpace(polled.Key):
-                // Given up (or unlinked) while Mnemarr was answering: the key is not kept.
-                if (!StillPending(pairing))
+                // Given up (or unlinked) while Mnemarr was answering: the key is not kept. The check and the link are one step under the lock, so that an unlink cannot fall between them.
+                var machine = MachineOf(polled.Machine);
+                lock (_gate)
                 {
-                    return new PairingStatus(PairingStates.None, null, null, null);
+                    if (!ReferenceEquals(_pairing, pairing))
+                    {
+                        return new PairingStatus(PairingStates.None, null, null, null);
+                    }
+
+                    Link(pairing.Url, polled.Key, machine);
+                    _pairing = null;
                 }
 
-                Link(pairing.Url, polled.Key, polled.Machine ?? _options.Value.Machine);
-                Forget(pairing);
-                _logger.LogInformation("Linked to Mnemarr by pairing, as the machine {Machine}.", polled.Machine ?? _options.Value.Machine);
+                _logger.LogInformation("Linked to Mnemarr by pairing, as the machine {Machine}.", machine);
                 return new PairingStatus(PairingStates.Approved, null, null, null);
             case PairingStates.Rejected or PairingStates.Expired:
                 Forget(pairing);
@@ -213,8 +224,9 @@ public sealed class LinkService
         }
 
         var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, cancellationToken);
-        Link(url, enrolled.Key, enrolled.Machine);
-        _logger.LogInformation("Linked to Mnemarr by enrolment, as the machine {Machine}.", enrolled.Machine);
+        var machine = MachineOf(enrolled.Machine);
+        Link(url, enrolled.Key, machine);
+        _logger.LogInformation("Linked to Mnemarr by enrolment, as the machine {Machine}.", machine);
     }
 
     /// <summary>Forgets the key and the machine, and any pairing: Geminarr no longer sends. What Mnemarr already holds stays there.</summary>
@@ -245,19 +257,15 @@ public sealed class LinkService
 
     private void Link(string url, string key, string machine)
     {
-        _keys.Write(key);
+        _keys.Write(key, url);
         _store.EnsureAddress(url);
         _store.SaveLinked(machine, _clock.GetUtcNow());
         Interlocked.Increment(ref _generation);
     }
 
-    private bool StillPending(PendingPairing pairing)
-    {
-        lock (_gate)
-        {
-            return ReferenceEquals(_pairing, pairing);
-        }
-    }
+    /// <summary>The name Mnemarr gave the machine, if it is a name this version accepts (what Mnemarr says is checked like anything that comes from outside); the configured one otherwise.</summary>
+    private string MachineOf(string? given) =>
+        given is { Length: > 0 and <= 40 } && given.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-') ? given : _options.Value.Machine;
 
     private void Forget(PendingPairing pairing)
     {
@@ -275,7 +283,7 @@ public sealed class LinkService
         Uri.TryCreate(address, UriKind.Absolute, out var uri)
         && uri.Scheme is "http" or "https"
         && uri.UserInfo.Length == 0
-        && (uri.Scheme == Uri.UriSchemeHttps || !MnemarrAddress.IsSecure(mnemarrUrl) || new Uri(mnemarrUrl).Scheme == Uri.UriSchemeHttp)
+        && (uri.Scheme == Uri.UriSchemeHttps || mnemarrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             ? uri.ToString()
             : null;
 
