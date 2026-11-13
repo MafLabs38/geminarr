@@ -45,7 +45,6 @@ public sealed class PassScheduler : BackgroundService
         try
         {
             await Task.Delay(_startDelay, stoppingToken);
-            await EnrolAsync(stoppingToken);
             await Task.WhenAll(PassesAsync(stoppingToken), PairingAsync(stoppingToken));
         }
         catch (OperationCanceledException)
@@ -61,8 +60,11 @@ public sealed class PassScheduler : BackgroundService
     private async Task PassesAsync(CancellationToken stoppingToken)
     {
         var nextRead = DateTimeOffset.MinValue;
+        var enrolled = false;
         while (!stoppingToken.IsCancellationRequested)
         {
+            // The code of a deployment is tried at each wake until Mnemarr has answered (it may not be up yet when this container starts).
+            enrolled = enrolled || await EnrolAsync(stoppingToken);
             var reading = SystemClock.GetUtcNow() >= nextRead;
             var result = await PassAsync(reading, stoppingToken);
             if (reading)
@@ -108,7 +110,8 @@ public sealed class PassScheduler : BackgroundService
         }
     }
 
-    private async Task EnrolAsync(CancellationToken cancellationToken)
+    /// <summary>Tries the enrolment code of the deployment; false only when Mnemarr could not be reached, so that it is tried again.</summary>
+    private async Task<bool> EnrolAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -117,12 +120,15 @@ public sealed class PassScheduler : BackgroundService
         catch (SinkException ex)
         {
             _logger.LogWarning(ex, "The enrolment code was not accepted by Mnemarr ({Failure}).", ex.Failure);
+            return ex.Failure != SinkFailure.Unreachable;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // The key could not be written, the database cannot be reached: it is said, and the application goes on without the link (the page says what is wrong).
             _logger.LogWarning(ex, "The enrolment could not be completed.");
         }
+
+        return true;
     }
 
     private async Task<PassResult?> PassAsync(bool reading, CancellationToken cancellationToken)
@@ -156,6 +162,7 @@ public sealed class PassScheduler : BackgroundService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Whatever could not be read, the reading waits longer: the loop of passes must not end (a pass is tried again at the next wake).
+                _logger.LogWarning(ex, "The state of the connection could not be read.");
                 failures = 1;
             }
         }

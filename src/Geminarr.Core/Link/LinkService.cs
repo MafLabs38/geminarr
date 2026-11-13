@@ -268,7 +268,7 @@ public sealed class LinkService
 
     /// <summary>The name Mnemarr gave the machine, if it is a name this version accepts (what Mnemarr says is checked like anything that comes from outside); the configured one otherwise.</summary>
     private string MachineOf(string? given) =>
-        given is { Length: > 0 and <= 40 } && given.All(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-') ? given : _options.Value.Machine;
+        MnemarrOptionsValidator.IsValidMachine(given) ? given! : _options.Value.Machine;
 
     private void Forget(PendingPairing pairing)
     {

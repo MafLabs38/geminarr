@@ -30,6 +30,9 @@ public sealed class PassRunner
     private readonly SemaphoreSlim _running = new(1, 1);
     private DateTimeOffset? _positionsAt;
     private long _generation = -1;
+
+    /// <summary>The link as it was when the pass began: a pass that was running while the machine was unlinked queues nothing for the Mnemarr that is gone.</summary>
+    private long _passGeneration;
     private SinkPositions? _positions;
 
     public PassRunner(IConversationSink sink, PassStores stores, ConnectionTracker connection, LinkService link, PassSettings settings, TimeProvider clock, ILogger<PassRunner> logger)
@@ -70,6 +73,7 @@ public sealed class PassRunner
     {
         var watch = Stopwatch.StartNew();
         var startedAt = _clock.GetUtcNow();
+        _passGeneration = _link.Generation;
         // A heartbeat between two readings writes its row at the end, and only if it has something to say: no row flickers in the list, and a process that dies leaves nothing half done.
         long? runId = reading ? _runs.Start(RunKinds.Pass, startedAt) : null;
         var state = new PassState();
@@ -78,6 +82,12 @@ public sealed class PassRunner
         {
             await ReconcileAsync(state, cancellationToken);
             await ReadWithinItsTimeAsync(state, reading, cancellationToken);
+            if (_link.Generation != _passGeneration)
+            {
+                // Unlinked while this pass was reading: what it queued is text for a Mnemarr that is gone.
+                _outbox.Clear();
+            }
+
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
         }
@@ -212,6 +222,11 @@ public sealed class PassRunner
     /// <summary>Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands.</summary>
     private void Queue(ConversationHeader header, IReadOnlyList<Turn> turns)
     {
+        if (_link.Generation != _passGeneration)
+        {
+            return;
+        }
+
         var now = _clock.GetUtcNow();
         var known = _conversations.Get(header.Id);
         // A conversation that was never seen here but that Mnemarr already holds (this database was lost, or another Geminarr sent it): it goes on from where Mnemarr stands.
