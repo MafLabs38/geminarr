@@ -65,9 +65,9 @@ public sealed class KeyStore : IKeyStore
         }
 
         // Written to a file of its own first and moved over the old one: a crash never leaves half a key, and the key is never readable by another user, not even for a moment.
-        // The address that binds it is written the same way (it decides which Mnemarr may be given the key).
-        WriteOwnerOnly(Path + ".address", address);
+        // The address that binds it is written the same way (it decides which Mnemarr may be given the key), and after it: a crash between the two leaves a key without its address, which is bound to nothing, never an old key bound to a new address.
         WriteOwnerOnly(Path, key);
+        WriteOwnerOnly(Path + ".address", address);
     }
 
     private static void WriteOwnerOnly(string path, string text)
