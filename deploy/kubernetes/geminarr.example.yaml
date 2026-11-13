@@ -67,7 +67,7 @@ spec:
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
-            #   value: /run/geminarr/branding/logo.png
+            #   value: /run/geminarr/identity/logo.png
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -99,11 +99,17 @@ spec:
             - name: operator
               mountPath: /run/geminarr/operator
               readOnly: true
+            # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
+            #   mountPath: /run/geminarr/identity
+            #   readOnly: true
       volumes:
         - name: operator
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
             secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
+        # - name: identity
+        #   configMap:
+        #     name: geminarr-identity
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data

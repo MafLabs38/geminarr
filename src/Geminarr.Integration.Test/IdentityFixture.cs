@@ -28,6 +28,16 @@ public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixt
     }
 
     [Fact]
+    public void should_not_start_with_a_name_that_is_too_long_and_say_which_setting()
+    {
+        using var factory = new BadIdentityFactory();
+
+        var start = () => factory.CreateClient();
+
+        start.Should().Throw<Exception>().Where(exception => exception.ToString().Contains("GEMINARR__IDENTITY__"));
+    }
+
+    [Fact]
     public async Task should_be_the_product_own_when_the_deployment_says_nothing()
     {
         using var client = await _default.SignedInClientAsync();
@@ -96,10 +106,16 @@ public sealed class IdentityFixture : IClassFixture<GeminarrFactory>, IClassFixt
     [Theory]
     [InlineData("v=not-the-hash")]
     [InlineData("")]
+    [InlineData("the-address-of-the-identity")]
     public async Task should_answer_304_to_a_matching_etag_or_a_star_and_keep_the_policy(string query)
     {
         using var client = await _deployed.SignedInClientAsync();
-        var path = query.Length == 0 ? "/api/v1/identity/logo" : $"/api/v1/identity/logo?{query}";
+        var path = query switch
+        {
+            "" => "/api/v1/identity/logo",
+            "the-address-of-the-identity" => (await client.GetFromJsonAsync<IdentityResource>("/api/v1/identity", TestContext.Current.CancellationToken))!.LogoUrl!,
+            _ => $"/api/v1/identity/logo?{query}",
+        };
         var first = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
         foreach (var validator in new[] { first.Headers.ETag!.ToString(), "*" })

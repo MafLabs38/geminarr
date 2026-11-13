@@ -18,11 +18,11 @@ public sealed record ResolvedIdentity(string Name, IdentityColors Colors, Identi
 /// </summary>
 public sealed class IdentityService
 {
-    private readonly BrandingOptions _options;
+    private readonly IdentityOptions _options;
     private readonly Lock _fileLock = new();
     private (string Path, DateTime Modified, long Length, IdentityLogoFile? Logo, string? Problem)? _file;
 
-    public IdentityService(IOptions<BrandingOptions> options)
+    public IdentityService(IOptions<IdentityOptions> options)
     {
         _options = options.Value;
     }
@@ -76,6 +76,25 @@ public sealed class IdentityService
         }
     }
 
+    /// <summary>The bytes of a file, or null when it holds more than the limit: what is read is counted, because the size a special file reports is not what it produces.</summary>
+    private static byte[]? ReadAtMost(string path, long limit)
+    {
+        using var stream = File.OpenRead(path);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        int read;
+        while ((read = stream.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            buffer.Write(chunk, 0, read);
+            if (buffer.Length > limit)
+            {
+                return null;
+            }
+        }
+
+        return buffer.ToArray();
+    }
+
     private static (IdentityLogoFile? Logo, string? Problem) ReadDeploymentLogo(FileInfo info)
     {
         try
@@ -90,7 +109,12 @@ public sealed class IdentityService
                 return (null, $"The logo file of the settings is larger than {IdentityRules.MaxLogoBytes / 1024} KiB.");
             }
 
-            var content = File.ReadAllBytes(info.FullName);
+            var content = ReadAtMost(info.FullName, IdentityRules.MaxLogoBytes);
+            if (content is null)
+            {
+                return (null, $"The logo file of the settings is larger than {IdentityRules.MaxLogoBytes / 1024} KiB.");
+            }
+
             var (format, error) = IdentityRules.InspectLogo(content, info.Extension);
             return format is null
                 ? (null, $"The logo file of the settings is not used: {error}")

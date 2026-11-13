@@ -25,8 +25,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<SessionRegistry>();
         services.AddSingleton<SignInService>();
         services.AddSingleton<AllowedHostList>();
-        services.AddSingleton<IValidateOptions<BrandingOptions>, BrandingOptionsValidator>();
-        services.AddOptions<BrandingOptions>().Bind(configuration.GetSection(BrandingOptions.SectionName)).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<IdentityOptions>, IdentityOptionsValidator>();
+        services.AddOptions<IdentityOptions>().Bind(configuration.GetSection(IdentityOptions.SectionName)).ValidateOnStart();
         services.AddSingleton<IdentityService>();
         services.AddSingleton<EffectiveSettings>();
         return services;

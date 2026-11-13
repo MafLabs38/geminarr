@@ -154,6 +154,16 @@ public sealed class LockoutFactory : GeminarrFactoryBase
     }
 }
 
+/// <summary>A host whose deployment gives a name that is too long: it must not start.</summary>
+public sealed class BadIdentityFactory : GeminarrFactoryBase
+{
+    public BadIdentityFactory() : base(createFolder: true)
+    {
+    }
+
+    protected override void AddSettings(Dictionary<string, string?> settings) => settings["Identity:Name"] = new string('a', 41);
+}
+
 /// <summary>A host whose deployment says who it is: a name, two colors and a logo file (a png) that is removed afterwards.</summary>
 public sealed class IdentityFactory : GeminarrFactoryBase
 {

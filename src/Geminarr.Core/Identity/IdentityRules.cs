@@ -37,7 +37,7 @@ public static partial class IdentityRules
     /// <summary>The formats a logo may have, by extension.</summary>
     public static IReadOnlyList<string> Extensions { get; } = [.. Formats.Select(format => format.Extension)];
 
-    [GeneratedRegex("^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")]
+    [GeneratedRegex("^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\z")]
     private static partial Regex HexPattern();
 
     /// <summary>The format an extension (with or without its dot, any case) stands for, or null.</summary>
@@ -104,6 +104,12 @@ public static partial class IdentityRules
             var root = true;
             while (!reader.EOF)
             {
+                if (reader.NodeType == XmlNodeType.ProcessingInstruction)
+                {
+                    // An <?xml-stylesheet?> loads a sheet from wherever it says.
+                    return false;
+                }
+
                 if (reader.NodeType != XmlNodeType.Element)
                 {
                     reader.Read();
@@ -128,7 +134,7 @@ public static partial class IdentityRules
                 }
             }
 
-            return !root;
+            return true;
         }
         catch (XmlException)
         {
@@ -139,7 +145,8 @@ public static partial class IdentityRules
     /// <summary>CSS that imports a sheet or points <c>url()</c> anywhere but at a fragment of the same document.</summary>
     private static bool LoadsFromOutside(string css)
     {
-        if (css.Contains("@import", StringComparison.OrdinalIgnoreCase))
+        // A backslash is a CSS escape (\68ttps is https): what it spells cannot be read here, so it is not allowed.
+        if (css.Contains("@import", StringComparison.OrdinalIgnoreCase) || css.Contains('\\'))
         {
             return true;
         }

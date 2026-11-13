@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 
 import { renderAt, stubApi } from '__tests__/render';
 import IdentityBadge from 'Components/Page/IdentityBadge';
@@ -74,6 +74,23 @@ describe('IdentityBadge', () => {
     expect(screen.queryByRole('img', { name: 'Example Lab' })).not.toBeInTheDocument();
     expect(container.querySelector('svg')).toBeInTheDocument();
     expect(screen.getByText('Example Lab')).toBeInTheDocument();
+  });
+
+  it('tries the image again when the identity has a new address for it', async () => {
+    stubApi({ '/identity': lab });
+    const view = renderAt(<IdentityBadge />);
+    fireEvent.error(await screen.findByRole('img', { name: 'Example Lab' }));
+    expect(screen.queryByRole('img', { name: 'Example Lab' })).not.toBeInTheDocument();
+
+    stubApi({ '/identity': { ...lab, logoUrl: '/api/v1/identity/logo?v=def' } });
+    await act(async () => {
+      await view.client.refetchQueries({ queryKey: ['api', '/identity'] });
+    });
+
+    expect(await screen.findByRole('img', { name: 'Example Lab' })).toHaveAttribute(
+      'src',
+      '/api/v1/identity/logo?v=def',
+    );
   });
 
   it('says the name of the product when the identity cannot be read', async () => {

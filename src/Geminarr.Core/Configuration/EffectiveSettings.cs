@@ -18,14 +18,14 @@ public sealed class EffectiveSettings
     private readonly IOptions<GeminarrOptions> _geminarr;
     private readonly IOptions<AuthOptions> _auth;
     private readonly IOperatorCredentials _credentials;
-    private readonly IOptions<BrandingOptions> _branding;
+    private readonly IOptions<IdentityOptions> _identity;
 
-    public EffectiveSettings(IOptions<GeminarrOptions> geminarr, IOptions<AuthOptions> auth, IOperatorCredentials credentials, IOptions<BrandingOptions> branding)
+    public EffectiveSettings(IOptions<GeminarrOptions> geminarr, IOptions<AuthOptions> auth, IOperatorCredentials credentials, IOptions<IdentityOptions> branding)
     {
         _geminarr = geminarr;
         _auth = auth;
         _credentials = credentials;
-        _branding = branding;
+        _identity = branding;
     }
 
     public IReadOnlyList<SettingValue> Read() =>
@@ -37,9 +37,9 @@ public sealed class EffectiveSettings
         new("GEMINARR__AUTH__ADMINPASSWORDFILE", string.IsNullOrWhiteSpace(_auth.Value.AdminPasswordFile) ? NotSet : "set", true),
         new("GEMINARR__AUTH__COOKIESECURITY", _auth.Value.CookieSecurity.ToString(), false),
         new("GEMINARR__AUTH__SESSIONHOURS", _auth.Value.SessionHours.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__IDENTITY__NAME", _branding.Value.Name is { Length: > 0 } name ? name : NotSet, false),
-        new("GEMINARR__IDENTITY__LOGOFILE", string.IsNullOrWhiteSpace(_branding.Value.LogoFile) ? NotSet : "set", false),
-        new("GEMINARR__IDENTITY__COLORS__NAME", _branding.Value.Colors.Name is { Length: > 0 } nameColor ? nameColor : NotSet, false),
-        new("GEMINARR__IDENTITY__COLORS__VERSION", _branding.Value.Colors.Version is { Length: > 0 } versionColor ? versionColor : NotSet, false),
+        new("GEMINARR__IDENTITY__NAME", _identity.Value.Name is { Length: > 0 } name ? name : NotSet, false),
+        new("GEMINARR__IDENTITY__LOGOFILE", string.IsNullOrWhiteSpace(_identity.Value.LogoFile) ? NotSet : "set", false),
+        new("GEMINARR__IDENTITY__COLORS__NAME", _identity.Value.Colors.Name is { Length: > 0 } nameColor ? nameColor : NotSet, false),
+        new("GEMINARR__IDENTITY__COLORS__VERSION", _identity.Value.Colors.Version is { Length: > 0 } versionColor ? versionColor : NotSet, false),
     ];
 }

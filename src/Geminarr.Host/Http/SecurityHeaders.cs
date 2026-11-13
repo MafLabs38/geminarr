@@ -23,9 +23,9 @@ public static class SecurityHeaders
                 headers["X-Content-Type-Options"] = "nosniff";
                 headers["X-Frame-Options"] = "DENY";
                 headers["Referrer-Policy"] = "no-referrer";
-                // An endpoint that says it keeps its own headers (the logo of the identity: an image that is the same until its hash changes, with the strictest policy, kept by the browser;
-                // ADR 0013) does so when it is served. An error of the same endpoint has the application's policy and is not cached, like every other answer.
-                // It must also have said a policy: the marker alone does not leave an answer without one.
+                // Some endpoints keep their own headers when they are served: the logo of the identity is an image that is the same until its hash changes, with the strictest policy,
+                // and the browser of the person keeps it (ADR 0013). An error of the same endpoint has the application's policy and is not cached, like every other answer.
+                // The endpoint must also have said a policy: the marker alone does not leave an answer without one.
                 var keepsOwnHeaders = context.Response.StatusCode is StatusCodes.Status200OK or StatusCodes.Status304NotModified
                     && context.GetEndpoint()?.Metadata.GetMetadata<KeepsItsOwnHeadersAttribute>() is not null
                     && headers.ContainsKey("Content-Security-Policy");
