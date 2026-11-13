@@ -17,7 +17,7 @@ public sealed class StoresFixture : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     private static ConversationRecord Conversation(string id, int known = 0, int sent = 0) =>
-        new(id, "A title", Now, Now, null, 3, known, sent, null, 0, ConversationSources.Web, ConversationStates.New, null);
+        new(id, "a1b2c3d4e5f60718", Now, Now, null, 3, known, sent, null, 0, ConversationSources.Web, ConversationStates.New, null);
 
     [Fact]
     public void should_keep_a_conversation_and_update_it_without_losing_when_it_was_first_seen()

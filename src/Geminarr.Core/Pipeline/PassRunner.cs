@@ -178,7 +178,7 @@ public sealed class PassRunner
             return known is null
                 || header.Rank == 0
                 || header.Rank < known.ListRank
-                || !string.Equals(header.Title, known.Title, StringComparison.Ordinal)
+                || !string.Equals(ConversationLines.TitleHashOf(header.Title), known.TitleHash, StringComparison.Ordinal)
                 || (known.TurnsKnown > known.TurnsSent && !waiting.Contains(header.Id));
         }).OrderBy(header => header.Rank);
     }
@@ -206,7 +206,7 @@ public sealed class PassRunner
         _outbox.Replace(header.Id, nothingNew ? [] : ConversationLines.Batches(from, lines), now);
         _conversations.Save(new ConversationRecord(
             header.Id,
-            header.Title,
+            ConversationLines.TitleHashOf(header.Title),
             known?.FirstSeenAt ?? now,
             now,
             now,
@@ -434,15 +434,19 @@ public sealed class PassRunner
 
         public SinkFailure? Destination { get; set; }
 
-        /// <summary>Says something went wrong; the worst outcome of the pass is the one that counts, and the first reason.</summary>
+        /// <summary>Says something went wrong; the worst outcome of the pass is the one that counts, with its reason.</summary>
         public void Fail(string outcome, string reason)
         {
+            // The reason is the one of the worst outcome: a pass that was skipped and then failed to send says why it failed.
             if (Rank(outcome) > Rank(Outcome))
             {
                 Outcome = outcome;
+                Reason = reason;
             }
-
-            Reason ??= reason;
+            else
+            {
+                Reason ??= reason;
+            }
         }
 
         private static int Rank(string outcome) => outcome switch

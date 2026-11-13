@@ -405,6 +405,37 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_keep_a_hash_of_a_title_and_never_the_title()
+    {
+        _reader.Say("c1", "Questions for a divorce lawyer", "a");
+
+        await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        var record = _conversations.Get("c1")!;
+        record.TitleHash.Should().HaveLength(16).And.NotContain("divorce");
+    }
+
+    [Fact]
+    public async Task should_end_a_pass_that_is_stopped_as_partial_stopped_without_blaming_the_reader()
+    {
+        var never = new TaskCompletionSource();
+        var slow = new SlowReader(never.Task);
+        var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
+        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
+        var run = subject.RunAsync(stopping.Token);
+        await slow.Started.Task;
+        await stopping.CancelAsync();
+        var result = await run;
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Partial, "stopped"));
+        _connection.Current().State.Should().NotBe(ConnectionState.Degraded);
+        _runs.Recent(1).Single().Outcome.Should().Be(RunOutcomes.Partial);
+    }
+
+    [Fact]
     public async Task should_keep_how_a_rejected_batch_went_when_its_conversation_is_queued_again()
     {
         _reader.Say("bad", "Bad", "a");

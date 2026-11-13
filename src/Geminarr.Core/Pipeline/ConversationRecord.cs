@@ -1,9 +1,9 @@
 namespace Geminarr.Core.Pipeline;
 
-/// <summary>What is known of a conversation. <b>Never the text of a turn</b>: only counts, a hash of the last turn sent, and states.</summary>
+/// <summary>What is known of a conversation. <b>Never the text of a turn, nor a title</b>: only counts, a hash of the last turn sent, a hash of the title (to see a rename), and states.</summary>
 public sealed record ConversationRecord(
     string Id,
-    string? Title,
+    string? TitleHash,
     DateTimeOffset FirstSeenAt,
     DateTimeOffset LastSeenAt,
     DateTimeOffset? LastOpenedAt,

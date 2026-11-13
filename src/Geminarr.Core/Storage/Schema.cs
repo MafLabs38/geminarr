@@ -29,7 +29,7 @@ public static class Schema
         );
         CREATE TABLE conversations (
             id TEXT PRIMARY KEY,
-            title TEXT,
+            title_hash TEXT,
             first_seen_at TEXT NOT NULL,
             last_seen_at TEXT NOT NULL,
             last_opened_at TEXT,

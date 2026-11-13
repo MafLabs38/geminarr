@@ -19,7 +19,7 @@ public sealed class ReaderOptions
 
     public ReaderKind Kind { get; set; } = ReaderKind.None;
 
-    /// <summary>Minutes between two passes (a random 20 % either way is added).</summary>
+    /// <summary>Minutes between two readings (a random 20 % either way is added); a pass that only sends and says the machine is alive runs at least every 10 minutes.</summary>
     public int PollMinutes { get; set; } = 20;
 
     /// <summary>How many conversations of the list are looked at.</summary>
@@ -28,7 +28,7 @@ public sealed class ReaderOptions
     /// <summary>How many conversations are opened in a pass; the others wait for the next.</summary>
     public int MaxOpenPerPass { get; set; } = 5;
 
-    /// <summary>A pass never lasts longer than this.</summary>
+    /// <summary>Reading never lasts longer than this (sending and the heartbeat are not bounded by it).</summary>
     public int PassTimeoutMinutes { get; set; } = 5;
 
     /// <summary>A pass that fails doubles the wait up to this.</summary>

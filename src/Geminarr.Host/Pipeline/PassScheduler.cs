@@ -18,6 +18,9 @@ public sealed class PassScheduler : BackgroundService
     /// <summary>How often a pairing that waits is asked about (Mnemarr asks for about three seconds).</summary>
     private static readonly TimeSpan PairingInterval = TimeSpan.FromSeconds(3);
 
+    /// <summary>The scheduler keeps the one moment of its own on the system clock (R-22-30: a clock parameter made the constructor too long).</summary>
+    private static readonly TimeProvider SystemClock = TimeProvider.System;
+
     private readonly PassRunner _runner;
     private readonly PassTrigger _trigger;
     private readonly LinkService _link;
@@ -25,7 +28,6 @@ public sealed class PassScheduler : BackgroundService
     private readonly IOptions<ReaderOptions> _options;
     private readonly ILogger<PassScheduler> _logger;
     private readonly TimeSpan _startDelay;
-    private static readonly TimeProvider Clock = TimeProvider.System;
 
     public PassScheduler(PassRunner runner, PassTrigger trigger, LinkService link, ConnectionTracker connection, IOptions<ReaderOptions> options, ILogger<PassScheduler> logger, TimeSpan? startDelay = null)
     {
@@ -61,11 +63,11 @@ public sealed class PassScheduler : BackgroundService
         var nextRead = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var reading = Clock.GetUtcNow() >= nextRead;
+            var reading = SystemClock.GetUtcNow() >= nextRead;
             var result = await PassAsync(reading, stoppingToken);
             if (reading)
             {
-                nextRead = Clock.GetUtcNow() + ReadDelay(result);
+                nextRead = SystemClock.GetUtcNow() + ReadDelay(result);
             }
 
             // A pass that was asked for reads, whatever the reader's backoff says: the operator wants to see it now.
@@ -137,8 +139,8 @@ public sealed class PassScheduler : BackgroundService
         }
     }
 
-    /// <summary>The interval between two passes: the poll interval, with its random twenty percent.</summary>
-    private TimeSpan Interval() => PassSchedule.NextDelay(_options.Value.PollMinutes, failuresInARow: 0, _options.Value.MaxBackoffMinutes, Random.Shared.NextDouble());
+    /// <summary>The interval between two passes: the poll interval with its random twenty percent, never more than the heartbeat's (a pass that does not read still sends and says the machine is alive).</summary>
+    private TimeSpan Interval() => PassSchedule.WakeDelay(_options.Value.PollMinutes, _options.Value.MaxBackoffMinutes, Random.Shared.NextDouble());
 
     /// <summary>How long reading waits after this pass: the interval, doubled for each pass that failed in a row up to the limit.</summary>
     private TimeSpan ReadDelay(PassResult? result)
