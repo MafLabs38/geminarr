@@ -39,6 +39,9 @@ public sealed class OperatorCredentials : IOperatorCredentials
 {
     public const int MinPasswordLength = 12;
 
+    /// <summary>A password file larger than this is not a password: it is refused unread.</summary>
+    public const int MaxPasswordFileBytes = 4 * 1024;
+
     private readonly IOptions<AuthOptions> _options;
 
     public OperatorCredentials(IOptions<AuthOptions> options)
@@ -90,10 +93,15 @@ public sealed class OperatorCredentials : IOperatorCredentials
 
         try
         {
+            if (new FileInfo(path).Length > MaxPasswordFileBytes)
+            {
+                return null;
+            }
+
             var text = File.ReadAllText(path).TrimEnd('\r', '\n');
             return text.Length == 0 ? null : text;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return null;
         }

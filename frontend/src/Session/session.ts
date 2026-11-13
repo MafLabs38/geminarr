@@ -28,7 +28,10 @@ export function useSessionQuery() {
 
 /** Forgets everything that was read for the previous session: whoever signs in next, on this tab, must not see it. */
 export function forgetSessionData(client: QueryClient) {
-  client.removeQueries({ predicate: (query) => query.queryKey[1] !== sessionKey[1] });
+  // Everything but the session goes, whatever the shape of its key: a hook with another key must not leak to the next sign-in on this tab.
+  client.removeQueries({
+    predicate: (query) => !(query.queryKey[0] === sessionKey[0] && query.queryKey[1] === sessionKey[1]),
+  });
   // The mutations remember what they were given and what they returned: a password. None of it outlives the session.
   client.getMutationCache().clear();
 }

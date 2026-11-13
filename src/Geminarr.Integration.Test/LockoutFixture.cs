@@ -50,7 +50,7 @@ public sealed class LockoutFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_refuse_the_right_password_of_the_operator_once_the_name_is_locked_and_still_let_in_after_a_success_before()
+    public async Task should_refuse_the_right_password_of_the_operator_once_the_name_is_locked()
     {
         using var client = _factory.CreateClient();
         for (var attempt = 0; attempt < 5; attempt++)
@@ -61,18 +61,6 @@ public sealed class LockoutFixture : IDisposable
         var response = await client.SendAsync(Login(GeminarrFactoryBase.OperatorName, GeminarrFactoryBase.OperatorPassword), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
-        response.Headers.Contains("Set-Cookie").Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task should_refuse_a_body_that_is_larger_than_a_name_and_a_password_can_be()
-    {
-        using var client = _factory.CreateClient();
-
-        var response = await client.SendAsync(Login("name", new string('p', 20_000)), TestContext.Current.CancellationToken);
-
-        // The test server does not enforce the size limit of Kestrel (the end-to-end test on the real image does): the service itself refuses a password no one has.
-        response.StatusCode.Should().BeOneOf(HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized);
         response.Headers.Contains("Set-Cookie").Should().BeFalse();
     }
 }

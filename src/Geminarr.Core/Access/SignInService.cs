@@ -42,7 +42,7 @@ public sealed class SignInService
             return new SignInOutcome(SignInStatus.Wrong);
         }
 
-        var isOperator = string.Equals(typed, _credentials.Name, StringComparison.OrdinalIgnoreCase);
+        var isOperator = string.Equals(typed, _credentials.Name, StringComparison.Ordinal);
         if (!_throttle.TryReserve(typed, isOperator))
         {
             return new SignInOutcome(SignInStatus.Locked, RetryAfter: _throttle.LockedFor(typed) ?? LoginThrottle.Window);

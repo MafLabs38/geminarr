@@ -97,6 +97,7 @@ spec:
       volumes:
         - name: operator
           secret:
+            defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
             secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
         - name: data
           persistentVolumeClaim:

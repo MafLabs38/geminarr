@@ -18,4 +18,4 @@ ADR 0003 decided that Mnemarr sends the mail that asks the maintainer to sign in
 
 - One more click for the maintainer (the mail, then Mnemarr, then Geminarr) for a mail that cannot be forged by a key.
 - Geminarr's runbook says so: the mail leads to Mnemarr's Machines page, where the link to Geminarr's page is.
-- The address of Geminarr's page must be valid for Mnemarr to keep it (https, or http to a loopback address; a host; no credentials; at most 512 characters): `GEMINARR__PUBLICURL` is validated the same way at start.
+- The address of Geminarr's page must be valid for Mnemarr to keep it (https, or http to a loopback address; a host; no credentials; at most 512 characters): `GEMINARR__PUBLICURL` is checked at start for what can be known there (an http or https address with a host, no credentials, at most 512 characters); the rule on the scheme (https, or http to a loopback address) is applied where the link is sent (the link to Mnemarr, vertical 2), which refuses to send an address that Mnemarr would drop and says so in the health, instead of stopping a sandbox that is reached over plain http on a LAN.

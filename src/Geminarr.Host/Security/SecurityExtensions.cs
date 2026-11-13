@@ -63,7 +63,7 @@ public static class SecurityExtensions
         }
     }
 
-    /// <summary>The hosts, then who is who, then the header of a write, then what each may do.</summary>
+    /// <summary>Who is who, then the header of a write, then what each may do. The host names are checked before, in Program.cs, by our own middleware and not by ASP.NET's host filtering (left at <c>*</c>): the probes must be answered by the address of the pod.</summary>
     public static WebApplication UseGeminarrSecurity(this WebApplication app)
     {
         app.UseAuthentication();

@@ -422,7 +422,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(5)* | **512**, none | §8 |
 | `RETENTION__RUNSDAYS` *(4)* | **90** | How long runs are kept |
 
-Every limit and interval above comes from configuration with that default; none is a literal in the code. The one exception is an internal cache window that no operator needs to tune: the 15 seconds during which the readiness probe reuses its result (the Kubernetes example's `periodSeconds: 15` follows it).
+Every limit and interval above comes from configuration with that default; none is a literal in the code. The exceptions are fixed security policy and an internal cache window that no operator needs to tune: the lockout (five failures, fifteen minutes, 1 000 names tracked), the 100 sessions at most, the 12-character minimum of the password, the longest name (100), password (1 024) and password file (4 KB) that are looked at, and the 15 seconds during which the readiness probe reuses its result (the Kubernetes example's `periodSeconds: 15` follows it). They are part of D-19 and ADR 0011, not something an operator tunes.
 
 ### 10.3 Health and reason codes
 

@@ -95,6 +95,71 @@ public sealed class AccessFixture
         (await client.GetAsync("/api/v1/auth/session", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK, "the refused write did not end the session");
     }
 
+    [Theory]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    [InlineData("POST")]
+    public async Task should_refuse_every_method_that_writes_without_the_header(string method)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), "/api/v1/settings");
+
+        var response = await _factory.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task should_not_ask_the_header_of_a_head_request()
+    {
+        using var client = await _factory.SignedInClientAsync(sendsTheHeader: false);
+        using var request = new HttpRequestMessage(HttpMethod.Head, "/api/v1/system/status");
+
+        // The routes answer GET only: what matters here is that the header is not what refuses a read.
+        (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task should_answer_a_sign_in_without_a_name_the_same_as_a_wrong_one()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = JsonContent.Create(new { }), Headers = { { "X-Geminarr-Request", "1" } } };
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>(TestContext.Current.CancellationToken))!.Title.Should().Be("The name or the password is wrong.");
+        response.Headers.Contains("Set-Cookie").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task should_refuse_a_sign_in_that_is_not_json_and_give_no_cookie()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+        {
+            Content = new StringContent("name=a&password=b", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+            Headers = { { "X-Geminarr-Request", "1" } },
+        };
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.UnsupportedMediaType, HttpStatusCode.BadRequest);
+        response.Headers.Contains("Set-Cookie").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task should_answer_401_to_a_sign_out_without_a_session_and_to_a_second_one()
+    {
+        using var nobody = _factory.CreateClient();
+        nobody.DefaultRequestHeaders.Add("X-Geminarr-Request", "1");
+        (await nobody.PostAsync("/api/v1/auth/logout", content: null, TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        using var client = await _factory.SignedInClientAsync();
+        (await client.PostAsync("/api/v1/auth/logout", content: null, TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await client.PostAsync("/api/v1/auth/logout", content: null, TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     [Fact]
     public async Task should_not_ask_the_header_of_a_read()
     {

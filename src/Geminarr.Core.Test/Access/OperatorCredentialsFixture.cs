@@ -44,6 +44,14 @@ public sealed class OperatorCredentialsFixture : IDisposable
     }
 
     [Fact]
+    public void should_say_the_password_is_unreadable_when_the_path_is_not_one_or_the_file_is_not_a_password()
+    {
+        Subject("operator-name", "bad\0path").Status.Should().Be(OperatorStatus.PasswordUnreadable);
+        Subject("operator-name", File(new string('x', OperatorCredentials.MaxPasswordFileBytes + 1))).Status.Should().Be(OperatorStatus.PasswordUnreadable);
+        Subject("operator-name", "bad\0path").Verify("operator-name", Password).Should().BeFalse();
+    }
+
+    [Fact]
     public void should_say_the_password_is_weak_when_it_is_shorter_than_the_minimum()
     {
         Subject("operator-name", File(new string('x', OperatorCredentials.MinPasswordLength - 1))).Status.Should().Be(OperatorStatus.PasswordWeak);

@@ -17,6 +17,7 @@ public sealed class SessionRegistry
     private readonly IOptions<AuthOptions> _options;
     private readonly TimeProvider _clock;
     private readonly ConcurrentDictionary<string, DateTimeOffset> _sessions = new(StringComparer.Ordinal);
+    private readonly Lock _startGate = new();
 
     public SessionRegistry(IOptions<AuthOptions> options, TimeProvider clock)
     {
@@ -29,14 +30,19 @@ public sealed class SessionRegistry
     /// <summary>Starts a session and gives its identifier (the part of the cookie that nobody can guess).</summary>
     public string Start()
     {
-        Prune();
-        while (_sessions.Count >= MaxSessions && _sessions.OrderBy(pair => pair.Value).FirstOrDefault().Key is { } oldest)
+        var id = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        lock (_startGate)
         {
-            _sessions.TryRemove(oldest, out _);
+            Prune();
+            var excess = _sessions.Count - (MaxSessions - 1);
+            foreach (var oldest in _sessions.OrderBy(pair => pair.Value).Take(Math.Max(excess, 0)).Select(pair => pair.Key).ToList())
+            {
+                _sessions.TryRemove(oldest, out _);
+            }
+
+            _sessions[id] = _clock.GetUtcNow() + Lifetime;
         }
 
-        var id = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
-        _sessions[id] = _clock.GetUtcNow() + Lifetime;
         return id;
     }
 

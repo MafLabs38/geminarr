@@ -36,6 +36,28 @@ public sealed class GeminarrOptionsValidatorFixture
 
     [Theory]
     [InlineData("https://geminarr.homelab.example")]
+    [InlineData("geminarr.homelab.example/path")]
+    public void should_refuse_a_host_list_that_holds_an_address_and_say_what_to_write(string hosts)
+    {
+        var result = _subject.Validate(null, new GeminarrOptions { AllowedHostNames = hosts });
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("GEMINARR__ALLOWEDHOSTNAMES").And.Contain("host names");
+    }
+
+    [Fact]
+    public void should_refuse_a_public_address_longer_than_mnemarr_takes()
+    {
+        var address = "https://geminarr.homelab.example/" + new string('a', GeminarrOptionsValidator.MaxPublicUrlLength);
+
+        var result = _subject.Validate(null, new GeminarrOptions { PublicUrl = address });
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("GEMINARR__PUBLICURL").And.Contain("512");
+    }
+
+    [Theory]
+    [InlineData("https://geminarr.homelab.example")]
     [InlineData("http://192.168.1.10:8282")]
     public void should_accept_a_public_address_that_is_an_http_address_with_a_host(string address)
     {

@@ -42,6 +42,19 @@ describe('forgetting what a session read', () => {
     expect(client.getQueryData(['api', '/health'])).toBeUndefined();
   });
 
+  it('forgets a query whose key does not have the shape of the others', () => {
+    const client = new QueryClient();
+    client.setQueryData(sessionKey, { name: 'operator-name' });
+    client.setQueryData(['somewhere-else'], { read: true });
+    client.setQueryData([], { read: true });
+
+    forgetSessionData(client);
+
+    expect(client.getQueryData(['somewhere-else'])).toBeUndefined();
+    expect(client.getQueryData([])).toBeUndefined();
+    expect(client.getQueryData(sessionKey)).toEqual({ name: 'operator-name' });
+  });
+
   it('puts the session to nobody first and forgets the rest', () => {
     const client = new QueryClient();
     client.setQueryData(sessionKey, { name: 'operator-name' });
@@ -132,6 +145,25 @@ describe('SessionGate', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out');
     expect(screen.getByText('the application')).toBeInTheDocument();
+  });
+
+  it('puts the sign-in page back when the sign-out itself is answered 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          String(input).endsWith('/auth/session')
+            ? Response.json({ name: 'operator-name' })
+            : new Response(null, { status: 401 }),
+        ),
+      ),
+    );
+    renderApp(createQueryClient());
+    await screen.findByText('the application');
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   it('puts the sign-in page back when any call is answered 401', async () => {

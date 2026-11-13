@@ -30,4 +30,4 @@ The `GEMINARR__*` names are the supported contract (they are read after `appsett
 | `GEMINARR__IMPORT__*`, `GEMINARR__IMPORTFOLDER` | 5 | The Takeout import |
 | `GEMINARR__RETENTION__RUNSDAYS` | 4 | How long runs are kept |
 
-Every limit and interval comes from configuration with a documented default; none is a literal in the code (the one exception, an internal cache window, is stated in [SPEC.md §10.2](SPEC.md#102-settings)). A setting that cannot work stops the start with a sentence that names it.
+Every limit and interval comes from configuration with a documented default; none is a literal in the code, except the fixed security policy of the sign-in and an internal cache window, which are stated in [SPEC.md §10.2](SPEC.md#102-settings). A setting that cannot work stops the start with a sentence that names it.

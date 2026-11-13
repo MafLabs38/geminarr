@@ -53,7 +53,7 @@ public sealed class LoginThrottleFixture
     }
 
     [Fact]
-    public void should_count_each_name_apart_and_ignore_the_case_of_the_name()
+    public void should_ignore_the_case_of_the_name()
     {
         var subject = Subject();
         for (var attempt = 0; attempt < LoginThrottle.MaxFailures; attempt++)
@@ -62,7 +62,31 @@ public sealed class LoginThrottleFixture
         }
 
         subject.TryReserve("ADMIN", isOperator: true).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_count_each_name_apart()
+    {
+        var subject = Subject();
+        for (var attempt = 0; attempt < LoginThrottle.MaxFailures; attempt++)
+        {
+            subject.TryReserve("admin", isOperator: true);
+        }
+
         subject.TryReserve("someone-else", isOperator: false).Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_refuse_a_new_name_when_the_table_is_full_of_the_operators()
+    {
+        var subject = Subject();
+        for (var name = 0; name < LoginThrottle.MaxTracked; name++)
+        {
+            subject.TryReserve($"operator-{name}", isOperator: true).Should().BeTrue();
+        }
+
+        subject.TryReserve("a-new-guess", isOperator: false).Should().BeFalse("no room can be made without forgetting an operator's name");
+        subject.TryReserve("operator-0", isOperator: true).Should().BeTrue("a name that is already tracked is still counted");
     }
 
     [Fact]

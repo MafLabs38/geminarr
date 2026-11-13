@@ -53,6 +53,8 @@ public sealed class AuthController : ControllerBase
             return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The name or the password is wrong.");
         }
 
+        // A caller who signs in again does not keep the session of the cookie they had: a copy of that cookie is dead from now on.
+        _signIn.SignOut(User.FindFirstValue(AccessConstants.SessionClaim));
         var name = request.Name!.Trim();
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, name), new Claim(AccessConstants.SessionClaim, outcome.SessionId)], AccessConstants.Scheme);
         var properties = new AuthenticationProperties { IsPersistent = false, ExpiresUtc = _clock.GetUtcNow() + _sessions.Lifetime };

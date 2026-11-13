@@ -60,8 +60,23 @@ public sealed class SessionFixture : IClassFixture<ShortSessionFactory>, IClassF
     }
 
     [Fact]
+    public async Task should_end_the_session_the_caller_had_when_they_sign_in_again()
+    {
+        var first = await CookieOfAsync(_short);
+        using var holder = CopyWith(first);
+        using var copy = CopyWith(first);
+        (await copy.GetAsync("/api/v1/auth/session", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var response = await holder.SendAsync(Login(GeminarrFactoryBase.OperatorPassword), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await copy.GetAsync("/api/v1/auth/session", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a copy of the old cookie does not outlive the new sign-in");
+    }
+
+    [Fact]
     public async Task should_end_a_session_at_its_lifetime_even_if_it_is_used_all_along()
     {
+        // The clock of the host only moves forward: the time is read from where it is, never from where it was.
         using var client = await _short.SignedInClientAsync();
         _short.Clock!.Advance(TimeSpan.FromMinutes(119));
         (await client.GetAsync("/api/v1/auth/session", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
