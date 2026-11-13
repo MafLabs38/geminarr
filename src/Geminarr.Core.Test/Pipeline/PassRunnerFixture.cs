@@ -522,6 +522,39 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_not_write_a_heartbeat_that_only_differs_from_a_reading_that_was_not_ok()
+    {
+        var subject = Subject(withReader: false);
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var runsAfterTheReading = _runs.Recent(10).Count;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+
+        _runs.Recent(10).Count.Should().Be(runsAfterTheReading, "a reading's state is the reading's: a heartbeat that went well says nothing new");
+        _runs.Latest(RunKinds.Heartbeat).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_write_a_heartbeat_when_it_recovers_or_when_its_reason_changes()
+    {
+        var subject = Subject();
+        _sink.FailSend = null;
+        _sink.FailHeartbeat = new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer.");
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+        var afterTheFirst = _runs.Recent(10).Count;
+
+        _sink.FailHeartbeat = new SinkException(SinkFailure.Refused, "Mnemarr refused the key of this machine.");
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+        var afterTheChange = _runs.Recent(10).Count;
+        _sink.FailHeartbeat = null;
+        await subject.RunAsync(TestContext.Current.CancellationToken, reading: false);
+
+        afterTheChange.Should().Be(afterTheFirst + 1, "a new reason is a change");
+        _runs.Recent(10).Count.Should().Be(afterTheChange + 1, "the recovery is a change too");
+    }
+
+    [Fact]
     public async Task should_open_nothing_new_while_mnemarr_cannot_be_asked_what_it_holds()
     {
         _reader.Say("c1", "T", "a");
