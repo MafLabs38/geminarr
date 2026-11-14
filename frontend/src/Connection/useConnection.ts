@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import { apiSend } from 'Helpers/Api/apiGet';
 import { useApiQuery } from 'Helpers/Hooks/useApiQuery';
@@ -36,6 +37,12 @@ const connectionPath = '/connection';
 
 export function useConnection() {
   return useApiQuery<Connection>(connectionPath, { refetchInterval: CONNECTION_REFRESH_MS });
+}
+
+/** Reads the state of the connection again (what the server settled by itself, as when a person signed in through the live view). */
+export function useRefreshConnection() {
+  const client = useQueryClient();
+  return useCallback(() => client.invalidateQueries({ queryKey: ['api', connectionPath] }), [client]);
 }
 
 function useWrite<V, R>(send: (value: V) => Promise<R>) {

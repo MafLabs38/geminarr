@@ -33,6 +33,8 @@ public static class HealthReasons
 
     /// <summary>The folder of the browser profile can be read by others: it holds a signed-in session.</summary>
     public const string ProfileNotPrivate = "profile-not-private";
+
+    /// <summary>The folder of the browser profile cannot be written: no volume is mounted on it, or it is read-only.</summary>
     public const string ProfileReadOnly = "profile-read-only";
 
     /// <summary>The database cannot be opened or read.</summary>

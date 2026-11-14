@@ -118,7 +118,15 @@ public sealed class LiveViewService
             _pending = null;
             if (_attached is { } attached)
             {
-                attached.Ends.Cancel();
+                try
+                {
+                    attached.Ends.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The viewer left at the same moment and its lease is disposed: the live view is over.
+                }
+
                 _attached = null;
             }
 
