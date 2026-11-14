@@ -55,11 +55,27 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
             }
 
             var isPrivate = OperatingSystem.IsWindows() || (File.GetUnixFileMode(Folder) & GroupAndOther) == 0;
-            return new ProfileState(Exists: true, HasSession: File.Exists(Path.Combine(Folder, SignedInMarker)), isPrivate);
+            return new ProfileState(Exists: true, HasSession: File.Exists(Path.Combine(Folder, SignedInMarker)), isPrivate, Writable: CanWrite());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return new ProfileState(Exists: true, HasSession: false, Private: true, Readable: false);
+        }
+    }
+
+    /// <summary>The browser must be able to keep its session: a folder that exists in the image and that no volume was mounted on is writable until the container is read-only, and says so here.</summary>
+    private bool CanWrite()
+    {
+        var probe = Path.Combine(Folder, ".geminarr-write-probe");
+        try
+        {
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

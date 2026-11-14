@@ -3,7 +3,7 @@ using Geminarr.Core.Pipeline;
 namespace Geminarr.Core.Browser;
 
 /// <summary>What the profile of the browser looks like from outside: whether the folder is there, whether it holds a session, whether only its owner can read it, and whether it can be read at all.</summary>
-public sealed record ProfileState(bool Exists, bool HasSession, bool Private, bool Readable = true);
+public sealed record ProfileState(bool Exists, bool HasSession, bool Private, bool Readable = true, bool Writable = true);
 
 /// <summary>
 /// The browser that holds the session (SPEC §7): it checks whether the session is good, opens the live view where the operator signs in, and destroys the profile. One thing at a time: a live

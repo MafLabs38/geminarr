@@ -116,7 +116,7 @@ public sealed class ConnectionTrackerFixture : IDisposable
     }
 
     [Fact]
-    public void should_keep_the_moment_a_pause_ends_and_forget_it_when_it_is_over()
+    public void should_keep_the_moment_a_pause_ends_and_forget_it_when_it_is_resumed()
     {
         var store = new ConnectionStore(_workspace.Database, _clock);
         var subject = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
@@ -126,6 +126,8 @@ public sealed class ConnectionTrackerFixture : IDisposable
 
         store.Get().Should().Match<ConnectionRecord>(record => record.State == ConnectionState.Paused && record.PausedUntil == until && record.LastReason == ConnectionReasons.Paused);
         subject.Connected();
+        store.Get().State.Should().Be(ConnectionState.Paused, "a pass that ends does not undo a pause");
+        subject.Resumed();
         store.Get().PausedUntil.Should().BeNull();
     }
 }

@@ -123,6 +123,7 @@ const en = {
   ReasonConnecting: 'Someone is signing in through the live view: nothing is read meanwhile.',
   ReasonProfileMissing: 'The folder of the browser profile does not exist: its volume is not mounted.',
   ReasonProfileUnreadable: 'The folder of the browser profile cannot be read by the container.',
+  ReasonProfileReadOnly: 'The folder of the browser profile cannot be written: mount a volume of its own at /profile.',
   ReasonProfileNotPrivate:
     'The folder of the browser profile can be read by others: it holds a signed-in session. Fix its permissions.',
   ReasonDataFolderMissing: 'The data folder does not exist: its volume is not mounted.',

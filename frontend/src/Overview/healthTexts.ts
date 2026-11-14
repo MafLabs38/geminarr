@@ -23,6 +23,7 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['profile-missing', 'ReasonProfileMissing'],
   ['profile-unreadable', 'ReasonProfileUnreadable'],
   ['profile-not-private', 'ReasonProfileNotPrivate'],
+  ['profile-read-only', 'ReasonProfileReadOnly'],
   ['mnemarr-not-linked', 'ReasonMnemarrNotLinked'],
   ['mnemarr-insecure-address', 'ReasonMnemarrInsecureAddress'],
   ['mnemarr-refused', 'ReasonMnemarrRefused'],
