@@ -19,7 +19,6 @@ spec:
     requests:
       storage: 2Gi
 ---
----
 # The browser profile: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0015).
 apiVersion: v1
 kind: PersistentVolumeClaim

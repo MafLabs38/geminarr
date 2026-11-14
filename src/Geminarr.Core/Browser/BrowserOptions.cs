@@ -68,12 +68,26 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         var problem =
             (string.IsNullOrWhiteSpace(options.ProfileFolder) ? "Browser:ProfileFolder (GEMINARR__BROWSER__PROFILEFOLDER) must name the folder of the profile." : null)
             ?? (OriginPolicy.AssistantHost(options) is null ? "Browser:AssistantUrl (GEMINARR__BROWSER__ASSISTANTURL) must be an https address with a host (http only when the sandbox switch allows it)." : null)
+            ?? Hosts("AllowedHosts", options.AllowedHosts)
+            ?? Hosts("SignInHosts", options.SignInHosts)
             ?? Range("ViewportWidth", options.ViewportWidth, 320, 3840)
             ?? Range("ViewportHeight", options.ViewportHeight, 240, 2160)
             ?? Range("LiveViewMinutes", options.LiveViewMinutes, 1, 60)
             ?? Range("ScreencastQuality", options.ScreencastQuality, 1, 100)
             ?? Range("SessionCheckTimeoutSeconds", options.SessionCheckTimeoutSeconds, 5, 300);
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problem);
+    }
+
+    /// <summary>A wildcard covers the names under a domain of its own (<c>*.gstatic.com</c>): never a whole public suffix (<c>*.com</c>), and a list is not empty.</summary>
+    private static string? Hosts(string setting, string list)
+    {
+        var entries = list.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (entries.Length == 0 || entries.Any(entry => entry.StartsWith("*.", StringComparison.Ordinal) && !entry[2..].Contains('.', StringComparison.Ordinal)))
+        {
+            return $"Browser:{setting} (GEMINARR__BROWSER__{setting.ToUpperInvariant()}) must name hosts, and a wildcard only under a domain of its own (*.example.org, not *.org).";
+        }
+
+        return null;
     }
 
     private static string? Range(string setting, int value, int min, int max) =>

@@ -25,6 +25,8 @@ public static class HealthExtensions
             // Not a readiness check: a container without an operator is alive and closed, and the platform must not restart it for that.
             .AddCheck<OperatorHealthCheck>("operator")
             .AddCheck<ConnectionHealthCheck>("connection")
+            // The profile of the browser: private to its owner and readable (the session is the crown jewel).
+            .AddCheck<ProfileHealthCheck>("profile")
             .AddCheck<MnemarrHealthCheck>("mnemarr")
             .AddCheck<OutboxHealthCheck>("outbox");
         return services;
