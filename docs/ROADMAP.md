@@ -15,7 +15,7 @@
 | Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Vertical 2: the link to Mnemarr | **Built**, in review |
-| Vertical 3: the session and the live view | **Built**, in review |
+| Vertical 3: the session and the live view | **Built** and walked against a fake assistant and the real page as a guest, in review; the real sign-in of the dedicated account is the first step of spike S1 |
 | Verticals 4 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*

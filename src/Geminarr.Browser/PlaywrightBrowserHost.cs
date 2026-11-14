@@ -206,6 +206,10 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         Directory.CreateDirectory(Folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
+    /// <summary>Every name resolves to nothing but the hosts the policy lets through: a redirect, a frame or a socket to another host fails to resolve, under the route filter that sees only a first address.</summary>
+    private static string HostResolverRule(BrowserOptions options, bool liveView) =>
+        "--host-resolver-rules=MAP * ~NOTFOUND" + string.Concat(OriginPolicy.ResolvableHosts(options, liveView).Select(host => ", EXCLUDE " + host));
+
     private async Task<BrowserSession> LaunchAsync(bool liveView)
     {
         EnsureFolder();
@@ -219,7 +223,7 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
                 Headless = true,
                 ExecutablePath = string.IsNullOrWhiteSpace(options.ExecutablePath) ? null : options.ExecutablePath,
                 ViewportSize = new ViewportSize { Width = options.ViewportWidth, Height = options.ViewportHeight },
-                Args = Arguments,
+                Args = [.. Arguments, HostResolverRule(options, liveView)],
                 AcceptDownloads = false,
                 ServiceWorkers = ServiceWorkerPolicy.Block,
                 Locale = "en-US",

@@ -42,6 +42,27 @@ public static class OriginPolicy
         return (!navigation && Matches(host, options.AllowedHosts)) || (liveView && Matches(host, options.SignInHosts));
     }
 
+    /// <summary>
+    /// The host names that the browser may resolve at all (Chromium's <c>--host-resolver-rules</c>): the assistant's, the hosts of files, and the sign-in hosts in a live view. It is the floor under the route
+    /// filter, which sees only the first address of a redirect: a redirect to any other host fails to resolve, whatever the page, the frame or the socket that follows it.
+    /// </summary>
+    public static IReadOnlyList<string> ResolvableHosts(BrowserOptions options, bool liveView)
+    {
+        var hosts = new List<string>();
+        if (AssistantHost(options) is { } assistant)
+        {
+            hosts.Add(assistant);
+        }
+
+        hosts.AddRange(Entries(options.AllowedHosts));
+        if (liveView)
+        {
+            hosts.AddRange(Entries(options.SignInHosts));
+        }
+
+        return [.. hosts.Select(host => host.ToLowerInvariant()).Distinct(StringComparer.Ordinal)];
+    }
+
     /// <summary>Whether a WebSocket may be opened to this address: the same rule as for a subresource, with its own scheme read as the one of a page (<c>wss</c> is <c>https</c>).</summary>
     public static bool AllowsWebSocket(string address, BrowserOptions options, bool liveView)
     {
@@ -77,8 +98,11 @@ public static class OriginPolicy
 
     private static bool IsAllowedScheme(Uri uri, BrowserOptions options) => uri.Scheme == Uri.UriSchemeHttps || (options.AllowInsecureAssistant && uri.Scheme == Uri.UriSchemeHttp);
 
+    /// <summary>The entries of a list of hosts, as the settings write them.</summary>
+    public static string[] Entries(string list) => list.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private static bool Matches(string host, string list) =>
-        list.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(entry =>
+        Entries(list).Any(entry =>
             entry.StartsWith("*.", StringComparison.Ordinal)
                 ? host.EndsWith(entry[1..], StringComparison.OrdinalIgnoreCase) && host.Length > entry.Length - 1
                 : string.Equals(host, entry, StringComparison.OrdinalIgnoreCase));

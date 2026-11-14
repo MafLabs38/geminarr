@@ -54,6 +54,15 @@ internal sealed class BrowserSession : IAsyncDisposable
             await route.AbortAsync("blockedbyclient");
         });
 
+        // The route filter sees only the first address of a redirect: a redirect to a sign-in page is seen here, as the request that the browser starts (it cannot be resolved outside a live view: nothing of that page loads).
+        Context.Request += (_, request) =>
+        {
+            if (request.IsNavigationRequest && OriginPolicy.Classify(request.Url, _options) == PageKind.SignIn && !_liveView)
+            {
+                _signInRedirectSeen = true;
+            }
+        };
+
         // A WebSocket is not a request that the route above sees: a page that may load could open one to anywhere.
         await Context.RouteWebSocketAsync("**/*", route =>
         {
