@@ -99,13 +99,16 @@ export default function Connection() {
   const state = data ? states[data.state] : undefined;
 
   const refresh = useRefreshConnection();
+  const [notice, setNotice] = useState<TranslationKey | null>(null);
   const ended = useCallback(
-    (signedIn: boolean) => {
+    (signedIn: boolean, failed: boolean) => {
       setTicket(null);
       if (signedIn) {
+        setNotice(null);
         // The server has settled the state before it said so: it is only read again.
         refresh().catch(() => undefined);
       } else {
+        setNotice(failed ? 'LiveViewError' : 'LiveViewClosed');
         closeLiveView();
       }
     },
@@ -158,12 +161,16 @@ export default function Connection() {
                   connection={data}
                   onSignIn={() =>
                     start.mutate(undefined, {
-                      onSuccess: (created) => setTicket(created),
+                      onSuccess: (created) => {
+                        setNotice(null);
+                        setTicket(created);
+                      },
                     })
                   }
                 />
               )}
               {start.error && <Alert>{start.error.message}</Alert>}
+              {notice && !ticket && <Alert>{translate(notice)}</Alert>}
             </>
           )}
         </Card>

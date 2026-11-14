@@ -4,6 +4,8 @@ const http = require('node:http');
 
 const sessions = new Set();
 let counter = 0;
+// What each host was asked for: `hop` is a redirect that the assistant's page asks for, `offlist` is where it leads (a host that the browser must never reach).
+const hits = { hop: 0, offlist: 0 };
 
 const page = (title, body) =>
   `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="margin:0;font-family:sans-serif">${body}</body></html>`;
@@ -51,6 +53,20 @@ http
         .end();
       return;
     }
+    if (host === 'offlist') {
+      hits.offlist += 1;
+      response.writeHead(200, { 'Content-Type': 'text/plain' }).end('a host that is not on the list');
+      return;
+    }
+    if (host === 'assistant' && url.pathname === '/hop') {
+      hits.hop += 1;
+      response.writeHead(302, { Location: 'http://offlist:8081/trap' }).end();
+      return;
+    }
+    if (url.pathname === '/admin/hits') {
+      response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(hits));
+      return;
+    }
     if (url.pathname === '/admin/expire' && request.method === 'POST') {
       sessions.clear();
       response.writeHead(204).end();
@@ -61,7 +77,7 @@ http
       if (token && sessions.has(token)) {
         response
           .writeHead(200, { 'Content-Type': 'text/html' })
-          .end(page('Fake assistant', '<h1 style="margin:40px">Fake assistant: signed in</h1>'));
+          .end(page('Fake assistant', '<h1 style="margin:40px">Fake assistant: signed in</h1><img src="/hop" width="1" height="1" alt="">'));
         return;
       }
       response.writeHead(302, { Location: 'http://signin:8081/signin?next=/app' }).end();

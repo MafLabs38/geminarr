@@ -306,6 +306,14 @@ test.describe('smoke @smoke', () => {
     });
     await expect(connection.getByText('Connected', { exact: true })).toBeVisible();
 
+    // The assistant's page asked for a redirect to a host that is not on the list: the first address was asked for, the host it leads to was never reached (Chromium resolves nothing but the list).
+    const hits = (await (await request.get('http://localhost:8091/admin/hits')).json()) as {
+      hop: number;
+      offlist: number;
+    };
+    expect(hits.hop).toBeGreaterThan(0);
+    expect(hits.offlist).toBe(0);
+
     // The assistant ends the session (an expiry): the next pass finds nobody signed in, and the state asks to sign in again.
     expect((await request.post('http://localhost:8091/admin/expire')).status()).toBe(204);
     await connection.getByRole('button', { name: 'Run now' }).click();
