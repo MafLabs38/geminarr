@@ -75,6 +75,24 @@ public sealed class ProfileFolderFixture : IDisposable
     }
 
     [Fact]
+    public void should_accept_the_group_of_the_container_on_the_folder_and_refuse_other_users()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var folder = Path.Combine(_root, "group");
+        Directory.CreateDirectory(folder);
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute);
+        var subject = Subject(folder);
+
+        subject.Profile().Private.Should().BeTrue("a volume that the platform gives to the group of the pod is private to it");
+        File.SetUnixFileMode(folder, File.GetUnixFileMode(folder) | UnixFileMode.OtherRead);
+        subject.Profile().Private.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task should_empty_the_folder_and_keep_it_when_the_profile_is_destroyed()
     {
         var folder = Path.Combine(_root, "profile");

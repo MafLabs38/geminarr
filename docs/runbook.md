@@ -38,7 +38,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `mnemarr-insecure-address` | The address is plain http to a host that is not the loopback | Use https, or, in a sandbox only, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP=true` |
 | `outbox-growing` | Something has waited for Mnemarr for more than an hour | Look at the `mnemarr` check: it says why |
 | `profile-read-only` | The profile folder cannot be written: no volume is mounted on it (the image's own folder is not a volume, and a read-only root file system keeps it closed), or the volume is read-only | Mount a volume of its own at `/profile`, writable by uid 1654: without it the session would be lost at each restart (or kept in an anonymous volume outside your backup rules) |
-| `profile-missing` / `profile-unreadable` / `profile-not-private` | The profile volume is not mounted, cannot be read by uid 1654, or can be read by others (it holds a signed-in session) | Mount the volume at `/profile`, owned by 1654, mode `0700`; fix it before anything else |
+| `profile-missing` / `profile-unreadable` / `profile-not-private` | The profile volume is not mounted, cannot be read by uid 1654, or can be read by other users (it holds a signed-in session: the group of the container is the only other that may have access) | Mount the volume at `/profile`, owned by 1654, mode `0700`; fix it before anything else |
 | `connecting` | A person is signing in through the live view | Nothing: it ends by itself (ten minutes at most) |
 | `paused` | The operator asked for quiet | *Resume* on the page *Connection* |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
