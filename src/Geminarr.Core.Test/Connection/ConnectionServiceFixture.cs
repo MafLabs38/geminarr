@@ -77,6 +77,50 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_stay_connected_when_a_person_who_was_already_signed_in_closes_the_live_view_without_signing_in_again()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+        subject.SignInEnded(signedIn: true);
+        _views.Cancel();
+
+        subject.StartSignIn();
+        subject.CloseLiveView();
+
+        subject.Current().State.Should().Be(ConnectionState.Connected, "trying to sign in again does not say that the session expired");
+        subject.Current().LastReason.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_keep_what_was_known_through_a_pause_and_a_resume()
+    {
+        var subject = Subject();
+        _tracker.SignedOut();
+        _tracker.SignedOut();
+        var before = subject.Current();
+        before.State.Should().Be(ConnectionState.NeedsLogin);
+
+        subject.Pause(null);
+        subject.Resume();
+
+        subject.Current().Should().Match<ConnectionRecord>(record => record.State == ConnectionState.NeedsLogin && record.ConsecutiveFailures == before.ConsecutiveFailures && record.LastReason == ConnectionReasons.NeedsLogin);
+    }
+
+    [Fact]
+    public void should_not_let_a_pass_overwrite_a_person_who_is_signing_in()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+
+        _tracker.Connected();
+        _tracker.Failed(ConnectionReasons.Unreachable);
+        _tracker.SignedOut();
+        _tracker.NotConnected();
+
+        subject.Current().State.Should().Be(ConnectionState.Connecting);
+    }
+
+    [Fact]
     public void should_go_back_to_not_connected_when_the_live_view_ended_without_a_session()
     {
         var subject = Subject();

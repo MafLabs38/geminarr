@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Geminarr.Core.Access;
+using Geminarr.Core.Connection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -25,10 +26,12 @@ public sealed partial class AuthController : ControllerBase
     private readonly SignInService _signIn;
     private readonly SessionRegistry _sessions;
     private readonly TimeProvider _clock;
+    private readonly ConnectionService _connection;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(SignInService signIn, SessionRegistry sessions, TimeProvider clock, ILogger<AuthController> logger)
+    public AuthController(SignInService signIn, SessionRegistry sessions, TimeProvider clock, ConnectionService connection, ILogger<AuthController> logger)
     {
+        _connection = connection;
         _signIn = signIn;
         _sessions = sessions;
         _clock = clock;
@@ -85,6 +88,8 @@ public sealed partial class AuthController : ControllerBase
     public async Task<IActionResult> Logout()
     {
         _signIn.SignOut(User.FindFirstValue(AccessConstants.SessionClaim));
+        // A live view belongs to the person who is signed in: it ends with their session (there is one operator).
+        _connection.CloseLiveView();
         await HttpContext.SignOutAsync(AccessConstants.Scheme);
         return NoContent();
     }

@@ -27,13 +27,15 @@ services:
       # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
+      # The browser reads the session of the assistant and gives the operator a live view to sign in through: Web (the default, None, reads nothing). It needs the memory below.
+      # GEMINARR__READER__KIND: Web
       # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
     secrets:
       - geminarr_operator_password
     # Hardening: nothing writes outside the data folder and a temporary folder.
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=384m,mode=1777   # the browser's temporary files and shared memory live here
     cap_drop:
       - ALL
     security_opt:
@@ -41,7 +43,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 1G   # the browser (Chromium) needs about 300 MB while it is open; 256M is enough for the container without a browser
 
 secrets:
   geminarr_operator_password:

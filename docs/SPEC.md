@@ -412,10 +412,11 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
 | `BROWSER__PROFILEFOLDER` | **`/profile`** | The browser profile: a volume of its own, mode `0700` |
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
-| `BROWSER__SIGNINHOSTS`, `BROWSER__ALLOWEDHOSTS` | **`accounts.google.com`**, **`*.gstatic.com;*.googleusercontent.com;*.googleapis.com;apis.google.com`** | The sign-in pages (live view only) and the hosts the assistant's page loads its files from; the first spike writes the exact list |
+| `BROWSER__SIGNINHOSTS`, `BROWSER__ALLOWEDHOSTS` | **`accounts.google.com`**, **`*.gstatic.com;lh3…lh6.googleusercontent.com;fonts.googleapis.com;www.googleapis.com;apis.google.com`** | The sign-in pages (live view only) and the hosts the assistant's page loads its files from; the first spike writes the exact list |
 | `BROWSER__LIVEVIEWMINUTES`, `BROWSER__SCREENCASTQUALITY`, `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **10**, **60**, **30** | How long a live view lasts, the quality (1 to 100) of its pictures, and how long the assistant's page may take to load |
 | `BROWSER__VIEWPORTWIDTH`, `BROWSER__VIEWPORTHEIGHT` | **1280**, **800** | The size of the browser's screen |
 | `BROWSER__SIGNINDETECTION` | **`Confirm`** | How the end of a sign-in is known: `Confirm` (the operator says so, and the browser must be on the assistant's page), or `Page` (the page alone) |
+| `BROWSER__CHROMIUMSANDBOX` | **`false`** | Chromium's own sandbox: off in a hardened container (it cannot start there), on where the platform allows it (ADR 0015 §8) |
 | `BROWSER__ALLOWINSECUREASSISTANT`, `BROWSER__EXECUTABLEPATH` | **`false`**, none | A sandbox or a test only: plain http for the assistant and the sign-in pages; the path of a Chromium to use instead of the installed one |
 | `PUBLICURL` | none | The address of Geminarr's page as the operator reaches it (http or https, a host, no credentials); its host is allowed, and it is the address that goes in the `attention` signal |
 | `ALLOWEDHOSTNAMES` | **`localhost;127.0.0.1;[::1]`** | The names the page may be reached by (commas, semicolons or spaces; ports ignored; `*` for every name): any other `Host` is refused, the probes excepted. **Not** the `AllowedHosts` key of ASP.NET, which stays `*` |

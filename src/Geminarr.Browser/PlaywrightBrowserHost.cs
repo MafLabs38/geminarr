@@ -90,13 +90,20 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
     public async Task<ILiveView> OpenLiveViewAsync(CancellationToken cancellationToken)
     {
         await _busy.WaitAsync(cancellationToken);
+        BrowserSession? session = null;
         try
         {
-            var session = await LaunchAsync(liveView: true);
+            session = await LaunchAsync(liveView: true);
             return await PlaywrightLiveView.StartAsync(session, _options.Value, _busy, cancellationToken);
         }
         catch
         {
+            // A browser that was started and not handed over is closed, or it would hold the profile for the next launch.
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
             _busy.Release();
             throw;
         }
@@ -131,10 +138,10 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _playwright?.Dispose();
-        await Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private void EnsureFolder()
@@ -166,6 +173,7 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         EnsureFolder();
         _playwright ??= await Playwright.CreateAsync();
         var options = _options.Value;
+        string failure;
         try
         {
             var context = await _playwright.Chromium.LaunchPersistentContextAsync(Folder, new BrowserTypeLaunchPersistentContextOptions
@@ -177,6 +185,7 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
                 AcceptDownloads = false,
                 ServiceWorkers = ServiceWorkerPolicy.Block,
                 Locale = "en-US",
+                ChromiumSandbox = options.ChromiumSandbox,
             });
             var session = new BrowserSession(context, options, liveView, _logger);
             await session.FilterAsync();
@@ -184,9 +193,11 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         }
         catch (PlaywrightException ex)
         {
-            // Never the message: it can hold the path of the browser or of the profile.
-            _logger.LogError(ex, "The browser could not be started.");
-            throw new ReaderException(ConnectionReasons.ReaderBroken, "The browser could not be started.");
+            failure = ex.GetType().Name;
         }
+
+        // Never the message: it can hold the path of the browser or of the profile.
+        _logger.LogError("The browser could not be started ({Type}).", failure);
+        throw new ReaderException(ConnectionReasons.ReaderBroken, "The browser could not be started.");
     }
 }

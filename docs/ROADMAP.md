@@ -78,7 +78,7 @@
 
 *Demo: the maintainer lets the session expire (or disconnects), receives the mail from Mnemarr, follows it to Mnemarr's Machines page and from there to Geminarr, signs in again, and the reading resumes by itself; Geminarr is reached at its address on the cluster behind the single sign-on.*
 
-- F-OPS-02/03: the runbook, the GitOps folder, the egress policy, the first release (0.1.0), registration in Portarr.
+- F-OPS-02/03: the runbook, the GitOps folder, the egress policy (the example holds DNS and Mnemarr; the assistant's hosts join it with the list that spike S1 measures), the first release (0.1.0), registration in Portarr.
 
 ## Not now (parked, not scope)
 

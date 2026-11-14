@@ -26,6 +26,16 @@ public sealed class MnemarrClientFixture
     }
 
     [Fact]
+    public async Task should_say_in_the_heartbeat_that_the_machine_is_paused()
+    {
+        var http = new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NoContent));
+
+        await new MnemarrClient(http).HeartbeatAsync(Url, "k", new Heartbeat("0.1.0", 0, null, null, Paused: true), TestContext.Current.CancellationToken);
+
+        http.Requests.Single().Body.Should().Contain("\"paused\":true");
+    }
+
+    [Fact]
     public void should_never_print_a_key_or_a_device_code_when_a_record_is_printed()
     {
         new[] { new Enrolled("mnm_secret_key", "gemini").ToString(), new PairPolled("approved", "mnm_secret_key", "gemini").ToString(), new PairStarted("ABCD", "device_secret", "https://x.example", 600, 3).ToString() }

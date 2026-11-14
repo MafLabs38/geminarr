@@ -195,6 +195,20 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_refuse_the_same_host_on_another_port_and_accept_the_page_that_is_on_https_behind_a_proxy()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        var ticket = (await (await client.PostAsync("/api/v1/connection/live-views", content: null, Token)).Content.ReadFromJsonAsync<LiveViewResource>(Token))!;
+
+        var otherPort = async () => await ConnectAsync(factory, ticket, ticket.Token, origin: "http://localhost:9999");
+        await otherPort.Should().ThrowAsync<Exception>();
+        using var behindTheProxy = await ConnectAsync(factory, ticket, ticket.Token, origin: "https://localhost");
+
+        behindTheProxy.State.Should().Be(WebSocketState.Open, "the proxy ends TLS: the server sees http, the page is on https, and the host is the same");
+    }
+
+    [Fact]
     public async Task should_refuse_a_viewer_without_the_right_token_or_from_another_origin_or_without_a_session()
     {
         using var factory = new BrowserFactory();

@@ -51,6 +51,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const socket = useRef<WebSocket | null>(null);
   const lastMove = useRef(0);
+  const pressed = useRef(new Set<string>());
   const ended = useRef(false);
   const [phase, setPhase] = useState<Phase>('connecting');
   const [notYet, setNotYet] = useState(false);
@@ -107,11 +108,13 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
     return () => clearInterval(timer);
   }, [ticket.expiresAt]);
 
-  const send = (message: object) => {
+  const sendText = (text: string) => {
     if (socket.current?.readyState === WebSocket.OPEN) {
-      socket.current.send(JSON.stringify(message));
+      socket.current.send(text);
     }
   };
+
+  const send = (message: object) => sendText(JSON.stringify(message));
 
   const point = (event: PointerEvent<HTMLCanvasElement> | WheelEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -132,12 +135,26 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
     }
   };
 
+  // The keys that are down in the remote browser: when the keyboard goes back to the page they are let go, or Ctrl and Alt would stay held there.
+  const releaseKeys = () => {
+    for (const key of pressed.current) {
+      send({ t: 'keyup', key });
+    }
+    pressed.current.clear();
+  };
+
   const onKey = (event: KeyboardEvent<HTMLCanvasElement>, type: 'keydown' | 'keyup') => {
     if (event.ctrlKey && event.altKey && event.key === 'Escape') {
+      releaseKeys();
       event.currentTarget.blur();
       return;
     }
     event.preventDefault();
+    if (type === 'keydown') {
+      pressed.current.add(event.key);
+    } else {
+      pressed.current.delete(event.key);
+    }
     send({ t: type, key: event.key });
   };
 
@@ -157,6 +174,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
         aria-label={translate('LiveViewScreen')}
         className={styles.screen}
         height={size.height}
+        onBlur={releaseKeys}
         onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(event) => onKey(event, 'keydown')}
         onKeyUp={(event) => onKey(event, 'keyup')}
@@ -165,6 +183,8 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
           // The place of the click is read before the focus moves, and the focus does not scroll the page under the pointer.
           const target = { t: 'down', button: buttonOf(event), ...point(event) };
           event.currentTarget.focus({ preventScroll: true });
+          // A button released outside the screen still ends the click in the remote browser.
+          event.currentTarget.setPointerCapture?.(event.pointerId);
           send(target);
         }}
         onPointerMove={onMove}
@@ -192,7 +212,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
           disabled={phase !== 'ready'}
           onClick={() => {
             setNotYet(false);
-            socket.current?.send(DONE_MESSAGE);
+            sendText(DONE_MESSAGE);
           }}
         >
           {translate('LiveViewDone')}

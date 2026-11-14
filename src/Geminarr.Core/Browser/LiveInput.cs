@@ -70,14 +70,28 @@ public static class LiveInputParser
         };
     }
 
+    private const string ButtonName = "button";
+
     private static LiveInput? Mouse(JsonElement root, LiveInputKind kind, int width, int height)
     {
-        if (Point(root, width, height) is not { } point || (Text(root, "button") is { } button && !Buttons.Contains(button)))
+        if (Point(root, width, height) is not { } point)
         {
             return null;
         }
 
-        return new LiveInput(kind, point.X, point.Y, Text(root, "button") ?? "left");
+        // The button is "left" when it is not said, and refused when it is said and is not one of the three names (a number, null, another name).
+        var button = "left";
+        if (root.TryGetProperty(ButtonName, out _))
+        {
+            if (Text(root, ButtonName) is not { } named || !Buttons.Contains(named))
+            {
+                return null;
+            }
+
+            button = named;
+        }
+
+        return new LiveInput(kind, point.X, point.Y, button);
     }
 
     private static LiveInput? Wheel(JsonElement root, int width, int height)

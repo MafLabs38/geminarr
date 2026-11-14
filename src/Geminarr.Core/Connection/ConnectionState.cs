@@ -35,4 +35,7 @@ public static class ConnectionReasons
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>
-public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason, DateTimeOffset? PausedUntil = null);
+public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason, DateTimeOffset? PausedUntil = null, ConnectionBefore? Before = null);
+
+/// <summary>What the connection was before a live view or a pause took it over, so that it goes back to it: trying to sign in, or asking for quiet, does not change what is known of the session.</summary>
+public sealed record ConnectionBefore(ConnectionState State, string? Reason, int Failures);
