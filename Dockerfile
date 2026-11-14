@@ -39,16 +39,22 @@ COPY --from=frontend /build/_output/UI ./wwwroot
 # Chromium (the headless shell only: there is no screen) and the libraries and fonts it needs, installed by Playwright's own driver, which the application ships for every platform: only the one of
 # this architecture is kept. The browser lives outside the user's home and is readable by everyone; it is the profile, a volume of its own, that holds the session.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# The data folder and the profile folder are mount points owned by the application's user: the container must be able to write them (SonarQube hotspot docker:S6504, reviewed as safe: no other file of the
+# image is writable by the application). The profile is private to its owner.
 RUN set -eux; \
-    case "$(uname -m)" in x86_64) platform=linux-x64 ;; aarch64) platform=linux-arm64 ;; *) echo "unsupported architecture" >&2; exit 1 ;; esac; \
+    case "$(uname -m)" in \
+      x86_64) platform=linux-x64 ;; \
+      aarch64) platform=linux-arm64 ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
     chmod 755 ./.playwright/node/${platform}/node; \
     ./.playwright/node/${platform}/node ./.playwright/package/cli.js install --with-deps --only-shell chromium; \
     find ./.playwright/node -mindepth 1 -maxdepth 1 ! -name "${platform}" -exec rm -rf {} +; \
     rm -rf /var/lib/apt/lists/* /root/.cache; \
-    chmod -R a+rX /ms-playwright ./.playwright
-# The data folder and the profile folder are mount points owned by the application's user: the container must be able to write them (SonarQube hotspot docker:S6504, reviewed as safe: no other file of the
-# image is writable by the application). The profile is private to its owner.
-RUN mkdir /config /profile && chown 1654:1654 /config /profile && chmod 700 /profile
+    chmod -R a+rX /ms-playwright ./.playwright; \
+    mkdir /config /profile; \
+    chown 1654:1654 /config /profile; \
+    chmod 700 /profile
 ENV GEMINARR__DATAFOLDER=/config
 ENV GEMINARR__BROWSER__PROFILEFOLDER=/profile
 # The browser writes a few small files outside its profile (crash reports, a cache): in the temporary folder, which a read-only root file system keeps writable.

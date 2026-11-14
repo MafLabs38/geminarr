@@ -194,7 +194,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
         tabIndex={0}
         width={size.width}
       />
-      <p className={styles.status} role="status">
+      <output className={styles.status}>
         {phase === 'connecting' && translate('LiveViewConnecting')}
         {phase === 'ready' &&
           translate('LiveViewTimeLeft', {
@@ -203,7 +203,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
           })}
         {phase === 'signed-in' && translate('LiveViewSignedIn')}
         {phase === 'closed' && translate('LiveViewClosed')}
-      </p>
+      </output>
       {phase === 'error' && <Alert>{translate('LiveViewError')}</Alert>}
       {notYet && <Alert>{translate('LiveViewNotYet')}</Alert>}
       <p className={styles.help}>{translate('LiveViewLeave', { keys: LEAVE_KEYS })}</p>
