@@ -32,13 +32,14 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | `GEMINARR__BROWSER__PROFILEFOLDER` | **`/profile`** | The folder of the browser profile, where the signed-in session lives: **a volume of its own**, mode `0700`, owned by the container's user, never in a backup in the clear. *Disconnect* empties it. |
 | `GEMINARR__BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that the browser opens; its host is the only origin it may talk to besides the hosts below. |
 | `GEMINARR__BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages of the account provider (a name or `*.suffix`, separated by `;`): loaded **only during a live view**. |
-| `GEMINARR__BROWSER__ALLOWEDHOSTS` | **`*.gstatic.com;*.googleusercontent.com;*.googleapis.com;apis.google.com`** | The hosts the assistant's page loads its files from. Every other origin is refused by the browser. The first spike writes down the exact list. |
+| `GEMINARR__BROWSER__ALLOWEDHOSTS` | **`*.gstatic.com;lh3…lh6.googleusercontent.com;fonts.googleapis.com;www.googleapis.com;apis.google.com`** | The hosts the assistant's page loads its files from. Subresources only: a page is navigated to only if it is the assistant's (or, in a live view, a sign-in page). Every other origin is refused by the browser. The first spike writes down the exact list. |
 | `GEMINARR__BROWSER__LIVEVIEWMINUTES` | **`10`** | How long a live view lasts (1 to 60). |
 | `GEMINARR__BROWSER__SCREENCASTQUALITY` | **`60`** | The quality of the pictures of the live view (1 to 100). |
 | `GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **`30`** | How long the assistant's page may take to load when the session is checked. |
 | `GEMINARR__BROWSER__VIEWPORTWIDTH`, `…VIEWPORTHEIGHT` | **`1280`**, **`800`** | The size of the browser's screen. |
 | `GEMINARR__BROWSER__SIGNINDETECTION` | **`Confirm`** | How the end of a sign-in is known: `Confirm` (the operator presses *I am signed in*, and the server checks that the browser is on the assistant's page: the address alone is not enough, as an assistant may show its page to somebody who is not signed in) or `Page` (the page the browser is on decides: for an assistant that sends everybody who is not signed in to a sign-in page, and for the tests). |
 | `GEMINARR__BROWSER__ALLOWINSECUREASSISTANT` | **`false`** | A sandbox or a test only: plain http for the assistant and its sign-in pages. |
+| `GEMINARR__BROWSER__CHROMIUMSANDBOX` | **`false`** | Whether Chromium runs with its own sandbox. Off because a hardened container (no capabilities, the default seccomp profile) cannot give it the user namespaces it needs and Chromium would not start; turn it on where the platform allows it. What holds instead: [ADR 0015](adr/0015-the-browser-the-live-view-and-the-profile.md) §8. |
 | `GEMINARR__BROWSER__EXECUTABLEPATH` | none | The path of a Chromium to use instead of the one installed in the image. |
 | `Logging__LogLevel__Default` | **`Information`** | Standard ASP.NET logging. The logs carry ids, counts, durations and reason codes, **never** the text of a conversation, a password or a cookie. |
 

@@ -148,7 +148,7 @@ spec:
             claimName: geminarr-profile
         - name: tmp
           emptyDir:
-            sizeLimit: 64Mi
+            sizeLimit: 384Mi   # the browser's temporary files and shared memory (--disable-dev-shm-usage) live here; the limit of the container is 512Mi
 ---
 apiVersion: v1
 kind: Service
@@ -184,9 +184,11 @@ spec:
         - protocol: TCP
           port: 8282
 ---
-# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to, and nothing else. The assistant's own origins are added with the
-# reader (vertical 4), and a new destination is a decision. Adjust the selectors to where DNS and Mnemarr run; for a Mnemarr outside the cluster use an
-# `ipBlock` with its address instead of the namespace selector.
+# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
+# of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
+# The browser (GEMINARR__READER__KIND=Web) also needs https to the assistant's hosts (GEMINARR__BROWSER__ASSISTANTURL, ALLOWEDHOSTS and SIGNINHOSTS: the list of
+# docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
+# port 443 for this pod only. The route filter of the browser holds the list in either case. The exact list is the spike S1's (ROADMAP), and a new destination is a decision.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

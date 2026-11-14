@@ -36,6 +36,7 @@ The full model, with the threats and their controls, is [SPEC §11](docs/SPEC.md
 
 **The target model** (decided, not yet built)
 
+- **Chromium runs without its own sandbox unless the platform allows it** (`GEMINARR__BROWSER__CHROMIUMSANDBOX`, [ADR 0015](docs/adr/0015-the-browser-the-live-view-and-the-profile.md) §8): a hardened container cannot give it the namespaces it needs. What holds instead is the list of origins (a page is navigated to only if it is the assistant's, or a sign-in page during a live view; WebSockets are filtered too), the dedicated account, the non-root container with no capability and the network policy.
 - **The profile** (the session) lives on a volume of its own, mode `0700`, readable by the container's user only; never in logs, an API response, a health page, a crash dump or a backup in the clear; no extension, no sync, no saved password in the browser; *Disconnect* destroys it.
 - **Read-only, on the assistant's own pages.** The browser has a route filter that loads no other origin (the account provider's sign-in only, during the live view); the container's network policy repeats the list ([network.md](docs/network.md)).
 - **The live view** (where the operator signs in) is behind the proxy's single sign-on and Geminarr's own sign-in (D-19), opened by an authenticated call that mints a single-use token, checked for origin, one viewer at a time, ten minutes at most; its frames never reach a log or a disk.

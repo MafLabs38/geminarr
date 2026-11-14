@@ -58,7 +58,7 @@ public sealed class ConnectionController : ControllerBase
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
         }
-        catch (InvalidOperationException ex)
+        catch (ConnectionRefusedException ex)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
         }
@@ -88,7 +88,7 @@ public sealed class ConnectionController : ControllerBase
         {
             _connection.Pause(request.Hours is { } span ? TimeSpan.FromHours(span) : null);
         }
-        catch (InvalidOperationException ex)
+        catch (ConnectionRefusedException ex)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
         }

@@ -10,8 +10,11 @@ public static class OriginPolicy
     public static string? AssistantHost(BrowserOptions options) =>
         Uri.TryCreate(options.AssistantUrl, UriKind.Absolute, out var uri) && IsAllowedScheme(uri, options) && uri.Host.Length > 0 && uri.UserInfo.Length == 0 ? uri.Host.ToLowerInvariant() : null;
 
-    /// <summary>Whether the browser may load this address, now.</summary>
-    public static bool Allows(string address, BrowserOptions options, bool liveView)
+    /// <summary>
+    /// Whether the browser may load this address, now. A page that is navigated to (the browser's own address, a frame) is the assistant's, or in a live view a sign-in page: the other hosts serve what the
+    /// assistant's page loads, and a link to one of them is never followed (some of them serve what anybody uploaded).
+    /// </summary>
+    public static bool Allows(string address, BrowserOptions options, bool liveView, bool navigation = false)
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri))
         {
@@ -36,7 +39,23 @@ public static class OriginPolicy
             return false;
         }
 
-        return Matches(host, options.AllowedHosts) || (liveView && Matches(host, options.SignInHosts));
+        return (!navigation && Matches(host, options.AllowedHosts)) || (liveView && Matches(host, options.SignInHosts));
+    }
+
+    /// <summary>Whether a WebSocket may be opened to this address: the same rule as for a subresource, with its own scheme read as the one of a page (<c>wss</c> is <c>https</c>).</summary>
+    public static bool AllowsWebSocket(string address, BrowserOptions options, bool liveView)
+    {
+        var page = address;
+        if (address.StartsWith("wss:", StringComparison.OrdinalIgnoreCase))
+        {
+            page = "https:" + address[4..];
+        }
+        else if (address.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
+        {
+            page = "http:" + address[3..];
+        }
+
+        return Allows(page, options, liveView, navigation: false);
     }
 
     /// <summary>How a page that was loaded is read: the assistant's own page (signed in), a sign-in page (signed out), or neither (the network, a page in between: nothing is said).</summary>

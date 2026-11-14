@@ -156,6 +156,38 @@ describe('LiveView', () => {
     expect(document.activeElement).not.toBe(screenElement);
   });
 
+  it('lets go of the keys that are down when the keyboard goes back to the page', () => {
+    render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
+    const screenElement = screen.getByLabelText('The browser of the Geminarr container');
+    screenElement.focus();
+
+    fireEvent.keyDown(screenElement, { key: 'Control', ctrlKey: true });
+    fireEvent.keyDown(screenElement, { key: 'Alt', ctrlKey: true, altKey: true });
+    fireEvent.keyDown(screenElement, { key: 'Escape', ctrlKey: true, altKey: true });
+
+    const sent = open().sent.map((message) => JSON.parse(message) as Record<string, unknown>);
+    expect(sent).toEqual([
+      { t: 'keydown', key: 'Control' },
+      { t: 'keydown', key: 'Alt' },
+      { t: 'keyup', key: 'Control' },
+      { t: 'keyup', key: 'Alt' },
+    ]);
+  });
+
+  it('lets go of the keys that are down when the focus leaves, and not again', () => {
+    render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
+    const screenElement = screen.getByLabelText('The browser of the Geminarr container');
+
+    fireEvent.keyDown(screenElement, { key: 'Shift' });
+    fireEvent.blur(screenElement);
+    fireEvent.blur(screenElement);
+
+    expect(open().sent.map((message) => JSON.parse(message) as Record<string, unknown>)).toEqual([
+      { t: 'keydown', key: 'Shift' },
+      { t: 'keyup', key: 'Shift' },
+    ]);
+  });
+
   it('does not send when the socket is not open', () => {
     render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
     open().readyState = 3;

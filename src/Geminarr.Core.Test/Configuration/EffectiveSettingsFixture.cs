@@ -37,6 +37,15 @@ public sealed class EffectiveSettingsFixture
     }
 
     [Fact]
+    public void should_show_the_browser_settings_but_not_the_path_of_the_profile()
+    {
+        var settings = Subject(new AuthOptions()).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+
+        settings.Should().Contain("GEMINARR__BROWSER__PROFILEFOLDER", "set").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__ALLOWEDHOSTS");
+        settings.Values.Should().NotContain("/profile");
+    }
+
+    [Fact]
     public void should_say_not_set_for_a_secret_that_is_not()
     {
         var settings = Subject(new AuthOptions(), name: null).Read();

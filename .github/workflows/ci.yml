@@ -162,7 +162,7 @@ jobs:
       # The .NET scanner does not read SONAR_TOKEN for `begin`, so the token is an argument of `begin` and `end`. This job runs the
       # pull request's own code (the build): same-repository branch authors are trusted with this secret, and pull requests from
       # forks never get it.
-      # src/Geminarr.Browser/** drives a real Chromium: it is covered by the end-to-end test of the live view on the image (tests/e2e), not by a coverage report; every decision it needs is in Core, which is covered.
+      # src/Geminarr.Browser/** drives a real Chromium: it is covered by the end-to-end test of the live view on the image (tests/e2e), not by a coverage report. What it decides without a browser (the origin policy, the rules of the live view and of the connection) is in Core; the rules about the files of the profile are tested in the integration project on a real folder.
       # tools/** (the release tooling and the checker of the review decisions) is analysed, but left out of the coverage figure: no coverage report
       # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs).
       # Documented exception (CLAUDE.md): docker:S8431 asks for the tag or the digest of a base image, not both. The Dockerfile keeps

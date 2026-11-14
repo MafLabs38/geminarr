@@ -26,14 +26,23 @@ public sealed class BrowserOptions
     /// <summary>The sign-in pages of the account provider: the only other origin the browser may load, and only during a live view.</summary>
     public string SignInHosts { get; set; } = "accounts.google.com";
 
-    /// <summary>The hosts the assistant's own page loads its scripts, styles and fonts from (a name, or <c>*.suffix</c>), besides its own host. The first spike writes down the exact list.</summary>
-    public string AllowedHosts { get; set; } = "*.gstatic.com;*.googleusercontent.com;*.googleapis.com;apis.google.com";
+    /// <summary>
+    /// The hosts the assistant's own page loads its scripts, styles, fonts and pictures from (a name, or <c>*.suffix</c>), besides its own host; never a page to go to. Names, not the whole of a domain that
+    /// serves what anybody uploads (<c>storage.googleapis.com</c>, the pictures of <c>googleusercontent.com</c> are listed one by one). The first spike writes down the exact list.
+    /// </summary>
+    public string AllowedHosts { get; set; } = "*.gstatic.com;lh3.googleusercontent.com;lh4.googleusercontent.com;lh5.googleusercontent.com;lh6.googleusercontent.com;fonts.googleapis.com;www.googleapis.com;apis.google.com";
 
     /// <summary>How a sign-in is known to be done: <see cref="SignInDetection.Confirm"/> by default.</summary>
     public SignInDetection SignInDetection { get; set; } = SignInDetection.Confirm;
 
     /// <summary>A sandbox or a test only: the assistant, its hosts and the sign-in pages may be reached over plain http.</summary>
     public bool AllowInsecureAssistant { get; set; }
+
+    /// <summary>
+    /// Whether Chromium runs with its own sandbox (the process of a page is cut off from the rest of the container). Off by default: the sandbox needs user namespaces or a relaxed seccomp profile, which a
+    /// hardened container does not give, and Chromium then does not start at all (ADR 0015, SECURITY.md). On wherever the platform allows it.
+    /// </summary>
+    public bool ChromiumSandbox { get; set; }
 
     /// <summary>The path of a Chromium to use instead of the one that Playwright installed.</summary>
     public string? ExecutablePath { get; set; }

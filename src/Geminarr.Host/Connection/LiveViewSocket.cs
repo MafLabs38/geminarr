@@ -49,17 +49,27 @@ public static class LiveViewSocket
 
         using (lease)
         {
-            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            WebSocket? socket = null;
             var signedIn = false;
             try
             {
+                socket = await context.WebSockets.AcceptWebSocketAsync();
                 signedIn = await RunAsync(socket, browser, connection, lease, options.Value.SignInDetection, context.RequestAborted, loggers.CreateLogger("Geminarr.LiveView"));
             }
             finally
             {
+                // The live view is over whatever happened, even if the handshake failed: nobody keeps the lease. A sign-in was settled when it was made, once (a later settling would write over a disconnect).
                 views.Release(lease);
-                connection.SignInEnded(signedIn);
-                await CloseAsync(socket, signedIn ? "signed in" : "closed");
+                if (!signedIn)
+                {
+                    connection.SignInEnded(signedIn: false);
+                }
+
+                if (socket is not null)
+                {
+                    await CloseAsync(socket, signedIn ? "signed in" : "closed");
+                    socket.Dispose();
+                }
             }
         }
     }
@@ -71,21 +81,29 @@ public static class LiveViewSocket
             return false;
         }
 
-        return string.Equals(uri.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase) && uri.Scheme == request.Scheme;
+        // The host and the port only: behind the proxy that ends TLS the server sees http while the page is on https, and the host is what tells a page of this application from another.
+        return string.Equals(uri.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Relays until the person signs in, closes it, the time is up or the connection drops. True when the session was made.</summary>
     private static async Task<bool> RunAsync(WebSocket socket, IBrowserHost browser, ConnectionService connection, LiveViewLease lease, SignInDetection detection, CancellationToken requestAborted, ILogger logger)
     {
         using var ends = CancellationTokenSource.CreateLinkedTokenSource(lease.Token, requestAborted);
-        ILiveView view;
+        ILiveView? opened = null;
+        string? failure = null;
         try
         {
-            view = await browser.OpenLiveViewAsync(ends.Token);
+            opened = await browser.OpenLiveViewAsync(ends.Token);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "The live view could not open the browser.");
+            failure = ex.GetType().Name;
+        }
+
+        if (opened is not { } view)
+        {
+            // The kind of error only: the message of a browser's error holds its command line and the addresses it was on.
+            logger.LogWarning("The live view could not open the browser ({Type}).", failure);
             await SendTextAsync(socket, "{\"t\":\"error\",\"reason\":\"The browser could not be started.\"}", ends.Token);
             return false;
         }
@@ -110,6 +128,8 @@ public static class LiveViewSocket
             }
 
             await ends.CancelAsync();
+            // The three tasks end with the cancellation: they are awaited so that none is left to touch the socket after it is disposed, and none faults unobserved.
+            await Task.WhenAll(pictures, inputs, watch).ContinueWith(static _ => { }, TaskScheduler.Default);
             return signedIn;
         }
     }

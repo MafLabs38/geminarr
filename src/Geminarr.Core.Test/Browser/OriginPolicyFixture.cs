@@ -34,6 +34,44 @@ public sealed class OriginPolicyFixture
     }
 
     [Theory]
+    [InlineData("https://assistant.example/app", true, false)]
+    [InlineData("https://fonts.static.example/a.woff2", true, false)]
+    [InlineData("https://fonts.static.example/a.woff2", false, true)]
+    [InlineData("https://api.example/v1", false, true)]
+    [InlineData("https://other.example/", false, true)]
+    public void should_go_to_a_page_only_if_it_is_the_assistants_and_load_the_files_of_the_others(string address, bool allowed, bool navigation)
+    {
+        OriginPolicy.Allows(address, Options(), liveView: false, navigation).Should().Be(allowed);
+    }
+
+    [Fact]
+    public void should_go_to_a_sign_in_page_in_a_live_view_and_never_to_a_host_of_files()
+    {
+        OriginPolicy.Allows("https://accounts.example/signin", Options(), liveView: true, navigation: true).Should().BeTrue();
+        OriginPolicy.Allows("https://api.example/v1", Options(), liveView: true, navigation: true).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("wss://assistant.example/socket", true)]
+    [InlineData("wss://api.example/socket", true)]
+    [InlineData("wss://evil.example/socket", false)]
+    [InlineData("ws://assistant.example/socket", false)]
+    [InlineData("WSS://ASSISTANT.example/socket", true)]
+    public void should_open_a_web_socket_only_to_the_hosts_that_may_be_loaded(string address, bool allowed)
+    {
+        OriginPolicy.AllowsWebSocket(address, Options(), liveView: false).Should().Be(allowed);
+    }
+
+    [Theory]
+    [InlineData("https://storage.googleapis.com/a-bucket/page.html")]
+    [InlineData("https://someone.googleusercontent.com/page")]
+    [InlineData("https://docs.google.com/document/d/1")]
+    public void should_not_load_from_a_host_that_serves_what_anybody_uploaded_by_default(string address)
+    {
+        OriginPolicy.Allows(address, new BrowserOptions(), liveView: false).Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("https://accounts.example/signin", true)]
     [InlineData("https://accounts.example/", true)]
     [InlineData("http://accounts.example/signin", false)]

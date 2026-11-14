@@ -64,6 +64,8 @@ public sealed class LiveInputParserFixture
     [InlineData("""{"t":"move","x":"1","y":1}""")]
     [InlineData("""{"t":"move","x":1}""")]
     [InlineData("""{"t":"down","x":1,"y":1,"button":"fifth"}""")]
+    [InlineData("""{"t":"down","x":1,"y":1,"button":5}""")]
+    [InlineData("""{"t":"up","x":1,"y":1,"button":null}""")]
     [InlineData("""{"t":"wheel","x":1,"y":1,"dx":1}""")]
     [InlineData("""{"t":"keydown"}""")]
     [InlineData("""{"t":"keydown","key":""}""")]

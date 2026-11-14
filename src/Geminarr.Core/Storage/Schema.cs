@@ -66,9 +66,12 @@ public static class Schema
             duration_ms INTEGER NOT NULL DEFAULT 0
         );
         """,
-        // 2: the operator can pause the passes until a moment.
+        // 2: the operator can pause the passes until a moment, and a live view or a pause remembers the state it took over.
         """
         ALTER TABLE connection ADD COLUMN paused_until TEXT;
+        ALTER TABLE connection ADD COLUMN before_state TEXT;
+        ALTER TABLE connection ADD COLUMN before_reason TEXT;
+        ALTER TABLE connection ADD COLUMN before_failures INTEGER;
         """,
     ];
 

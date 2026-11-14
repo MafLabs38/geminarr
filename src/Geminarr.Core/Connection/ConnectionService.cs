@@ -32,12 +32,12 @@ public sealed class ConnectionService
     {
         if (!HasBrowser)
         {
-            throw new InvalidOperationException("No browser reads this Geminarr: set GEMINARR__READER__KIND=Web.");
+            throw new ConnectionRefusedException("No browser reads this Geminarr: set GEMINARR__READER__KIND=Web.");
         }
 
         if (_tracker.Current().State == ConnectionState.Paused)
         {
-            throw new InvalidOperationException("The passes are paused: resume them first.");
+            throw new ConnectionRefusedException("The passes are paused: resume them first.");
         }
 
         var ticket = _views.Start();
@@ -51,7 +51,7 @@ public sealed class ConnectionService
         if (signedIn)
         {
             _browser.MarkSignedIn();
-            _tracker.Connected();
+            _tracker.SignedIn();
         }
         else if (_tracker.Current().State == ConnectionState.Connecting)
         {
@@ -73,7 +73,7 @@ public sealed class ConnectionService
     {
         _views.Cancel();
         await _browser.DestroyProfileAsync(cancellationToken);
-        _tracker.NotConnected();
+        _tracker.Disconnected();
     }
 
     /// <summary>Quiet until a moment, or until the operator resumes.</summary>
@@ -81,7 +81,7 @@ public sealed class ConnectionService
     {
         if (!HasBrowser)
         {
-            throw new InvalidOperationException("No browser reads this Geminarr: there is nothing to pause.");
+            throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to pause.");
         }
 
         _views.Cancel();
@@ -94,5 +94,14 @@ public sealed class ConnectionService
         {
             _tracker.Resumed();
         }
+    }
+}
+
+/// <summary>What the operator asked cannot be done now (no browser, passes paused): a sentence of ours, said as it is. Any other error is not echoed.</summary>
+public sealed class ConnectionRefusedException : InvalidOperationException
+{
+    public ConnectionRefusedException(string message)
+        : base(message)
+    {
     }
 }
