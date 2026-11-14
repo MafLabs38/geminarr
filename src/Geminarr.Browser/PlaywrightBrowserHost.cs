@@ -35,6 +35,11 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly IOptions<BrowserOptions> _options;
     private readonly ILogger<PlaywrightBrowserHost> _logger;
     private readonly SemaphoreSlim _busy = new(1, 1);
+    private const long ProbeEveryMs = 30_000;
+
+    private readonly Lock _probeGate = new();
+    private long _probedAt;
+    private bool _writable;
     private IPlaywright? _playwright;
 
     public PlaywrightBrowserHost(IOptions<BrowserOptions> options, ILogger<PlaywrightBrowserHost> logger)
@@ -65,6 +70,23 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
 
     /// <summary>The browser must be able to keep its session: a folder that exists in the image and that no volume was mounted on is writable until the container is read-only, and says so here.</summary>
     private bool CanWrite()
+    {
+        // Looked at at most every half minute: the state of the profile is read by the health, the page and each pass, and a probe writes a file.
+        var now = Environment.TickCount64;
+        lock (_probeGate)
+        {
+            if (_probedAt != 0 && now - _probedAt < ProbeEveryMs)
+            {
+                return _writable;
+            }
+
+            _writable = ProbeWrite();
+            _probedAt = now;
+            return _writable;
+        }
+    }
+
+    private bool ProbeWrite()
     {
         var probe = Path.Combine(Folder, ".geminarr-write-probe");
         try
@@ -204,7 +226,17 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
                 ChromiumSandbox = options.ChromiumSandbox,
             });
             var session = new BrowserSession(context, options, liveView, _logger);
-            await session.FilterAsync();
+            try
+            {
+                await session.FilterAsync();
+            }
+            catch
+            {
+                // A browser that was started and has no filter must not be left running on the profile.
+                await session.DisposeAsync();
+                throw;
+            }
+
             return session;
         }
         catch (PlaywrightException ex)

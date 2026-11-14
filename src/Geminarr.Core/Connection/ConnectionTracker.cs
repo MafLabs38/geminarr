@@ -44,7 +44,17 @@ public sealed class ConnectionTracker
     public ConnectionRecord NotConnected() => WhenNobodyIsSigningIn(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false));
 
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
-    public ConnectionRecord Disconnected() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false);
+    public ConnectionRecord Disconnected()
+    {
+        var current = _store.Get();
+        var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.NotConnected);
+        if (record != current)
+        {
+            _store.Save(record);
+        }
+
+        return record;
+    }
 
     /// <summary>The session is good and the pass read what it came for.</summary>
     public ConnectionRecord Connected() => WhenNobodyIsSigningIn(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true));
@@ -87,7 +97,8 @@ public sealed class ConnectionTracker
     public ConnectionRecord Paused(DateTimeOffset? until) => Move(ConnectionState.Paused, ConnectionReasons.Paused, failures: 0, ok: false, until, BeforeTakingOver());
 
     /// <summary>Quiet is over: the state is what it was before, and the next pass says the rest.</summary>
-    public ConnectionRecord Resumed() => BackToWhatItWas() ?? (_store.Get().LastOkAt is null ? Disconnected() : Move(ConnectionState.Connected, reason: null, failures: 0, ok: false));
+    public ConnectionRecord Resumed() =>
+        BackToWhatItWas() ?? (_store.Get().Before is { State: ConnectionState.NotConnected } || _store.Get().LastOkAt is null ? Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false) : Move(ConnectionState.Connected, reason: null, failures: 0, ok: false));
 
     /// <summary>A pass says what it found only when nobody is signing in: the live view's moves are the only ones that count then.</summary>
     private ConnectionRecord WhenNobodyIsSigningIn(Func<ConnectionRecord> move)

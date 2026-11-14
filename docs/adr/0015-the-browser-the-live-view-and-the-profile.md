@@ -1,6 +1,6 @@
 # 0015 — The browser, the live view and the profile
 
-- **Status**: accepted
+- **Status**: accepted, except decision 8 (Chromium without its own sandbox by default), which awaits the maintainer (pull request #23, entry R-23-1)
 - **Date**: 2026-11-13
 - **Spec**: D-23, F-CON-01 to F-CON-04, F-LGN; applies ADR 0004 (a dedicated account) and D-08 (read-only, on the assistant's own pages)
 

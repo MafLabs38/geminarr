@@ -107,6 +107,21 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_stay_not_connected_through_a_pause_and_a_resume_after_a_disconnect()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+        subject.SignInEnded(signedIn: true);
+        await subject.DisconnectAsync(TestContext.Current.CancellationToken);
+
+        subject.Pause(null);
+        subject.Resume();
+
+        subject.Current().State.Should().Be(ConnectionState.NotConnected, "there is no session to resume to");
+        subject.Current().LastOkAt.Should().BeNull();
+    }
+
+    [Fact]
     public void should_not_let_a_pass_that_was_running_undo_a_pause()
     {
         var subject = Subject();

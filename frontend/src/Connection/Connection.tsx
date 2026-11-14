@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 
 import Alert from 'Components/Alert/Alert';
@@ -24,6 +23,7 @@ import {
   useConnection,
   useDisconnect,
   usePause,
+  useRefreshConnection,
   useResume,
   useStartLiveView,
 } from './useConnection';
@@ -98,18 +98,18 @@ export default function Connection() {
   const reason = reasonKeyOf(data?.reason ?? null);
   const state = data ? states[data.state] : undefined;
 
-  const client = useQueryClient();
+  const refresh = useRefreshConnection();
   const ended = useCallback(
     (signedIn: boolean) => {
       setTicket(null);
       if (signedIn) {
         // The server has settled the state before it said so: it is only read again.
-        client.invalidateQueries({ queryKey: ['api', '/connection'] }).catch(() => undefined);
+        refresh().catch(() => undefined);
       } else {
         closeLiveView();
       }
     },
-    [client, closeLiveView],
+    [refresh, closeLiveView],
   );
 
   return (
