@@ -6,5 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <ProjectReference Include="..\Geminarr.Api.V1\Geminarr.Api.V1.csproj" />
+    <ProjectReference Include="..\Geminarr.Browser\Geminarr.Browser.csproj" />
   </ItemGroup>
 </Project>

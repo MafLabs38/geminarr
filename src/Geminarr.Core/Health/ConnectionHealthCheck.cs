@@ -22,6 +22,8 @@ public sealed class ConnectionHealthCheck : IHealthCheck
             {
                 ConnectionState.Connected => HealthCheckResult.Healthy(),
                 ConnectionState.NeedsLogin => HealthReasons.Degraded(ConnectionReasons.NeedsLogin, "The session has expired: sign in again."),
+                ConnectionState.Connecting => HealthReasons.Degraded(ConnectionReasons.Connecting, "A person is signing in."),
+                ConnectionState.Paused => HealthReasons.Degraded(ConnectionReasons.Paused, "The passes are paused."),
                 ConnectionState.Degraded => HealthReasons.Degraded(record.LastReason ?? ConnectionReasons.Unreachable, "The last pass could not read the assistant."),
                 _ => HealthReasons.Degraded(ConnectionReasons.NotConnected, "Not connected to an assistant: nothing is read."),
             });

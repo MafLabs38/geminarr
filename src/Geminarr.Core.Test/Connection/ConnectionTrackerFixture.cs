@@ -14,7 +14,7 @@ public sealed class ConnectionTrackerFixture : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     private ConnectionTracker Subject(int loginFailures = 3) =>
-        new(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = loginFailures }), _clock);
+        Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = loginFailures }), _clock);
 
     [Fact]
     public void should_be_not_connected_until_a_pass_has_read()
@@ -113,5 +113,19 @@ public sealed class ConnectionTrackerFixture : IDisposable
         second.ConsecutiveFailures.Should().Be(2);
         subject.NotConnected().State.Should().Be(ConnectionState.NotConnected);
         subject.Current().ConsecutiveFailures.Should().Be(0);
+    }
+
+    [Fact]
+    public void should_keep_the_moment_a_pause_ends_and_forget_it_when_it_is_over()
+    {
+        var store = new ConnectionStore(_workspace.Database, _clock);
+        var subject = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
+        var until = _clock.GetUtcNow().AddHours(1);
+
+        subject.Paused(until);
+
+        store.Get().Should().Match<ConnectionRecord>(record => record.State == ConnectionState.Paused && record.PausedUntil == until && record.LastReason == ConnectionReasons.Paused);
+        subject.Connected();
+        store.Get().PausedUntil.Should().BeNull();
     }
 }

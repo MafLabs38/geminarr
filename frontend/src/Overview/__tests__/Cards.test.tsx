@@ -13,6 +13,9 @@ const connection: Connection = {
   lastOkAt: null,
   reason: null,
   reader: 'None',
+  hasBrowser: false,
+  pausedUntil: null,
+  liveViewMinutes: 10,
 };
 const linkedState = {
   url: 'https://mnemarr.homelab.example',

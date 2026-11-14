@@ -74,7 +74,7 @@ describe('the application', () => {
       expect(screen.queryByRole('link', { name: entry.label })).not.toBeInTheDocument();
     }
     // One literal oracle next to the ones derived from the menu: a wrongly flagged entry would not fail the derived ones.
-    expect(screen.queryByRole('link', { name: 'Connection' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Conversations' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Soon')).toHaveLength(unbuilt.length);
     expect(screen.getByRole('link', { name: 'System' })).toHaveAttribute('href', '/system/status');
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');

@@ -23,7 +23,7 @@ public sealed class HealthAndSettingsApiFixture
 
         // A fresh container is ready and healthy where it must be; it is not linked to a Mnemarr and not connected to an assistant, and says so with a code.
         health!.Status.Should().Be("Degraded");
-        health.Checks.Select(check => check.Name).Should().BeEquivalentTo("data-folder", "database", "operator", "connection", "mnemarr", "outbox");
+        health.Checks.Select(check => check.Name).Should().BeEquivalentTo("data-folder", "database", "operator", "connection", "profile", "mnemarr", "outbox");
         health.Checks.Where(check => check.Status == "Degraded").ToDictionary(check => check.Name, check => check.Reason).Should().Equal(new Dictionary<string, string?> { ["connection"] = "not-connected", ["mnemarr"] = "mnemarr-not-linked" });
         health.Checks.Where(check => check.Name is "data-folder" or "database" or "operator" or "outbox").Should().OnlyContain(check => check.Status == "Healthy" && check.Reason == null);
         var body = await client.GetStringAsync("/api/v1/health", TestContext.Current.CancellationToken);

@@ -19,6 +19,18 @@ spec:
     requests:
       storage: 2Gi
 ---
+# The browser profile: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0015).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geminarr-profile
+  namespace: geminarr
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -73,6 +85,9 @@ spec:
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
+            # The browser reads the session of the assistant and gives the operator a live view to sign in through: set it to Web (the default, None, reads nothing).
+            # - name: GEMINARR__READER__KIND
+            #   value: Web
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -90,15 +105,17 @@ spec:
             periodSeconds: 15
           resources:
             requests:
-              cpu: 50m
-              memory: 96Mi
+              cpu: 100m
+              memory: 256Mi
               ephemeral-storage: 64Mi
             limits:
-              memory: 256Mi
-              ephemeral-storage: 256Mi
+              memory: 1Gi   # the browser (Chromium) needs about 300 MB while it is open
+              ephemeral-storage: 512Mi
           volumeMounts:
             - name: data
               mountPath: /config
+            - name: profile
+              mountPath: /profile
             - name: tmp
               mountPath: /tmp
             - name: operator
@@ -125,9 +142,12 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data
+        - name: profile
+          persistentVolumeClaim:
+            claimName: geminarr-profile
         - name: tmp
           emptyDir:
-            sizeLimit: 64Mi
+            sizeLimit: 384Mi   # the browser's temporary files and shared memory (--disable-dev-shm-usage) live here; the limit of the container is 512Mi
 ---
 apiVersion: v1
 kind: Service
@@ -163,9 +183,11 @@ spec:
         - protocol: TCP
           port: 8282
 ---
-# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to, and nothing else. The assistant's own origins are added with the
-# reader (vertical 4), and a new destination is a decision. Adjust the selectors to where DNS and Mnemarr run; for a Mnemarr outside the cluster use an
-# `ipBlock` with its address instead of the namespace selector.
+# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
+# of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
+# The browser (GEMINARR__READER__KIND=Web) also needs https to the assistant's hosts (GEMINARR__BROWSER__ASSISTANTURL, ALLOWEDHOSTS and SIGNINHOSTS: the list of
+# docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
+# port 443 for this pod only. The route filter of the browser holds the list in either case. The exact list is the spike S1's (ROADMAP), and a new destination is a decision.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

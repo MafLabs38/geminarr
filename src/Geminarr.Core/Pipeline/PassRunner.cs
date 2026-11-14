@@ -172,9 +172,25 @@ public sealed class PassRunner
             return;
         }
 
+        // A person signing in, or asked for quiet: nothing is read (the browser is the live view's, or is not wanted).
+        var current = _connection.Current();
+        if (current.State is ConnectionState.Connecting or ConnectionState.Paused)
+        {
+            state.Fail(RunOutcomes.Skipped, current.State == ConnectionState.Paused ? ConnectionReasons.Paused : ConnectionReasons.Connecting);
+            return;
+        }
+
         try
         {
-            if (await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken) == SessionCheck.SignedOut)
+            var session = await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken);
+            if (session == SessionCheck.NoProfile)
+            {
+                _connection.NotConnected();
+                state.Fail(RunOutcomes.Skipped, ConnectionReasons.NotConnected);
+                return;
+            }
+
+            if (session == SessionCheck.SignedOut)
             {
                 var record = _connection.SignedOut();
                 state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : "signed-out");
@@ -436,7 +452,7 @@ public sealed class PassRunner
 
         try
         {
-            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl)), cancellationToken);
+            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl), connection.State == ConnectionState.Paused), cancellationToken);
         }
         catch (SinkException ex)
         {

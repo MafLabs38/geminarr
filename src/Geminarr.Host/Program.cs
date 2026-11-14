@@ -1,7 +1,9 @@
 using Geminarr.Api.V1;
+using Geminarr.Browser;
 using Geminarr.Core;
 using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
+using Geminarr.Host.Connection;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
 using Geminarr.Host.Pipeline;
@@ -19,6 +21,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
 builder.Services.AddGeminarrCore(builder.Configuration);
+builder.Services.AddGeminarrBrowser();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
 builder.Services.AddGeminarrSecurity();
@@ -55,7 +58,9 @@ app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
 app.UseGeminarrSecurity();
+app.UseWebSockets();
 app.MapControllers();
+app.MapGeminarrLiveView();
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();

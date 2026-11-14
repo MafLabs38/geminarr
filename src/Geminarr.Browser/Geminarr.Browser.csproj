@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+    <ProjectReference Include="..\Geminarr.Core\Geminarr.Core.csproj" />
+  </ItemGroup>
+</Project>
