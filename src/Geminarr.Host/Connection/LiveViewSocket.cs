@@ -18,6 +18,8 @@ public static class LiveViewSocket
     private const string DoneMessage = "{\"t\":\"done\"}";
 
     /// <summary>How often the page the browser is on is looked at, to know when the person has signed in.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<WebSocket, SemaphoreSlim> Writers = [];
+
     private static readonly TimeSpan SignedInPoll = TimeSpan.FromSeconds(2);
 
     public static IEndpointRouteBuilder MapGeminarrLiveView(this IEndpointRouteBuilder endpoints)
@@ -138,7 +140,7 @@ public static class LiveViewSocket
     {
         await foreach (var picture in view.Frames.ReadAllAsync(cancellationToken))
         {
-            await socket.SendAsync(picture, WebSocketMessageType.Binary, endOfMessage: true, cancellationToken);
+            await SendOneAtATimeAsync(socket, picture, WebSocketMessageType.Binary, cancellationToken);
         }
     }
 
@@ -230,11 +232,26 @@ public static class LiveViewSocket
         return false;
     }
 
+    /// <summary>A WebSocket takes one send at a time, and the pictures, the answers to "done" and the signed-in message are sent from tasks of their own.</summary>
+    private static async Task SendOneAtATimeAsync(WebSocket socket, ReadOnlyMemory<byte> message, WebSocketMessageType type, CancellationToken cancellationToken)
+    {
+        var gate = Writers.GetValue(socket, static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            await socket.SendAsync(message, type, endOfMessage: true, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     private static async Task SendTextAsync(WebSocket socket, string json, CancellationToken cancellationToken)
     {
         if (socket.State == WebSocketState.Open)
         {
-            await socket.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
+            await SendOneAtATimeAsync(socket, Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, cancellationToken);
         }
     }
 

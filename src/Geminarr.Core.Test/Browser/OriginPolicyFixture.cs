@@ -51,6 +51,13 @@ public sealed class OriginPolicyFixture
         OriginPolicy.Allows("https://api.example/v1", Options(), liveView: true, navigation: true).Should().BeFalse();
     }
 
+    [Fact]
+    public void should_resolve_the_assistant_and_its_hosts_and_the_sign_in_hosts_only_in_a_live_view()
+    {
+        OriginPolicy.ResolvableHosts(Options(), liveView: false).Should().Equal("assistant.example", "*.static.example", "api.example");
+        OriginPolicy.ResolvableHosts(Options(), liveView: true).Should().Equal("assistant.example", "*.static.example", "api.example", "accounts.example");
+    }
+
     [Theory]
     [InlineData("wss://assistant.example/socket", true)]
     [InlineData("wss://api.example/socket", true)]

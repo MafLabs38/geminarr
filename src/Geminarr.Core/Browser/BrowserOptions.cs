@@ -81,7 +81,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
     /// <summary>A wildcard covers the names under a domain of its own (<c>*.gstatic.com</c>): never a whole public suffix (<c>*.com</c>), and a list is not empty.</summary>
     private static string? Hosts(string setting, string list)
     {
-        var entries = list.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var entries = OriginPolicy.Entries(list);
         if (entries.Length == 0 || entries.Any(entry => entry.StartsWith("*.", StringComparison.Ordinal) && !entry[2..].Contains('.', StringComparison.Ordinal)))
         {
             return $"Browser:{setting} (GEMINARR__BROWSER__{setting.ToUpperInvariant()}) must name hosts, and a wildcard only under a domain of its own (*.example.org, not *.org).";
