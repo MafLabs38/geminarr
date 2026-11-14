@@ -17,7 +17,8 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
     /// <summary>The file that says a person signed in: the profile holds a session, which a pass checks and which may expire.</summary>
     public const string SignedInMarker = ".geminarr-signed-in";
 
-    private const UnixFileMode GroupAndOther = UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
+    /// <summary>What no other user may have on the profile. The group is the container's own (a volume that the platform gives to the pod's group, <c>fsGroup</c>, has it): only the others are refused.</summary>
+    private const UnixFileMode Others = UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
 
     private static readonly string[] Arguments =
     [
@@ -61,7 +62,7 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
                 return new ProfileState(Exists: false, HasSession: false, Private: true);
             }
 
-            var isPrivate = OperatingSystem.IsWindows() || (File.GetUnixFileMode(Folder) & GroupAndOther) == 0;
+            var isPrivate = OperatingSystem.IsWindows() || (File.GetUnixFileMode(Folder) & Others) == 0;
             return new ProfileState(Exists: true, HasSession: File.Exists(Path.Combine(Folder, SignedInMarker)), isPrivate, Writable: CanWrite());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -190,9 +191,16 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         {
             CreateFolder();
         }
-        else if (!OperatingSystem.IsWindows() && (File.GetUnixFileMode(Folder) & GroupAndOther) != 0)
+        else if (!OperatingSystem.IsWindows() && (File.GetUnixFileMode(Folder) & Others) != 0)
         {
-            File.SetUnixFileMode(Folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            try
+            {
+                File.SetUnixFileMode(Folder, File.GetUnixFileMode(Folder) & ~Others);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A volume that the container does not own cannot be tightened from inside: the health says so (profile-not-private) and nothing is hidden.
+            }
         }
     }
 

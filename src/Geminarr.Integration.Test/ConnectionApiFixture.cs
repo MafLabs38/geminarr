@@ -195,6 +195,20 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_close_the_live_view_when_the_operator_signs_out()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        var ticket = (await (await client.PostAsync("/api/v1/connection/live-views", content: null, Token)).Content.ReadFromJsonAsync<LiveViewResource>(Token))!;
+        using var socket = await ConnectAsync(factory, ticket, ticket.Token);
+        await ReadTextAsync(socket);
+
+        (await client.PostAsync("/api/v1/auth/logout", content: null, Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await EventuallyAsync(() => factory.Browser.View!.Disposed);
+    }
+
+    [Fact]
     public async Task should_refuse_the_same_host_on_another_port_and_accept_the_page_that_is_on_https_behind_a_proxy()
     {
         using var factory = new BrowserFactory();
