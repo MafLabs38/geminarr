@@ -104,7 +104,7 @@ export default function Connection() {
       setTicket(null);
       if (signedIn) {
         // The server has settled the state before it said so: it is only read again.
-        void client.invalidateQueries({ queryKey: ['api', '/connection'] });
+        client.invalidateQueries({ queryKey: ['api', '/connection'] }).catch(() => undefined);
       } else {
         closeLiveView();
       }
