@@ -26,6 +26,15 @@ public sealed class ProfileHealthFixture
         (await Check(new ProfileState(Exists: true, HasSession: false, Private: true))).Status.Should().Be(HealthStatus.Healthy);
     }
 
+    [Fact]
+    public async Task should_say_when_the_folder_of_the_profile_cannot_be_written()
+    {
+        var result = await Check(new ProfileState(Exists: true, HasSession: false, Private: true, Writable: false));
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Data[HealthReasons.Key].Should().Be(HealthReasons.ProfileReadOnly);
+    }
+
     [Theory]
     [InlineData(false, true, true, HealthReasons.ProfileMissing)]
     [InlineData(true, false, true, HealthReasons.ProfileUnreadable)]

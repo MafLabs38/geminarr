@@ -29,6 +29,7 @@ public sealed class ProfileHealthCheck : IHealthCheck
         {
             { Exists: false } => HealthReasons.Degraded(HealthReasons.ProfileMissing, "The folder of the browser profile does not exist: its volume is not mounted."),
             { Readable: false } => HealthReasons.Degraded(HealthReasons.ProfileUnreadable, "The folder of the browser profile cannot be read."),
+            { Writable: false } => HealthReasons.Degraded(HealthReasons.ProfileReadOnly, "The folder of the browser profile cannot be written: its volume is not mounted, or is read-only."),
             { Private: false } => HealthReasons.Degraded(HealthReasons.ProfileNotPrivate, "The folder of the browser profile can be read by others: it holds a signed-in session."),
             _ => HealthCheckResult.Healthy(),
         });

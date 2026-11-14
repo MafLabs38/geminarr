@@ -107,6 +107,22 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_let_a_pass_that_was_running_undo_a_pause()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+        subject.SignInEnded(signedIn: true);
+        _views.Cancel();
+        subject.Pause(TimeSpan.FromHours(1));
+
+        _tracker.Connected();
+        _tracker.Failed(ConnectionReasons.Unreachable);
+
+        subject.Current().State.Should().Be(ConnectionState.Paused);
+        subject.Current().PausedUntil.Should().NotBeNull();
+    }
+
+    [Fact]
     public void should_not_let_a_pass_overwrite_a_person_who_is_signing_in()
     {
         var subject = Subject();

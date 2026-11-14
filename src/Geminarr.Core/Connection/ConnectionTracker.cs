@@ -93,7 +93,10 @@ public sealed class ConnectionTracker
     private ConnectionRecord WhenNobodyIsSigningIn(Func<ConnectionRecord> move)
     {
         var current = _store.Get();
-        return current.State == ConnectionState.Connecting && _views.Active ? current : move();
+        var signingIn = current.State == ConnectionState.Connecting && _views.Active;
+        // A pause that was asked for while a pass was reading is not undone by the pass that ends: the pass said what it found, and the state is quiet.
+        var paused = current.State == ConnectionState.Paused && (current.PausedUntil is null || current.PausedUntil > _clock.GetUtcNow());
+        return signingIn || paused ? current : move();
     }
 
     private ConnectionBefore? BeforeTakingOver()

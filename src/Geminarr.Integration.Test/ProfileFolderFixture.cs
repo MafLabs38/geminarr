@@ -63,6 +63,18 @@ public sealed class ProfileFolderFixture : IDisposable
     }
 
     [Fact]
+    public void should_say_a_folder_is_writable_and_leave_nothing_of_its_probe()
+    {
+        var folder = Path.Combine(_root, "writable");
+        var subject = Subject(folder);
+        subject.MarkSignedIn();
+
+        subject.Profile().Writable.Should().BeTrue();
+
+        Directory.EnumerateFileSystemEntries(folder).Select(Path.GetFileName).Should().Equal(PlaywrightBrowserHost.SignedInMarker);
+    }
+
+    [Fact]
     public async Task should_empty_the_folder_and_keep_it_when_the_profile_is_destroyed()
     {
         var folder = Path.Combine(_root, "profile");
