@@ -92,6 +92,22 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_go_back_to_a_degraded_state_with_its_reason_and_count_after_a_pause_and_a_live_view()
+    {
+        var subject = Subject();
+        _tracker.Connected();
+        _tracker.Failed(ConnectionReasons.RateLimited);
+        _tracker.Failed(ConnectionReasons.RateLimited);
+
+        subject.Pause(null);
+        subject.Resume();
+        subject.StartSignIn();
+        subject.CloseLiveView();
+
+        subject.Current().Should().Match<ConnectionRecord>(record => record.State == ConnectionState.Degraded && record.LastReason == ConnectionReasons.RateLimited && record.ConsecutiveFailures == 2);
+    }
+
+    [Fact]
     public void should_keep_what_was_known_through_a_pause_and_a_resume()
     {
         var subject = Subject();

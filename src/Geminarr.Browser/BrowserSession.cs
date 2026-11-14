@@ -105,18 +105,11 @@ internal sealed class BrowserSession : IAsyncDisposable
         {
             // The kind of failure only: the message of a browser's error holds its command line and the addresses it was on.
             _logger.LogWarning("The assistant's page could not be loaded ({Failure}).", failure);
-            throw new ReaderException(failure == "refused-by-the-policy" ? ConnectionReasons.ReaderBroken : ConnectionReasons.Unreachable, "The assistant's page could not be loaded.");
+            throw new ReaderException(SessionVerdict.ReasonOfLoadFailure(failure == "refused-by-the-policy"), "The assistant's page could not be loaded.");
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (_signInRedirectSeen || OriginPolicy.Classify(page.Url, _options) == PageKind.SignIn)
-        {
-            return SessionCheck.SignedOut;
-        }
-
-        return OriginPolicy.Classify(page.Url, _options) == PageKind.Assistant
-            ? SessionCheck.SignedIn
-            : throw new ReaderException(ConnectionReasons.ReaderBroken, "The assistant's page is not what the reader knows.");
+        return SessionVerdict.Decide(_signInRedirectSeen, OriginPolicy.Classify(page.Url, _options));
     }
 
     public async ValueTask DisposeAsync() => await Context.CloseAsync();
