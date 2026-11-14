@@ -134,4 +134,16 @@ public sealed class OriginPolicyFixture
             validator.Validate(null, options).FailureMessage.Should().Contain($"GEMINARR__BROWSER__{setting.ToUpperInvariant()}");
         }
     }
+
+    [Theory]
+    [InlineData("*.com")]
+    [InlineData("static.example;*.org")]
+    [InlineData("")]
+    public void should_refuse_a_list_of_hosts_that_is_empty_or_covers_a_whole_public_suffix(string hosts)
+    {
+        var validator = new BrowserOptionsValidator();
+
+        validator.Validate(null, new BrowserOptions { AllowedHosts = hosts }).Failed.Should().BeTrue();
+        validator.Validate(null, new BrowserOptions { SignInHosts = hosts }).Failed.Should().BeTrue();
+    }
 }

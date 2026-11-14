@@ -74,6 +74,10 @@ public sealed class EffectiveSettings
         new("GEMINARR__BROWSER__ASSISTANTURL", _browser.Value.AssistantUrl, false),
         new("GEMINARR__BROWSER__LIVEVIEWMINUTES", _browser.Value.LiveViewMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__ALLOWEDHOSTS", _browser.Value.AllowedHosts, false),
+        new("GEMINARR__BROWSER__SIGNINHOSTS", _browser.Value.SignInHosts, false),
+        new("GEMINARR__BROWSER__SIGNINDETECTION", _browser.Value.SignInDetection.ToString(), false),
+        new("GEMINARR__BROWSER__CHROMIUMSANDBOX", _browser.Value.ChromiumSandbox ? "true" : "false", false),
+        new("GEMINARR__BROWSER__ALLOWINSECUREASSISTANT", _browser.Value.AllowInsecureAssistant ? "true" : "false", false),
         new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

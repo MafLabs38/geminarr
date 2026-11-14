@@ -354,7 +354,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-CON-01 | The connection state machine (§7.2) and its page | M | 3 ✅ |
 | F-CON-02 | The live view to sign in (§7.3); disconnect destroys the profile | M | 3 ✅ |
 | F-CON-03 | Pause and resume | S | 3 ✅ |
-| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 ✅ |
+| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 ✅ for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode the expiry is seen with the reader (spike S1, ADR 0015 Consequences) |
 | **F-RDR** | **The reader** | | |
 | F-RDR-01 | `IConversationReader`/`IConversationSink` and the pipeline with a demonstration reader and a real sink | M | 2 ✅ |
 | F-RDR-02 | The web reader: session check, list, open, extract turns (§6) | M | 4 |
@@ -449,7 +449,7 @@ Every limit and interval above comes from configuration with that default; none 
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
 | `profile` | `profile-missing`, `profile-not-private`, `profile-unreadable` (only with a browser) |
-| `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable` `paused`, and `connecting` while a person signs in |
+| `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable`, `paused`, and `connecting` while a person signs in |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
 

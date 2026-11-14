@@ -2,6 +2,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
   type PointerEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -53,6 +54,17 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
   const lastMove = useRef(0);
   const pressed = useRef(new Set<string>());
   const ended = useRef(false);
+  // The latest handler, so that the connection is opened once for its ticket whatever the parent re-renders with.
+  const handler = useRef(onEnded);
+  useEffect(() => {
+    handler.current = onEnded;
+  });
+  const finish = useCallback((signedIn: boolean) => {
+    if (!ended.current) {
+      ended.current = true;
+      handler.current(signedIn);
+    }
+  }, []);
   const [phase, setPhase] = useState<Phase>('connecting');
   const [notYet, setNotYet] = useState(false);
   const [left, setLeft] = useState(() => secondsLeft(ticket.expiresAt));
@@ -62,12 +74,6 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
     const ws = new WebSocket(socketAddress(ticket.path, ticket.token));
     ws.binaryType = 'blob';
     socket.current = ws;
-    const finish = (signedIn: boolean) => {
-      if (!ended.current) {
-        ended.current = true;
-        onEnded(signedIn);
-      }
-    };
     ws.onmessage = (message: MessageEvent<Blob | string>) => {
       if (typeof message.data !== 'string') {
         void draw(canvas.current, message.data);
@@ -96,7 +102,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
       finish(false);
     };
     // The live view is opened once for its ticket.
-  }, [ticket, onEnded]);
+  }, [ticket, finish]);
 
   useEffect(() => {
     // The screen is the point of the page when it opens: it is brought into view, whole as far as it fits.
@@ -217,7 +223,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
         >
           {translate('LiveViewDone')}
         </Button>
-        <Button variant="quiet" onClick={() => onEnded(false)}>
+        <Button variant="quiet" onClick={() => finish(false)}>
           {translate('LiveViewClose')}
         </Button>
       </div>
