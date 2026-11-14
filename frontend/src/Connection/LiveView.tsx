@@ -30,7 +30,7 @@ const DONE_MESSAGE = JSON.stringify({ t: 'done' });
 interface LiveViewProps {
   ticket: LiveViewTicket;
   /** Called once when the live view ends, and why. */
-  onEnded: (signedIn: boolean) => void;
+  onEnded: (signedIn: boolean, failed: boolean) => void;
 }
 
 /** The address of the WebSocket, on this very origin (the Content-Security-Policy allows nothing else). */
@@ -59,10 +59,12 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
   useEffect(() => {
     handler.current = onEnded;
   });
+  // Set when the server said that the browser could not be started: the page that holds the live view says it, since the live view is gone by then.
+  const failed = useRef(false);
   const finish = useCallback((signedIn: boolean) => {
     if (!ended.current) {
       ended.current = true;
-      handler.current(signedIn);
+      handler.current(signedIn, failed.current);
     }
   }, []);
   const [phase, setPhase] = useState<Phase>('connecting');
@@ -89,6 +91,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
       } else if (control?.t === 'not-yet') {
         setNotYet(true);
       } else if (control?.t === 'error') {
+        failed.current = true;
         setPhase('error');
       }
     };

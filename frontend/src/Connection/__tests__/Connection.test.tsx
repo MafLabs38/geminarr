@@ -84,6 +84,7 @@ describe('Connection', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(calls.some((call) => call.key === 'DELETE /connection/live-views')).toBe(true));
     expect(screen.queryByText('You are controlling the browser of the Geminarr container.')).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The live view is closed.');
   });
 
   it('says why the live view could not be opened', async () => {

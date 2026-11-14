@@ -16,6 +16,7 @@ services:
         aliases:
           - assistant
           - signin
+          - offlist
   geminarr:
     build:
       context: ../../..

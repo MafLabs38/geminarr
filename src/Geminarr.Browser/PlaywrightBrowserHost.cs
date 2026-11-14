@@ -30,6 +30,8 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         "--disable-save-password-bubble",
         "--password-store=basic",
         "--disable-features=Translate,AutofillServerCommunication,MediaRouter",
+        // A proxy would resolve the names itself and the rule below would not hold: the browser goes out directly or not at all.
+        "--no-proxy-server",
     ];
 
     private readonly IOptions<BrowserOptions> _options;

@@ -206,7 +206,7 @@ describe('LiveView', () => {
 
     expect(screen.getByText('Signed in. The live view closes.')).toBeInTheDocument();
     expect(onEnded).toHaveBeenCalledOnce();
-    expect(onEnded).toHaveBeenCalledWith(true);
+    expect(onEnded).toHaveBeenCalledWith(true, false);
   });
 
   it('says it is closed when the connection ends without a session', () => {
@@ -216,7 +216,7 @@ describe('LiveView', () => {
     act(() => open().onclose?.());
 
     expect(screen.getByText('The live view is closed.')).toBeInTheDocument();
-    expect(onEnded).toHaveBeenCalledWith(false);
+    expect(onEnded).toHaveBeenCalledWith(false, false);
   });
 
   it('says it is signed in when the operator says so, only once the browser is ready, and says when it is not yet', () => {
@@ -243,6 +243,16 @@ describe('LiveView', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('The browser could not be started');
   });
 
+  it('says to the page that holds it that the browser could not be started when the connection ends', () => {
+    const onEnded = vi.fn();
+    render(<LiveView onEnded={onEnded} ticket={ticket} />);
+
+    open().receive('{"t":"error","reason":"The browser could not be started."}');
+    act(() => open().onclose?.());
+
+    expect(onEnded).toHaveBeenCalledWith(false, true);
+  });
+
   it('ignores a message it does not know and one that is not JSON', () => {
     render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
 
@@ -259,7 +269,7 @@ describe('LiveView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     view.unmount();
 
-    expect(onEnded).toHaveBeenCalledWith(false);
+    expect(onEnded).toHaveBeenCalledWith(false, false);
     expect(open().closed).toBe(true);
   });
 
