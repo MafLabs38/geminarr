@@ -258,7 +258,7 @@ public sealed class PassRunnerFixture : IDisposable
         paused!.Reason.Should().Be(ConnectionReasons.Paused);
         _reader.Opened.Should().BeEmpty();
         _sink.Heartbeats.Last().Paused.Should().BeTrue();
-        _sink.Heartbeats.Last().Error.Should().BeNull();
+        _sink.Heartbeats.Last().Error.Should().Be("Not connected.", "a pause does not change what is known: the machine had never been connected");
     }
 
     [Fact]
