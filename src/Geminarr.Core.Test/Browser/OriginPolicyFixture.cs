@@ -143,6 +143,19 @@ public sealed class OriginPolicyFixture
     }
 
     [Theory]
+    [InlineData("/config", "/config")]
+    [InlineData("/config", "/config/profile")]
+    [InlineData("/config/data", "/config")]
+    [InlineData("/config", "/")]
+    public void should_refuse_a_profile_folder_that_is_the_data_folder_or_inside_it_or_above_it(string data, string profile)
+    {
+        var validator = new ProfileFolderValidator(Microsoft.Extensions.Options.Options.Create(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = data }));
+
+        validator.Validate(null, new BrowserOptions { ProfileFolder = profile }).Failed.Should().BeTrue();
+        validator.Validate(null, new BrowserOptions { ProfileFolder = "/profile" }).Failed.Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("*.com")]
     [InlineData("static.example;*.org")]
     [InlineData("")]

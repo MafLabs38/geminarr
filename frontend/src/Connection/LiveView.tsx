@@ -73,6 +73,7 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
   const [size, setSize] = useState({ width: ticket.width, height: ticket.height });
 
   useEffect(() => {
+    ended.current = false;
     const ws = new WebSocket(socketAddress(ticket.path, ticket.token));
     ws.binaryType = 'blob';
     socket.current = ws;
@@ -100,9 +101,9 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
       finish(false);
     };
     return () => {
+      // The page leaves: the server sees the socket close and settles the state by itself. Nothing is said to the parent from here (in development React runs the effect twice, and the first end would hide the second).
       ws.onclose = null;
       ws.close();
-      finish(false);
     };
     // The live view is opened once for its ticket.
   }, [ticket, finish]);
