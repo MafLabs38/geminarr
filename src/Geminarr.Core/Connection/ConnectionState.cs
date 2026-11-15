@@ -34,6 +34,9 @@ public static class ConnectionReasons
 
     /// <summary>The browser container could not be reached (not started, the debugging address wrong, a limit): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
     public const string BrowserFailed = "browser-failed";
+
+    /// <summary>A port of the namespace that Geminarr shares with the browser listens off the loopback: the web desktop or the debugging port could be reached by something else than Geminarr (ADR 0017), so the desktop stays closed.</summary>
+    public const string BrowserExposed = "browser-exposed";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>

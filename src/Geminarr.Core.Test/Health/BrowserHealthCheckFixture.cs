@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Health;
 using Geminarr.Core.Pipeline;
@@ -14,8 +15,13 @@ public sealed class BrowserHealthCheckFixture
 
     private static string? Reason(HealthCheckResult result) => result.Data.TryGetValue(HealthReasons.Key, out var reason) ? reason as string : null;
 
-    private static Task<HealthCheckResult> Check(FakeBrowser browser, ReaderKind kind) =>
-        new BrowserHealthCheck(browser, Options.Of(new ReaderOptions { Kind = kind })).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+    private static Task<HealthCheckResult> Check(FakeBrowser browser, ReaderKind kind, params int[] exposed) =>
+        new BrowserHealthCheck(browser, Options.Of(new ReaderOptions { Kind = kind }), new FakeExposure(exposed)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+
+    private sealed class FakeExposure(int[] ports) : IBrowserExposure
+    {
+        public IReadOnlyList<int> ExposedPorts() => ports;
+    }
 
     [Theory]
     [InlineData(ReaderKind.None)]
@@ -53,5 +59,15 @@ public sealed class BrowserHealthCheckFixture
         var result = await Check(new FakeBrowser { Reachable = reachable }, ReaderKind.Web);
 
         result.Status.Should().Be(HealthStatus.Healthy);
+    }
+
+    [Fact]
+    public async Task should_say_browser_exposed_when_a_port_of_the_namespace_listens_off_the_loopback()
+    {
+        var result = await Check(new FakeBrowser { Reachable = true }, ReaderKind.Web, 3000, 8082);
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+        Reason(result).Should().Be(ConnectionReasons.BrowserExposed);
+        result.Description.Should().Contain("3000, 8082");
     }
 }

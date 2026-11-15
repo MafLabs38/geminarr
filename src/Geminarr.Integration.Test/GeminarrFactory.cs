@@ -50,6 +50,9 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
     {
     }
 
+    /// <summary>What the host takes for the ports that listen off the loopback of the namespace it shares with the browser: none.</summary>
+    public Support.FakeExposure Exposure { get; } = new();
+
     /// <summary>A clock the test moves, for the tests of lifetimes; none by default (the real one).</summary>
     public FakeTimeProvider? Clock { get; protected init; }
 
@@ -74,6 +77,8 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
         {
             // The tests run passes themselves, when they want one: a scheduler running behind them would make them depend on the clock of the machine.
             services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
+            // What listens on the machine that runs the tests is not what a test is about: nothing is exposed unless a test says so.
+            services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure>(Exposure);
             ConfigureServices(services);
             if (Clock is { } clock)
             {
@@ -284,15 +289,23 @@ public sealed class RelayFactory : GeminarrFactoryBase
 {
     private readonly string _desktopUrl;
 
-    public RelayFactory(string desktopUrl)
+    public RelayFactory(string desktopUrl, string? allowedHostNames = null)
         : base(createFolder: true)
     {
         _desktopUrl = desktopUrl;
+        _allowedHostNames = allowedHostNames;
     }
+
+    private readonly string? _allowedHostNames;
 
     protected override void AddSettings(Dictionary<string, string?> settings)
     {
         settings["Browser:DesktopUrl"] = _desktopUrl;
+        if (_allowedHostNames is not null)
+        {
+            settings["AllowedHostNames"] = _allowedHostNames;
+        }
+
         settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
         settings["Reader:Kind"] = "Web";
     }

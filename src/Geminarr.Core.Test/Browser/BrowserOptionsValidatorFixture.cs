@@ -63,4 +63,16 @@ public sealed class BrowserOptionsValidatorFixture
     {
         new BrowserOptionsValidator().Validate(null, new BrowserOptions { SigningInPasses = passes }).Failed.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("9223", true)]
+    [InlineData("9223;9224", true)]
+    [InlineData("0", false)]
+    [InlineData("65536", false)]
+    [InlineData("web", false)]
+    public void should_accept_port_numbers_only_for_the_ports_a_test_may_open(string ports, bool valid)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { AllowedOpenPorts = ports }).Failed.Should().Be(!valid);
+    }
 }

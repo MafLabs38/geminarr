@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using Geminarr.Integration.Test.Support;
@@ -145,6 +146,45 @@ public sealed class BrowserRelayFixture
         (await client.SendAsync(own, Token)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.SendAsync(read, Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a read changes nothing, and the cookie is SameSite=Strict");
         desktop.Seen.Select(seen => seen.Path).Should().BeEquivalentTo(["/browser/api/clipboard", "/browser/"]);
+    }
+
+    [Fact]
+    public async Task should_close_the_desktop_and_say_why_while_a_port_of_the_namespace_listens_off_the_loopback()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.SignedInClientAsync();
+        factory.Exposure.Ports.Add(3000);
+
+        var closed = await client.GetAsync("/browser/", Token);
+        var health = await client.GetFromJsonAsync<Geminarr.Api.V1.Health.HealthResource>("/api/v1/health", Token);
+
+        closed.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await closed.Content.ReadAsStringAsync(Token)).Should().Contain("not isolated");
+        desktop.Seen.Should().BeEmpty("nothing is relayed to a desktop that others can reach");
+        health!.Checks.Single(check => check.Name == "browser").Reason.Should().Be("browser-exposed");
+
+        factory.Exposure.Ports.Clear();
+        (await client.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task should_judge_an_origin_by_the_names_the_page_may_be_reached_by_and_not_by_the_host_a_proxy_sends()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, allowedHostNames: "localhost;geminarr.internal");
+        using var client = await factory.SignedInClientAsync();
+        HttpRequestMessage Write(string origin)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+            request.Headers.Host = "geminarr.internal:8282";
+            request.Headers.Add("Origin", origin);
+            return request;
+        }
+
+        (await client.SendAsync(Write("https://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a proxy that sends its own Host does not make the page foreign to itself");
+        (await client.SendAsync(Write("https://geminarr.internal"), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(Write("https://evil.example"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]

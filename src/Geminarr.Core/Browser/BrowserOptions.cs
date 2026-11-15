@@ -37,6 +37,12 @@ public sealed class BrowserOptions
     /// </summary>
     public string SessionCookies { get; set; } = "SID;__Secure-1PSID";
 
+    /// <summary>
+    /// A sandbox or a test only: ports that may listen off the loopback of the shared namespace without Geminarr calling the browser exposed (the test relay of the end-to-end stack), separated by <c>;</c>.
+    /// Nothing else is ever tolerated: the web desktop and the debugging port have no sign-in.
+    /// </summary>
+    public string AllowedOpenPorts { get; set; } = string.Empty;
+
     /// <summary>A sandbox or a test only: the assistant and the sign-in pages may be on plain http.</summary>
     public bool AllowInsecureAssistant { get; set; }
 
@@ -62,6 +68,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
+            ?? (OriginPolicy.Entries(options.AllowedOpenPorts).All(port => int.TryParse(port, out var number) && number is >= 1 and <= 65535) ? null : "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) must be port numbers separated by semicolons.")
             ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problem);
     }

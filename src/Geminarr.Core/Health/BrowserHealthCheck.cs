@@ -14,11 +14,13 @@ public sealed class BrowserHealthCheck : IHealthCheck
 {
     private readonly IBrowserHost _browser;
     private readonly IOptions<ReaderOptions> _reader;
+    private readonly IBrowserExposure _exposure;
 
-    public BrowserHealthCheck(IBrowserHost browser, IOptions<ReaderOptions> reader)
+    public BrowserHealthCheck(IBrowserHost browser, IOptions<ReaderOptions> reader, IBrowserExposure exposure)
     {
         _browser = browser;
         _reader = reader;
+        _exposure = exposure;
     }
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
@@ -32,6 +34,11 @@ public sealed class BrowserHealthCheck : IHealthCheck
         if (!state.Configured)
         {
             return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__CDPURL)."));
+        }
+
+        if (_exposure.ExposedPorts() is { Count: > 0 } exposed)
+        {
+            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, $"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", exposed)}. The desktop of the browser is closed until it is fixed."));
         }
 
         return Task.FromResult(

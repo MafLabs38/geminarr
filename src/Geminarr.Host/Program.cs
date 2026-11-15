@@ -22,6 +22,7 @@ builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrBrowser();
 builder.Services.AddGeminarrBrowserRelay();
+builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
 builder.Services.AddGeminarrSecurity();

@@ -59,6 +59,18 @@ public static class BrowserRelay
                 return;
             }
 
+            // A desktop that could be reached by something else than Geminarr is not relayed: the person is told why, and the health says it (browser-exposed).
+            if (context.RequestServices.GetRequiredService<IBrowserExposure>().ExposedPorts() is { Count: > 0 })
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                await context.Response.WriteAsJsonAsync(
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails { Status = StatusCodes.Status503ServiceUnavailable, Title = "The browser container is not isolated (a port listens off the loopback): its desktop is closed until it is fixed." },
+                    options: null,
+                    contentType: "application/problem+json",
+                    cancellationToken: context.RequestAborted);
+                return;
+            }
+
             if (FromAnotherOrigin(context))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -89,7 +101,7 @@ public static class BrowserRelay
 
     /// <summary>
     /// Whether a page of another origin sends this request: the handshake of a WebSocket is not bound by the same-origin policy, and a write to the desktop (a POST, a PUT) is a write whoever sends it.
-    /// The cookie of the session is <c>SameSite=Strict</c>; the origin is checked on top, where the browser says it (a request that names none is not from a page).
+    /// The cookie of the session is <c>SameSite=Strict</c>; the origin is checked on top, where the browser says it (a request that names none is not from a page), against the names the page may be reached by.
     /// </summary>
     private static bool FromAnotherOrigin(HttpContext context)
     {
@@ -104,10 +116,8 @@ public static class BrowserRelay
             return false;
         }
 
-        // The host and the port that the person's browser used (the proxy keeps the Host header): the default port of the scheme is the one that the origin leaves out.
-        return !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Host, context.Request.Host.Host, StringComparison.OrdinalIgnoreCase)
-            || (context.Request.Host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort);
+        // The names the page may be reached by (the same list that admits the Host, so a proxy that rewrites the Host header works): the origin of a page of the product is one of them, with any port.
+        return !Uri.TryCreate(origin, UriKind.Absolute, out var uri) || !context.RequestServices.GetRequiredService<AllowedHostList>().IsAllowed(uri.Authority);
     }
 
     private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, string? sessionId, CancellationToken stop)

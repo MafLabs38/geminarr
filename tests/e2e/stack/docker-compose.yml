@@ -83,6 +83,8 @@ services:
       # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
       GEMINARR__BROWSER__SESSIONCOOKIES: assistant
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
+      # Test only: the relay of the debugging port below listens off the loopback so that a script can play the person who signs in by hand.
+      GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9223'
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg
