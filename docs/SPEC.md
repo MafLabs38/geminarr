@@ -347,7 +347,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-CON-01 | The connection state machine (§7.2) and its page | M | 3 ✅ |
 | F-CON-02 | Sign in by hand in the browser container's page (§7.3); disconnect clears its session | M | 3 built; awaiting the real target (spike S1) |
 | F-CON-03 | Pause and resume | S | 3 ✅ |
-| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 built; awaiting the real target; for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode the expiry is seen with the reader (spike S1, ADR 0015 Consequences) |
+| F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 built; awaiting the real target; for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode a signed-in account is told by the names of its cookies (ADR 0016), measured on the real target in spike S1 |
 | **F-RDR** | **The reader** | | |
 | F-RDR-01 | `IConversationReader`/`IConversationSink` and the pipeline with a demonstration reader and a real sink | M | 2 ✅ |
 | F-RDR-02 | The web reader: session check, list, open, extract turns (§6) | M | 4 |
@@ -520,7 +520,7 @@ Reading a consumer product by automation is against the provider's terms of use.
 | Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 4 |
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |
-| Q-14 | Does the account provider accept a sign-in from the headless shell of Chromium? **Answered on 2026-11-15, no**: on the first real try the sign-in page said "Couldn't sign you in: this browser or app may not be secure" (the provider's refusal of a browser it reads as automated; not a certificate problem). What follows is a decision of the maintainer (the full browser in a virtual display, another way to sign in, or the Takeout import without a session), not something to get around silently | ✅ answered, ❓ the way forward |
+| Q-14 | Does the account provider accept a sign-in from the headless shell of Chromium? **Answered on 2026-11-15, no**: on the first real try the sign-in page said "Couldn't sign you in: this browser or app may not be secure" (the provider's refusal of a browser it reads as automated; not a certificate problem). The way forward was decided on the same day (D-24, ADR 0016): the browser is a container of its own that a person signs in to by hand | ✅ answered, ✅ decided |
 | Q-15 | *Withdrawn with the live view* (the sign-in host is no longer filtered by Geminarr). | — |
 | Q-16 | *Withdrawn with the live view* (Geminarr no longer filters the frames of a page). | — |
 | Q-17 | Does the provider accept a read that a program drives (attached to the browser) in a browser where a person signed in by hand, and for how long? | ❓ (spike S1) |

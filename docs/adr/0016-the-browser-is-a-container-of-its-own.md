@@ -11,7 +11,7 @@ The first design embedded a Chromium that Geminarr launched and drove with Playw
 
 The first real sign-in showed that **the account provider refuses a browser that is launched and driven by a program**, whoever types: the page answered "Couldn't sign you in: this browser or app may not be secure" right after the address was typed. Measured on 2026-11-15 with a throw-away account, with the headless shell of Chromium (as the container ran it) **and** with the complete Google Chrome in a virtual display: both were refused, both announced `navigator.webdriver = true`. Hiding that mark is a way around a protection of the provider, and this project does not do that.
 
-The same day the maintainer signed in to his Google account, by hand, in an **ordinary Chromium running in a container** with a web desktop, reached through a sub-domain behind the single sign-on, from his PC. It worked.
+The same day the maintainer, as a one-off measurement with them present (the ladder of SPEC §11.4), signed in by hand to a Google account, in an **ordinary Chromium running in a container** with a web desktop, reached through a sub-domain behind the single sign-on, from his PC. It worked.
 
 ## Decision
 
