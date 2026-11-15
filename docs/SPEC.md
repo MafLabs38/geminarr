@@ -121,7 +121,7 @@ How it fits the constellation:
 | `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IBrowserHost`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
 | `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: it attaches to the browser container, checks the session, clears it | Behind the ports of Core; selectors and calls of the web product stay here |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
-| `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
+| `Geminarr.Host` | Entry point, configuration, health, static files of the frontend, **the relay of the browser's web desktop** (a same-origin reverse proxy of a third party's pages, behind the operator's session: the surface that the review reads hardest, ADR 0017) and **the audit of the shared namespace** (`/proc/net/tcp*`) | The only project that knows the others. |
 | `frontend/` | React page: overview, connection, conversations, runs, settings | Server data only through the data hooks (DESIGN.md). |
 | Tests | `Geminarr.Core.Test` (unit), `Geminarr.Integration.Test` (the real host in memory), `tests/e2e` (Playwright against the image) | See [TESTING.md](TESTING.md). |
 

@@ -128,7 +128,9 @@ public static partial class BrowserRelay
         return RelayedPaths().IsMatch(query < 0 ? target : target[..query]);
     }
 
-    [GeneratedRegex(@"^/browser/(|api/websockets|api/status|manifest\.json|selkies-core\.js|icon(-[0-9]+)?\.png|assets/[A-Za-z0-9._-]+\.(js|css|woff2?|png|svg|wasm|json))$", RegexOptions.CultureInvariant)]
+    private const string RelayedPattern = "^" + BrowserOptions.RelayPath + @"(|api/websockets|api/status|manifest\.json|selkies-core\.js|icon(-[0-9]+)?\.png|assets/[A-Za-z0-9._-]+\.(js|css|woff2?|png|svg|wasm|json))$";
+
+    [GeneratedRegex(RelayedPattern, RegexOptions.CultureInvariant)]
     private static partial Regex RelayedPaths();
 
     /// <summary>
