@@ -76,6 +76,7 @@ public sealed class PassRunner
         _passGeneration = _link.Generation;
         // A heartbeat between two readings writes its row at the end, and only if it has something to say: no row flickers in the list, and a process that dies leaves nothing half done.
         long? runId = reading ? _runs.Start(RunKinds.Pass, startedAt) : null;
+        using var scope = _connection.BeginPass();
         var state = new PassState();
         string? unforeseen = null;
         try

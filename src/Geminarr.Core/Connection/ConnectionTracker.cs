@@ -16,6 +16,8 @@ public sealed class ConnectionTracker
     private readonly LiveViewService _views;
     private readonly IBrowserHost _browser;
     private readonly Lock _gate = new();
+    private readonly AsyncLocal<long?> _passEpoch = new();
+    private long _epoch;
 
     public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock, LiveViewService views, IBrowserHost browser)
     {
@@ -41,6 +43,29 @@ public sealed class ConnectionTracker
         return record.State == ConnectionState.Paused && record.PausedUntil is { } until && until <= _clock.GetUtcNow() ? Resumed() : record;
     });
 
+    /// <summary>A pass says what it found as of this moment: a disconnect that comes later makes it moot. Dispose ends the scope.</summary>
+    public IDisposable BeginPass()
+    {
+        lock (_gate)
+        {
+            _passEpoch.Value = _epoch;
+        }
+
+        return new PassScope(_passEpoch);
+    }
+
+    private sealed class PassScope : IDisposable
+    {
+        private readonly AsyncLocal<long?> _epoch;
+
+        public PassScope(AsyncLocal<long?> epoch)
+        {
+            _epoch = epoch;
+        }
+
+        public void Dispose() => _epoch.Value = null;
+    }
+
     /// <summary>No reader is configured, or the pass found no profile: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
     public ConnectionRecord NotConnected() => Atomically(() => WhenNobodyIsSigningIn(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
@@ -56,6 +81,7 @@ public sealed class ConnectionTracker
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
     {
+        _epoch++;
         var current = _store.Get();
         var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.NotConnected);
         if (record != current)
@@ -126,6 +152,12 @@ public sealed class ConnectionTracker
     private ConnectionRecord WhenNobodyIsSigningIn(Func<ConnectionRecord> move)
     {
         var current = _store.Get();
+        // A pass that began before the operator disconnected says what it found about a profile that is gone: it is not told to anybody.
+        if (_passEpoch.Value is { } began && began != _epoch)
+        {
+            return current;
+        }
+
         var signingIn = current.State == ConnectionState.Connecting && _views.Active;
         // A pause that was asked for while a pass was reading is not undone by the pass that ends: the pass said what it found, and the state is quiet.
         var paused = current.State == ConnectionState.Paused && (current.PausedUntil is null || current.PausedUntil > _clock.GetUtcNow());
