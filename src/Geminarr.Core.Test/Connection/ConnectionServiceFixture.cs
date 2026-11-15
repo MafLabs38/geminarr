@@ -191,6 +191,19 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_make_a_session_for_a_live_view_that_was_closed_while_the_page_said_it_was_done()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+        subject.Pause(null);
+
+        subject.SignInEnded(signedIn: true);
+
+        subject.Current().State.Should().Be(ConnectionState.Paused);
+        _browser.Profile().HasSession.Should().BeFalse();
+    }
+
+    [Fact]
     public void should_not_touch_the_state_when_a_live_view_ends_after_the_state_was_settled()
     {
         var subject = Subject();

@@ -44,6 +44,15 @@ public sealed class ConnectionTracker
     /// <summary>No reader is configured, or the pass found no profile: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
     public ConnectionRecord NotConnected() => Atomically(() => WhenNobodyIsSigningIn(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
+    /// <summary>
+    /// The profile is gone from under a connection that had worked (the volume was replaced, the folder emptied by hand): the session is lost and a person must sign in again, which is told as such; a connection that
+    /// never worked has nothing to lose and stays not connected.
+    /// </summary>
+    public ConnectionRecord ProfileGone() => Atomically(() =>
+        _store.Get().LastOkAt is null
+            ? NotConnected()
+            : WhenNobodyIsSigningIn(() => Move(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, _store.Get().ConsecutiveFailures, ok: false)));
+
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
     {
