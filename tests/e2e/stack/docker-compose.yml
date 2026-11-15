@@ -21,6 +21,18 @@ services:
   browser:
     image: lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108
     shm_size: 1gb
+    # The hardening of the examples (deploy/), so that the end-to-end test proves that the browser container runs with it.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    security_opt:
+      - no-new-privileges:true
     environment:
       PUID: '1000'
       PGID: '1000'

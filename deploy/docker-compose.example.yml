@@ -26,6 +26,18 @@ services:
       - "127.0.0.1:3000:3000"
     secrets:
       - browser_password
+    # Hardening, tried on 2026-11-15 with this image: its init needs these few capabilities to set the user and the files, and nothing else (Chromium runs as the user it sets).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:

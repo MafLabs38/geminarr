@@ -41,15 +41,18 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             await using var browser = await AttachAsync(cancellationToken);
-            var page = await browser.Context.NewPageAsync();
-            try
+            return await OnTheBrowserAsync(async () =>
             {
-                return await LoadAsync(page, browser.Context, cancellationToken);
-            }
-            finally
-            {
-                await CloseQuietlyAsync(page);
-            }
+                var page = await browser.Context.NewPageAsync();
+                try
+                {
+                    return await LoadAsync(page, browser.Context, cancellationToken);
+                }
+                finally
+                {
+                    await CloseQuietlyAsync(page);
+                }
+            });
         }
         finally
         {
@@ -69,7 +72,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         {
             await using var browser = await AttachAsync(cancellationToken);
             // The session is the cookies: they go, and nothing else of the browser is touched.
-            await browser.Context.ClearCookiesAsync();
+            await OnTheBrowserAsync(async () =>
+            {
+                await browser.Context.ClearCookiesAsync();
+                return true;
+            });
         }
         finally
         {
@@ -107,6 +114,24 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         _reachable = 0;
         // The kind of failure only: the message of a browser's error holds its address and what it was doing.
         _logger.LogWarning("The browser container could not be reached ({Failure}).", failure);
+        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
+    }
+
+    /// <summary>What a browser that drops after the attachment throws is a browser that cannot be reached, said as such and never as an unforeseen error.</summary>
+    private async Task<T> OnTheBrowserAsync<T>(Func<Task<T>> work)
+    {
+        string failure;
+        try
+        {
+            return await work();
+        }
+        catch (PlaywrightException ex)
+        {
+            failure = ex.GetType().Name;
+        }
+
+        _reachable = 0;
+        _logger.LogWarning("The browser container dropped while it was used ({Failure}).", failure);
         throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
     }
 

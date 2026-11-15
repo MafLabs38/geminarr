@@ -289,10 +289,10 @@ The session (cookies, local storage) of the dedicated account is held by **a bro
 
 | State | Meaning | Passes | Signal to Mnemarr |
 |---|---|---|---|
-| `not-connected` | No browser configured, or nobody has signed in yet | none | `error: "Not connected."` |
+| `not-connected` | No browser configured, or the connection was just disconnected: nothing is read until a pass finds the browser | none | `error: "Not connected."` |
 | `connected` | Signed in and reading | yes | healthy |
 | `degraded` | Signed in but the last pass failed: reason `unreachable`, `rate-limited`, `reader-broken` or `browser-failed` (the browser container could not be reached) | backoff (§6.4) | `error` (+ `attention` for `reader-broken`) |
-| `needs-login` | The session is gone (N consecutive "not signed in") | none | `error` + `attention: needs-login` |
+| `needs-login` | Nobody is signed in to the browser, or the session is gone (N consecutive "not signed in"): a person signs in by hand | none | `error` + `attention: needs-login` |
 | `paused` | The operator asked for quiet (until a time or until resumed) | none | `paused: true` |
 
 A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`. A browser that cannot be reached is `browser-failed`, which asks nobody to sign in.

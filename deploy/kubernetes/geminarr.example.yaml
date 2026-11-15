@@ -153,6 +153,12 @@ spec:
             # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share).
             - name: CHROME_CLI
               value: --remote-debugging-port=9222
+          # Hardening, tried with Docker on 2026-11-15 (not yet on Kubernetes): the init of the image needs these few capabilities to set the user and the files, and nothing else.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
           readinessProbe:
             tcpSocket:
               port: desktop
@@ -161,8 +167,10 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 256Mi
             limits:
               memory: 2Gi   # Chromium with a page open
+              ephemeral-storage: 1Gi
           volumeMounts:
             - name: browser
               mountPath: /config
