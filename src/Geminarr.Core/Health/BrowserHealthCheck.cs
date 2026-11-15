@@ -36,9 +36,9 @@ public sealed class BrowserHealthCheck : IHealthCheck
             return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__CDPURL)."));
         }
 
-        if (_exposure.ExposedPorts() is { Count: > 0 } exposed)
+        if (_exposure.Check() is { IsExposed: true } exposure)
         {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, $"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", exposed)}. The desktop of the browser is closed until it is fixed."));
+            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, exposure.Describe()));
         }
 
         return Task.FromResult(

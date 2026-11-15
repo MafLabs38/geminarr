@@ -21,7 +21,7 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
     private readonly TimeProvider _clock;
     private readonly Lock _gate = new();
     private DateTimeOffset _readAt = DateTimeOffset.MinValue;
-    private IReadOnlyList<int> _exposed = [];
+    private ExposureReport _report = ExposureReport.None;
 
     public ProcBrowserExposure(IOptions<BrowserOptions> options, IServer server, TimeProvider clock)
     {
@@ -30,12 +30,12 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
         _clock = clock;
     }
 
-    public IReadOnlyList<int> ExposedPorts()
+    public ExposureReport Check()
     {
         var browser = _options.Value;
         if (string.IsNullOrWhiteSpace(browser.CdpUrl) && string.IsNullOrWhiteSpace(browser.DesktopUrl))
         {
-            return [];
+            return ExposureReport.None;
         }
 
         lock (_gate)
@@ -43,20 +43,26 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
             var now = _clock.GetUtcNow();
             if (now - _readAt >= KeepFor)
             {
-                _exposed = Read(browser);
+                _report = Read(browser);
                 _readAt = now;
             }
 
-            return _exposed;
+            return _report;
         }
     }
 
-    private IReadOnlyList<int> Read(BrowserOptions browser)
+    private ExposureReport Read(BrowserOptions browser)
     {
         var allowed = new HashSet<int>(OwnPorts());
         allowed.UnionWith(OriginPolicy.Entries(browser.AllowedOpenPorts).Select(int.Parse));
-        var lines = Files.Where(File.Exists).SelectMany(ReadLinesOrNone);
-        return [.. ListenerAudit.OffTheLoopback(lines, allowed)];
+        // The listing of IPv4 sockets always exists on Linux; the one of IPv6 only where IPv6 does. What cannot be read is not taken for isolated.
+        if (ReadLines(Files[0]) is not { } v4)
+        {
+            return new ExposureReport([], Unreadable: true);
+        }
+
+        var lines = v4.Concat(File.Exists(Files[1]) ? ReadLines(Files[1]) ?? [] : []);
+        return new ExposureReport([.. ListenerAudit.OffTheLoopback(lines, allowed)], Unreadable: File.Exists(Files[1]) && ReadLines(Files[1]) is null);
     }
 
     /// <summary>The ports that Geminarr itself listens on (<c>http://+:8282</c>, <c>http://0.0.0.0:8282</c>…): the one place that something may listen off the loopback.</summary>
@@ -66,16 +72,15 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
             .Where(match => match.Success)
             .Select(match => int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
 
-    private static IEnumerable<string> ReadLinesOrNone(string path)
+    private static string[]? ReadLines(string path)
     {
         try
         {
             return File.ReadAllLines(path);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // The listing of the namespace is not readable: nothing is known, and nothing is said.
-            return [];
+            return null;
         }
     }
 

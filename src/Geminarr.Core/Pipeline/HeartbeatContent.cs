@@ -15,6 +15,9 @@ public static class HeartbeatContent
         _ => DestinationProblems.Unreachable,
     };
 
+    /// <summary>What Mnemarr shows when the browser can be reached by something else than Geminarr: the most serious state, and it needs the operator.</summary>
+    public const string ExposedError = "The browser is not isolated: its desktop is closed.";
+
     /// <summary>A short sentence with no path and no content: what Mnemarr shows next to the machine.</summary>
     public static string? ErrorOf(ConnectionRecord connection)
     {

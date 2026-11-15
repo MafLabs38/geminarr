@@ -17,6 +17,9 @@ services:
       CHROME_CLI: --remote-debugging-port=9222 https://gemini.google.com/app
       # The web desktop is served under this path, where Geminarr relays it.
       SUBFOLDER: /browser/
+      # The only origin its WebSocket accepts: the one Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads can
+      # reach the desktop on the loopback, and is refused.
+      SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
     volumes:
       # The configuration of the browser, profile included: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
       - browser-config:/config

@@ -160,11 +160,16 @@ public sealed class BrowserRelayFixture
         var health = await client.GetFromJsonAsync<Geminarr.Api.V1.Health.HealthResource>("/api/v1/health", Token);
 
         closed.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        (await closed.Content.ReadAsStringAsync(Token)).Should().Contain("not isolated");
+        (await closed.Content.ReadAsStringAsync(Token)).Should().Contain("listens off the loopback: 3000");
         desktop.Seen.Should().BeEmpty("nothing is relayed to a desktop that others can reach");
         health!.Checks.Single(check => check.Name == "browser").Reason.Should().Be("browser-exposed");
 
         factory.Exposure.Ports.Clear();
+        factory.Exposure.Unreadable = true;
+        var unknown = await client.GetAsync("/browser/", Token);
+        factory.Exposure.Unreadable = false;
+
+        unknown.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "what cannot be checked is not taken for isolated");
         (await client.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -185,6 +190,21 @@ public sealed class BrowserRelayFixture
         (await client.SendAsync(Write("https://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a proxy that sends its own Host does not make the page foreign to itself");
         (await client.SendAsync(Write("https://geminarr.internal"), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.SendAsync(Write("https://evil.example"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task should_speak_to_the_desktop_with_the_one_origin_that_it_allows_whatever_the_page_of_the_person_is()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.SignedInClientAsync();
+        using var withOrigin = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+        withOrigin.Headers.Add("Origin", "http://localhost");
+
+        (await client.SendAsync(withOrigin, Token)).EnsureSuccessStatusCode();
+        (await client.GetAsync("/browser/", Token)).EnsureSuccessStatusCode();
+
+        desktop.Origins.Should().OnlyContain(origin => origin == "https://geminarr.invalid", "the desktop allows this origin, which no web page can have");
     }
 
     [Fact]

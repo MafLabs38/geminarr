@@ -15,12 +15,14 @@ public sealed class BrowserHealthCheckFixture
 
     private static string? Reason(HealthCheckResult result) => result.Data.TryGetValue(HealthReasons.Key, out var reason) ? reason as string : null;
 
-    private static Task<HealthCheckResult> Check(FakeBrowser browser, ReaderKind kind, params int[] exposed) =>
-        new BrowserHealthCheck(browser, Options.Of(new ReaderOptions { Kind = kind }), new FakeExposure(exposed)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+    private static Task<HealthCheckResult> Check(FakeBrowser browser, ReaderKind kind, params int[] exposed) => Check(browser, kind, new ExposureReport(exposed, Unreadable: false));
 
-    private sealed class FakeExposure(int[] ports) : IBrowserExposure
+    private static Task<HealthCheckResult> Check(FakeBrowser browser, ReaderKind kind, ExposureReport exposure) =>
+        new BrowserHealthCheck(browser, Options.Of(new ReaderOptions { Kind = kind }), new FixedExposure(exposure)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+
+    private sealed class FixedExposure(ExposureReport report) : IBrowserExposure
     {
-        public IReadOnlyList<int> ExposedPorts() => ports;
+        public ExposureReport Check() => report;
     }
 
     [Theory]
@@ -69,5 +71,15 @@ public sealed class BrowserHealthCheckFixture
         result.Status.Should().Be(HealthStatus.Degraded);
         Reason(result).Should().Be(ConnectionReasons.BrowserExposed);
         result.Description.Should().Contain("3000, 8082");
+    }
+
+    [Fact]
+    public async Task should_not_take_for_isolated_what_could_not_be_checked()
+    {
+        var result = await Check(new FakeBrowser { Reachable = true }, ReaderKind.Web, new ExposureReport([], Unreadable: true));
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+        Reason(result).Should().Be(ConnectionReasons.BrowserExposed);
+        result.Description.Should().Contain("could not be read");
     }
 }

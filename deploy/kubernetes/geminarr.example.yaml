@@ -172,6 +172,10 @@ spec:
             # The web desktop is served under this path, where Geminarr relays it.
             - name: SUBFOLDER
               value: /browser/
+            # The only origin its WebSocket accepts: the one Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads can
+            # reach the desktop on the loopback, and is refused.
+            - name: SELKIES_ALLOWED_ORIGINS
+              value: https://geminarr.invalid
           # Hardening, tried with Docker on 2026-11-15 (not yet on Kubernetes): the init of the image needs these few capabilities to set the user and the files, and nothing else.
           securityContext:
             allowPrivilegeEscalation: false

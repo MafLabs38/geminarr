@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Link;
@@ -34,10 +35,17 @@ public sealed class PassRunnerFixture : IDisposable
 
     public void Dispose() => _workspace.Dispose();
 
+    private ExposureReport _exposure = ExposureReport.None;
+
+    private sealed class FixedExposure(Func<ExposureReport> report) : IBrowserExposure
+    {
+        public ExposureReport Check() => report();
+    }
+
     private PassRunner Subject(bool withReader = true, ReaderOptions? options = null, string? publicUrl = null)
     {
         _link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
-        var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null));
+        var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null), new FixedExposure(() => _exposure));
         return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, _link, settings, _clock, NullLogger<PassRunner>.Instance);
     }
 
@@ -267,6 +275,26 @@ public sealed class PassRunnerFixture : IDisposable
         _connection.Current().Should().Be(before);
         _connection.Current().ConsecutiveFailures.Should().Be(0, "stepping aside is not a failure");
         _sink.Sent.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_not_read_through_a_browser_that_something_else_can_reach_and_tell_mnemarr()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var before = _connection.Current();
+        _sink.Sent.Clear();
+        _exposure = new ExposureReport([3000], Unreadable: false);
+        _reader.Say("c2", "T2", "b");
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.BrowserExposed));
+        _sink.Sent.Should().BeEmpty("nothing is read through it");
+        _connection.Current().Should().Be(before, "the connection keeps what it knew");
+        _sink.Heartbeats.Last().Error.Should().Be(HeartbeatContent.ExposedError);
+        _sink.Heartbeats.Last().Attention.Should().BeNull("it is the operator's to fix, and the mail is for a session");
     }
 
     [Fact]

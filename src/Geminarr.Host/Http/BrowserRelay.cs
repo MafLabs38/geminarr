@@ -60,11 +60,11 @@ public static class BrowserRelay
             }
 
             // A desktop that could be reached by something else than Geminarr is not relayed: the person is told why, and the health says it (browser-exposed).
-            if (context.RequestServices.GetRequiredService<IBrowserExposure>().ExposedPorts() is { Count: > 0 })
+            if (context.RequestServices.GetRequiredService<IBrowserExposure>().Check() is { IsExposed: true } exposure)
             {
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 await context.Response.WriteAsJsonAsync(
-                    new Microsoft.AspNetCore.Mvc.ProblemDetails { Status = StatusCodes.Status503ServiceUnavailable, Title = "The browser container is not isolated (a port listens off the loopback): its desktop is closed until it is fixed." },
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails { Status = StatusCodes.Status503ServiceUnavailable, Title = exposure.Describe() },
                     options: null,
                     contentType: "application/problem+json",
                     cancellationToken: context.RequestAborted);
@@ -153,6 +153,10 @@ public static class BrowserRelay
             // Geminarr's session is Geminarr's: the desktop never sees it.
             proxyRequest.Headers.Remove("Cookie");
             proxyRequest.Headers.Remove("Authorization");
+            // The desktop is told that it is Geminarr that speaks (its own list of allowed origins names this one and no web page can ever have it): a page that the browser itself loads can reach the desktop on the
+            // loopback, and must not be taken for the person's.
+            proxyRequest.Headers.Remove("Origin");
+            proxyRequest.Headers.TryAddWithoutValidation("Origin", BrowserOptions.RelayOrigin);
         }
 
         public override async ValueTask<bool> TransformResponseAsync(HttpContext httpContext, HttpResponseMessage? proxyResponse, CancellationToken cancellationToken)

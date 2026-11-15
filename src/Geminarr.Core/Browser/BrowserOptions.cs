@@ -25,6 +25,12 @@ public sealed class BrowserOptions
     /// <summary>Where Geminarr relays the web desktop of the browser; the desktop is told to serve itself under this path (<c>SUBFOLDER</c> of its image).</summary>
     public const string RelayPath = "/browser/";
 
+    /// <summary>
+    /// The origin that Geminarr gives the desktop for every request that it relays, whatever the page of the person is: the desktop is told to allow this origin and no other (<c>SELKIES_ALLOWED_ORIGINS</c> of its image).
+    /// It is a name that no web page can have (the <c>.invalid</c> domain is reserved and never resolves), so a page that the browser itself loads, and that can reach the desktop on the loopback, is refused.
+    /// </summary>
+    public const string RelayOrigin = "https://geminarr.invalid";
+
     /// <summary>The page of the assistant that is opened to check the session; its host is the only one Geminarr navigates to.</summary>
     public string AssistantUrl { get; set; } = "https://gemini.google.com/app";
 

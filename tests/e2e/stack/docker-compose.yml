@@ -38,6 +38,7 @@ services:
       PGID: '1000'
       # No login on the web desktop and nothing published for it: Geminarr relays it under /browser/, behind its own sign-in.
       SUBFOLDER: /browser/
+      SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
       CHROME_CLI: --remote-debugging-port=9222
     volumes:
       # The desktop listens on the loopback of the namespace only (the same script as the deployment examples').

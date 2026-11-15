@@ -24,6 +24,9 @@ public sealed class FakeDesktop : IAsyncDisposable
     /// <summary>What the desktop was sent: the path, and the cookie and the credentials if any came with it.</summary>
     public List<(string Path, string? Cookie, string? Authorization)> Seen { get; } = [];
 
+    /// <summary>The origin that each request came with, as the desktop saw it.</summary>
+    public List<string?> Origins { get; } = [];
+
     public static async Task<FakeDesktop> StartAsync()
     {
         var builder = WebApplication.CreateSlimBuilder();
@@ -34,6 +37,7 @@ public sealed class FakeDesktop : IAsyncDisposable
         app.Map("/browser/{**path}", async context =>
         {
             desktop!.Seen.Add((context.Request.Path, context.Request.Headers.Cookie.ToString() is { Length: > 0 } cookie ? cookie : null, context.Request.Headers.Authorization.ToString() is { Length: > 0 } authorization ? authorization : null));
+            desktop.Origins.Add(context.Request.Headers.Origin.ToString() is { Length: > 0 } origin ? origin : null);
             if (context.WebSockets.IsWebSocketRequest)
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();

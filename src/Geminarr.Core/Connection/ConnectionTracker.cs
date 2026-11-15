@@ -23,12 +23,13 @@ public sealed class ConnectionTracker
         _clock = clock;
     }
 
-    /// <summary>The state as it is now. A pause whose moment has come ends by itself, and is settled here, where everybody reads the state (the passes resume).</summary>
-    public ConnectionRecord Current() => Atomically(() =>
-    {
-        var record = _store.Get();
-        return record.State == ConnectionState.Paused && record.PausedUntil is { } until && until <= _clock.GetUtcNow() ? Resumed() : record;
-    });
+    /// <summary>The state as it is now: a read, which writes nothing. A pause whose moment has come has ended by itself, and what is read is what the resume will give; it is written by <see cref="Settle"/> (the passes do) or by the next move.</summary>
+    public ConnectionRecord Current() => Atomically(() => IsOver(_store.Get()) ? ResumedRecord(_store.Get()) : _store.Get());
+
+    /// <summary>Writes the end of a pause whose moment has come (a pass begins by it); anything else is left as it is.</summary>
+    public ConnectionRecord Settle() => Atomically(() => IsOver(_store.Get()) ? Resumed() : _store.Get());
+
+    private bool IsOver(ConnectionRecord record) => record.State == ConnectionState.Paused && record.PausedUntil is { } until && until <= _clock.GetUtcNow();
 
     /// <summary>A pass says what it found as of this moment: a disconnect that comes later makes it moot. Dispose ends the scope.</summary>
     public IDisposable BeginPass()
@@ -101,18 +102,22 @@ public sealed class ConnectionTracker
     public ConnectionRecord Paused(DateTimeOffset? until) => Atomically(() => Move(ConnectionState.Paused, ConnectionReasons.Paused, failures: 0, ok: false, until, BeforeTakingOver()));
 
     /// <summary>Quiet is over: the state is what it was before, and the next pass says the rest.</summary>
-    public ConnectionRecord Resumed() => Atomically(() => BackToWhatItWas() ?? NothingToGoBackTo());
+    public ConnectionRecord Resumed() => Atomically(() => Save(ResumedRecord(_store.Get())));
 
-    /// <summary>The operator resumes: only what is paused is resumed, and the reading and the move are one step (a pause that ended by itself just before is not resumed a second time).</summary>
-    public ConnectionRecord ResumedIfPaused() => Atomically(() => Current().State == ConnectionState.Paused ? Resumed() : _store.Get());
+    /// <summary>The operator resumes: only what is paused is resumed (a pause that ended by itself included), and the reading and the move are one step (a pause that ended just before is not resumed a second time).</summary>
+    public ConnectionRecord ResumedIfPaused() => Atomically(() => _store.Get().State == ConnectionState.Paused ? Resumed() : _store.Get());
 
-    /// <summary>Nothing worked before the pause (or nothing was known): the connection is not made yet; otherwise it was good and the next pass says so.</summary>
-    private ConnectionRecord NothingToGoBackTo()
+    /// <summary>What the resume gives, from a record: what the connection was before the pause, or, when nothing worked before it, not connected; otherwise it was good and the next pass says so.</summary>
+    private ConnectionRecord ResumedRecord(ConnectionRecord current)
     {
-        var current = _store.Get();
+        if (current.Before is { State: not (ConnectionState.NotConnected or ConnectionState.Paused) } before)
+        {
+            return Build(current, before.State, before.Reason, before.Failures, ok: false);
+        }
+
         return current.Before is { State: ConnectionState.NotConnected } || current.LastOkAt is null
-            ? Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)
-            : Move(ConnectionState.Connected, reason: null, failures: 0, ok: false);
+            ? Build(current, ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)
+            : Build(current, ConnectionState.Connected, reason: null, failures: 0, ok: false);
     }
 
     /// <summary>
@@ -147,20 +152,19 @@ public sealed class ConnectionTracker
         return current.State == ConnectionState.Paused ? current.Before : new ConnectionBefore(current.State, current.LastReason, current.ConsecutiveFailures);
     }
 
-    private ConnectionRecord? BackToWhatItWas()
+    private ConnectionRecord Move(ConnectionState state, string? reason, int failures, bool ok, DateTimeOffset? pausedUntil = null, ConnectionBefore? before = null) =>
+        Save(Build(_store.Get(), state, reason, failures, ok, pausedUntil, before));
+
+    /// <summary>The record that a move would write, from the one that is there: pure, so that a read can say what a move would give without giving it.</summary>
+    private ConnectionRecord Build(ConnectionRecord current, ConnectionState state, string? reason, int failures, bool ok, DateTimeOffset? pausedUntil = null, ConnectionBefore? before = null)
     {
-        var current = _store.Get();
-        return current.Before is { State: not (ConnectionState.NotConnected or ConnectionState.Paused) } before
-            ? Move(before.State, before.Reason, before.Failures, ok: false)
-            : null;
+        var now = _clock.GetUtcNow();
+        return new ConnectionRecord(state, state == current.State ? current.Since : now, ok ? now : current.LastOkAt, failures, reason, pausedUntil, before);
     }
 
-    private ConnectionRecord Move(ConnectionState state, string? reason, int failures, bool ok, DateTimeOffset? pausedUntil = null, ConnectionBefore? before = null)
+    private ConnectionRecord Save(ConnectionRecord next)
     {
-        var current = _store.Get();
-        var now = _clock.GetUtcNow();
-        var next = new ConnectionRecord(state, state == current.State ? current.Since : now, ok ? now : current.LastOkAt, failures, reason, pausedUntil, before);
-        if (next != current)
+        if (next != _store.Get())
         {
             _store.Save(next);
         }

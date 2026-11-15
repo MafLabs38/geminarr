@@ -173,10 +173,17 @@ public sealed class PassRunner
             return;
         }
 
-        // Asked for quiet: nothing is read.
-        if (_connection.Current().State == ConnectionState.Paused)
+        // A pause whose moment has come ends here, written (a read only says it); one that has not is asked for quiet: nothing is read.
+        if (_connection.Settle().State == ConnectionState.Paused)
         {
             state.Fail(RunOutcomes.Skipped, ConnectionReasons.Paused);
+            return;
+        }
+
+        // A browser that something else than Geminarr could reach is not used (ADR 0017): the heartbeat says so, and the connection keeps what it knew.
+        if (_settings.Exposure.Check().IsExposed)
+        {
+            state.Fail(RunOutcomes.Skipped, ConnectionReasons.BrowserExposed);
             return;
         }
 
@@ -459,7 +466,7 @@ public sealed class PassRunner
 
         try
         {
-            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl), connection.State == ConnectionState.Paused), cancellationToken);
+            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), _settings.Exposure.Check().IsExposed ? HeartbeatContent.ExposedError : HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl), connection.State == ConnectionState.Paused), cancellationToken);
         }
         catch (SinkException ex)
         {

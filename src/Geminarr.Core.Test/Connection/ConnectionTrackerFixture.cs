@@ -166,4 +166,21 @@ public sealed class ConnectionTrackerFixture : IDisposable
         subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "the pause gives back what it took over");
         subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "and a second resume changes nothing");
     }
+
+    [Fact]
+    public void should_say_what_the_end_of_a_pause_gives_when_read_and_write_it_only_when_settled()
+    {
+        var store = new ConnectionStore(_workspace.Database, _clock);
+        var subject = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
+        subject.Connected();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        _clock.Advance(TimeSpan.FromHours(2));
+
+        subject.Current().State.Should().Be(ConnectionState.Connected, "the pause is over: this is what it gives");
+        store.Get().State.Should().Be(ConnectionState.Paused, "a read writes nothing");
+
+        subject.Settle().State.Should().Be(ConnectionState.Connected);
+        store.Get().State.Should().Be(ConnectionState.Connected, "settled: it is written");
+        subject.Settle().Should().Be(store.Get(), "settling what is settled changes nothing");
+    }
 }
