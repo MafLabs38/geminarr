@@ -2,6 +2,7 @@ using System.Net;
 using Geminarr.Api.V1.Access;
 using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
+using Geminarr.Core.Configuration;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Forwarder;
 
@@ -71,7 +72,14 @@ public static class BrowserRelay
                 return;
             }
 
-            if (FromAnotherOrigin(context))
+            // The desktop's client reads its pages and opens one WebSocket: no write goes over HTTP, and what else the image's web server offers (files, other services) is not relayed.
+            if (!IsRelayed(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, context.RequestServices.GetRequiredService<AllowedHostList>(), context.RequestServices.GetRequiredService<IOptions<GeminarrOptions>>().Value.PublicUrl))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -100,18 +108,34 @@ public static class BrowserRelay
     }
 
     /// <summary>
-    /// Whether a page of another origin sends this request: the handshake of a WebSocket is not bound by the same-origin policy, and a write to the desktop (a POST, a PUT) is a write whoever sends it.
-    /// The cookie of the session is <c>SameSite=Strict</c>; the origin is checked on top, where the browser says it (a request that names none is not from a page), against the names the page may be reached by.
+    /// What the relay forwards (ADR 0017): the pages of the desktop's client (a read), its WebSocket and its status. Not a write, not the files and not the other services that the image's web server offers: the client does not
+    /// use them, and a page of the desktop is served on Geminarr's own origin.
     /// </summary>
-    private static bool FromAnotherOrigin(HttpContext context)
+    public static bool IsRelayed(HttpRequest request)
     {
-        var safe = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method) || HttpMethods.IsOptions(context.Request.Method);
-        if (safe && !context.WebSockets.IsWebSocketRequest)
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method))
         {
             return false;
         }
 
-        if (context.Request.Headers.Origin.ToString() is not { Length: > 0 } origin)
+        var api = BrowserOptions.RelayPath + "api";
+        if (request.Path.StartsWithSegments(api, StringComparison.OrdinalIgnoreCase))
+        {
+            return request.Path.Equals(api + "/websockets", StringComparison.OrdinalIgnoreCase) || request.Path.Equals(api + "/status", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return !request.Path.StartsWithSegments(BrowserOptions.RelayPath + "pelorus", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Whether the origin that a WebSocket handshake names is another than the page's: a handshake is not bound by the same-origin policy, and the cookie of the session is only <c>SameSite</c>, which another port
+    /// of the same host (a hostile page) would not stop. A request that names no origin is not from a page. The origin is the page's when it is the public address (<paramref name="publicUrl"/>: a proxy on a port of its
+    /// own, or one that sends no port in its Host header), or the host and the port of the request (a direct access: the scheme cannot be told behind a proxy that ends TLS); or, when a proxy sends a Host of its own,
+    /// one of the names the page may be reached by, on a default port, and then only if the list of names says something (not <c>*</c>).
+    /// </summary>
+    public static bool IsFromAnotherOrigin(string? origin, HostString host, AllowedHostList hosts, string? publicUrl)
+    {
+        if (string.IsNullOrEmpty(origin))
         {
             return false;
         }
@@ -121,16 +145,16 @@ public static class BrowserRelay
             return true;
         }
 
-        // The page of the person is on the host and the port that its browser used (the scheme cannot be told behind a proxy that ends TLS, but a site on another port, on the same host, is another origin that the
-        // cookie, which is only SameSite, would still follow).
-        var request = context.Request.Host;
-        if (string.Equals(uri.Host, request.Host, StringComparison.OrdinalIgnoreCase))
+        if (Uri.TryCreate(publicUrl, UriKind.Absolute, out var page) && string.Equals(page.Host, uri.Host, StringComparison.OrdinalIgnoreCase) && page.Port == uri.Port)
         {
-            return request.Port is { } port ? uri.Port != port : !uri.IsDefaultPort;
+            return false;
         }
 
-        // A proxy that sends a Host of its own: the origin must still be one of the names the page may be reached by (the list that admits the Host), on a default port, and the list must say something (not `*`).
-        var hosts = context.RequestServices.GetRequiredService<AllowedHostList>();
+        if (string.Equals(uri.Host, host.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort;
+        }
+
         return hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
     }
 

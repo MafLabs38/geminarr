@@ -25,6 +25,12 @@ public sealed class BrowserHealthCheck : IHealthCheck
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        // Whatever the reader is: a browser container that something else could reach is the most serious state there is (it says nothing when no browser is configured).
+        if (_exposure.Check() is { IsExposed: true } exposure)
+        {
+            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, exposure.Describe()));
+        }
+
         if (_reader.Value.Kind != ReaderKind.Web)
         {
             return Task.FromResult(HealthCheckResult.Healthy());
@@ -34,11 +40,6 @@ public sealed class BrowserHealthCheck : IHealthCheck
         if (!state.Configured)
         {
             return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__CDPURL)."));
-        }
-
-        if (_exposure.Check() is { IsExposed: true } exposure)
-        {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, exposure.Describe()));
         }
 
         return Task.FromResult(

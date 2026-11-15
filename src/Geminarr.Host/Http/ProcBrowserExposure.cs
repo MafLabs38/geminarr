@@ -14,8 +14,9 @@ namespace Geminarr.Host.Http;
 public sealed partial class ProcBrowserExposure : IBrowserExposure
 {
     private static readonly TimeSpan KeepFor = TimeSpan.FromSeconds(15);
-    private static readonly string[] Files = ["/proc/net/tcp", "/proc/net/tcp6"];
+    private static readonly string[] ProcFiles = ["/proc/net/tcp", "/proc/net/tcp6"];
 
+    private readonly string[] _files;
     private readonly IOptions<BrowserOptions> _options;
     private readonly IServer _server;
     private readonly TimeProvider _clock;
@@ -24,7 +25,14 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
     private ExposureReport _report = ExposureReport.None;
 
     public ProcBrowserExposure(IOptions<BrowserOptions> options, IServer server, TimeProvider clock)
+        : this(options, server, clock, ProcFiles)
     {
+    }
+
+    /// <summary>For a test: the listings are files of its own (the IPv4 one, then the IPv6 one).</summary>
+    public ProcBrowserExposure(IOptions<BrowserOptions> options, IServer server, TimeProvider clock, string[] files)
+    {
+        _files = files;
         _options = options;
         _server = server;
         _clock = clock;
@@ -56,13 +64,14 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
         var allowed = new HashSet<int>(OwnPorts());
         allowed.UnionWith(OriginPolicy.Entries(browser.AllowedOpenPorts).Select(int.Parse));
         // The listing of IPv4 sockets always exists on Linux; the one of IPv6 only where IPv6 does. What cannot be read is not taken for isolated.
-        if (ReadLines(Files[0]) is not { } v4)
+        if (ReadLines(_files[0]) is not { } v4)
         {
             return new ExposureReport([], Unreadable: true);
         }
 
-        var lines = v4.Concat(File.Exists(Files[1]) ? ReadLines(Files[1]) ?? [] : []);
-        return new ExposureReport([.. ListenerAudit.OffTheLoopback(lines, allowed)], Unreadable: File.Exists(Files[1]) && ReadLines(Files[1]) is null);
+        var v6Exists = File.Exists(_files[1]);
+        var v6 = v6Exists ? ReadLines(_files[1]) : [];
+        return new ExposureReport([.. ListenerAudit.OffTheLoopback(v4.Concat(v6 ?? []), allowed)], Unreadable: v6Exists && v6 is null);
     }
 
     /// <summary>The ports that Geminarr itself listens on (<c>http://+:8282</c>, <c>http://0.0.0.0:8282</c>…): the one place that something may listen off the loopback.</summary>

@@ -22,10 +22,10 @@ public sealed class FakeDesktop : IAsyncDisposable
     public string Url { get; }
 
     /// <summary>What the desktop was sent: the path, and the cookie and the credentials if any came with it.</summary>
-    public List<(string Path, string? Cookie, string? Authorization)> Seen { get; } = [];
+    public System.Collections.Concurrent.ConcurrentQueue<(string Path, string? Cookie, string? Authorization)> Seen { get; } = new();
 
     /// <summary>The origin that each request came with, as the desktop saw it.</summary>
-    public List<string?> Origins { get; } = [];
+    public System.Collections.Concurrent.ConcurrentQueue<string?> Origins { get; } = new();
 
     public static async Task<FakeDesktop> StartAsync()
     {
@@ -36,15 +36,31 @@ public sealed class FakeDesktop : IAsyncDisposable
         app.UseWebSockets();
         app.Map("/browser/{**path}", async context =>
         {
-            desktop!.Seen.Add((context.Request.Path, context.Request.Headers.Cookie.ToString() is { Length: > 0 } cookie ? cookie : null, context.Request.Headers.Authorization.ToString() is { Length: > 0 } authorization ? authorization : null));
-            desktop.Origins.Add(context.Request.Headers.Origin.ToString() is { Length: > 0 } origin ? origin : null);
+            desktop!.Seen.Enqueue((context.Request.Path, context.Request.Headers.Cookie.ToString() is { Length: > 0 } cookie ? cookie : null, context.Request.Headers.Authorization.ToString() is { Length: > 0 } authorization ? authorization : null));
+            desktop.Origins.Enqueue(context.Request.Headers.Origin.ToString() is { Length: > 0 } origin ? origin : null);
             if (context.WebSockets.IsWebSocketRequest)
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
                 var buffer = new byte[64];
-                var received = await socket.ReceiveAsync(buffer, context.RequestAborted);
-                await socket.SendAsync(buffer.AsMemory(0, received.Count), WebSocketMessageType.Text, endOfMessage: true, context.RequestAborted);
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", context.RequestAborted);
+                try
+                {
+                    // It echoes what it is sent until the other end closes (or the relay ends the socket): a desktop does not hang up by itself.
+                    while (socket.State == WebSocketState.Open)
+                    {
+                        var received = await socket.ReceiveAsync(buffer, context.RequestAborted);
+                        if (received.MessageType == WebSocketMessageType.Close)
+                        {
+                            break;
+                        }
+
+                        await socket.SendAsync(buffer.AsMemory(0, received.Count), WebSocketMessageType.Text, endOfMessage: true, context.RequestAborted);
+                    }
+                }
+                catch (Exception ex) when (ex is WebSocketException or OperationCanceledException)
+                {
+                    // The other end went away.
+                }
+
                 return;
             }
 

@@ -113,16 +113,22 @@ public sealed class BrowserRelayFixture
         logout.Headers.Add("X-Geminarr-Request", "1");
         logout.Headers.Add("Cookie", cookie);
 
+        // It is open and relayed before the sign-out: what is sent comes back.
+        await socket.SendAsync(Encoding.UTF8.GetBytes("hello"), WebSocketMessageType.Text, endOfMessage: true, Token);
+        var echo = await socket.ReceiveAsync(new byte[64], Token);
+        echo.MessageType.Should().Be(WebSocketMessageType.Text);
+        desktop.Seen.Should().ContainSingle("the desktop has the one socket");
+
         (await client.SendAsync(logout, Token)).EnsureSuccessStatusCode();
-        // The check of the session is a tick of the application's clock: the test moves it, and does not wait for it.
+        // The check of the session is a tick of the application's clock: the test gives it one, a few seconds of that clock (the session lasts hours), and does not wait for it.
         using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
         patience.CancelAfter(TimeSpan.FromSeconds(30));
         var ticking = Task.Run(async () =>
         {
-            while (!patience.IsCancellationRequested)
+            for (var tick = 0; tick < 5 && !patience.IsCancellationRequested; tick++)
             {
                 factory.Clock!.Advance(TimeSpan.FromSeconds(6));
-                await Task.Delay(50, CancellationToken.None);
+                await Task.Delay(200, CancellationToken.None);
             }
         }, CancellationToken.None);
         var ended = false;
@@ -142,22 +148,28 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
-    public async Task should_refuse_a_write_that_a_page_of_another_origin_sends_and_pass_one_of_the_same_origin()
+    public async Task should_relay_what_the_client_of_the_desktop_reads_and_nothing_else_of_what_its_server_offers()
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
         using var client = await factory.SignedInClientAsync();
-        using var foreign = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
-        foreign.Headers.Add("Origin", "https://evil.example");
-        using var own = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
-        own.Headers.Add("Origin", "http://localhost");
-        using var read = new HttpRequestMessage(HttpMethod.Get, "/browser/") { };
-        read.Headers.Add("Origin", "https://evil.example");
 
-        (await client.SendAsync(foreign, Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await client.SendAsync(own, Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.SendAsync(read, Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a read changes nothing, and the cookie is SameSite=Strict");
-        desktop.Seen.Select(seen => seen.Path).Should().BeEquivalentTo(["/browser/api/clipboard", "/browser/"]);
+        (await client.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/browser/assets/index.js", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/browser/api/status", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/browser/api/websockets", Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a handshake is a GET: the origin is judged when it is one");
+        var refused = new[]
+        {
+            await client.GetAsync("/browser/api/files", Token),
+            await client.GetAsync("/browser/api/", Token),
+            await client.GetAsync("/browser/pelorus/stream", Token),
+            await client.PostAsync("/browser/api/clipboard", new StringContent("x"), Token),
+            await client.PutAsync("/browser/assets/index.js", new StringContent("x"), Token),
+            await client.DeleteAsync("/browser/assets/index.js", Token),
+        };
+
+        refused.Should().OnlyContain(response => response.StatusCode == HttpStatusCode.NotFound, "no write goes over HTTP, and the files and the other services of the image's web server are not the relay's");
+        desktop.Seen.Select(seen => seen.Path).Should().BeEquivalentTo(["/browser/", "/browser/assets/index.js", "/browser/api/status", "/browser/api/websockets"]);
     }
 
     [Fact]
@@ -169,6 +181,7 @@ public sealed class BrowserRelayFixture
         factory.Exposure.Ports.Add(3000);
 
         var closed = await client.GetAsync("/browser/", Token);
+        (await client.GetAsync("/browser/api/websockets", Token)).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "the WebSocket is as closed as the page");
         var health = await client.GetFromJsonAsync<Geminarr.Api.V1.Health.HealthResource>("/api/v1/health", Token);
 
         closed.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
@@ -186,51 +199,12 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
-    public async Task should_not_take_another_port_of_the_same_host_for_the_page()
-    {
-        await using var desktop = await FakeDesktop.StartAsync();
-        using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
-        HttpRequestMessage Write(string origin)
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
-            request.Headers.Host = "localhost:8282";
-            request.Headers.Add("Origin", origin);
-            return request;
-        }
-
-        (await client.SendAsync(Write("http://localhost:8282"), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.SendAsync(Write("https://localhost:8282"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "the scheme cannot be told behind a proxy that ends TLS");
-        (await client.SendAsync(Write("http://localhost:9000"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "a hostile page on another port of the same host is another origin");
-        (await client.SendAsync(Write("http://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task should_judge_an_origin_by_the_names_the_page_may_be_reached_by_and_not_by_the_host_a_proxy_sends()
-    {
-        await using var desktop = await FakeDesktop.StartAsync();
-        using var factory = new RelayFactory(desktop.Url, allowedHostNames: "localhost;geminarr.internal");
-        using var client = await factory.SignedInClientAsync();
-        HttpRequestMessage Write(string origin)
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
-            request.Headers.Host = "geminarr.internal:8282";
-            request.Headers.Add("Origin", origin);
-            return request;
-        }
-
-        (await client.SendAsync(Write("https://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a proxy that sends its own Host does not make the page foreign to itself");
-        (await client.SendAsync(Write("https://evil.example"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await client.SendAsync(Write("http://localhost:9000"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "another site on the same host is not the page, even if the host is a name the page has");
-    }
-
-    [Fact]
     public async Task should_speak_to_the_desktop_with_the_one_origin_that_it_allows_whatever_the_page_of_the_person_is()
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
         using var client = await factory.SignedInClientAsync();
-        using var withOrigin = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+        using var withOrigin = new HttpRequestMessage(HttpMethod.Get, "/browser/assets/index.js");
         withOrigin.Headers.Add("Origin", "http://localhost");
 
         (await client.SendAsync(withOrigin, Token)).EnsureSuccessStatusCode();
