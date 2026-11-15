@@ -360,8 +360,18 @@ test.describe('smoke @smoke', () => {
     expect(anonymous.headers().location).toBe('/');
     expect((await request.get('/browser/api/websockets', { maxRedirects: 0 })).status()).toBe(302);
 
-    // The desktop is no port of the machine: it listens in the namespace of the two containers and nowhere else, and it has no login of its own.
+    // The desktop is no port of the machine, and no other container of the network reaches it: it listens on the loopback of the namespace of the two containers, and it has no login of its own.
     await expect(request.get('http://localhost:3000/', { timeout: 5_000 })).rejects.toThrow();
+    const reaches = async (port: number) =>
+      (
+        (await (await request.get(`http://localhost:8091/admin/reach?host=browser&port=${port}`)).json()) as {
+          open: boolean;
+        }
+      ).open;
+    expect(await reaches(8282), "the control: Geminarr's own port is open to the network").toBe(true);
+    expect(await reaches(3000), 'the desktop is not').toBe(false);
+    expect(await reaches(3001), 'nor its TLS port').toBe(false);
+    expect(await reaches(9222), 'nor the debugging port').toBe(false);
 
     const api = await signedInRequest(playwright, required(baseURL));
     const page = await api.get('/browser/');

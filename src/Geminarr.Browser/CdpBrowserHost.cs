@@ -21,7 +21,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly ILogger<CdpBrowserHost> _logger;
     private readonly SemaphoreSlim _attached = new(1, 1);
     private const int ListTimeoutSeconds = 5;
-    private static readonly HttpClient Tabs = new() { Timeout = TimeSpan.FromSeconds(2 * ListTimeoutSeconds) };
+    private static readonly HttpClient Tabs = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;

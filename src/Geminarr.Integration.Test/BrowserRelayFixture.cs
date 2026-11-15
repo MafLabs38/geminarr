@@ -4,6 +4,7 @@ using System.Text;
 using Geminarr.Integration.Test.Support;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Geminarr.Integration.Test;
@@ -94,6 +95,84 @@ public sealed class BrowserRelayFixture
         await FluentActions.Awaiting(() => ConnectAsync(socketAddress, "https://evil.example", cookie)).Should().ThrowAsync<WebSocketException>("a page of another origin does not open a WebSocket to the desktop");
         await FluentActions.Awaiting(() => ConnectAsync(socketAddress, address.GetLeftPart(UriPartial.Authority), cookie: null)).Should().ThrowAsync<WebSocketException>("nor does anybody without a session");
         desktop.Seen.Should().ContainSingle("only the first one reached the desktop");
+    }
+
+    [Fact]
+    public async Task should_end_a_websocket_with_the_session_that_opened_it()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        factory.UseKestrel(0);
+        factory.StartServer();
+        var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
+        var cookie = await SessionCookieAsync(factory, address);
+        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookie);
+        using var client = new HttpClient { BaseAddress = address };
+        using var logout = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        logout.Headers.Add("X-Geminarr-Request", "1");
+        logout.Headers.Add("Cookie", cookie);
+
+        (await client.SendAsync(logout, Token)).EnsureSuccessStatusCode();
+        using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        patience.CancelAfter(TimeSpan.FromSeconds(30));
+        var ended = false;
+        try
+        {
+            ended = (await socket.ReceiveAsync(new byte[64], patience.Token)).MessageType == WebSocketMessageType.Close;
+        }
+        catch (WebSocketException)
+        {
+            ended = true;
+        }
+
+        ended.Should().BeTrue("the desktop does not go on for somebody who signed out");
+    }
+
+    [Fact]
+    public async Task should_refuse_a_write_that_a_page_of_another_origin_sends_and_pass_one_of_the_same_origin()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.SignedInClientAsync();
+        using var foreign = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+        foreign.Headers.Add("Origin", "https://evil.example");
+        using var own = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+        own.Headers.Add("Origin", "http://localhost");
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/browser/") { };
+        read.Headers.Add("Origin", "https://evil.example");
+
+        (await client.SendAsync(foreign, Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.SendAsync(own, Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(read, Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a read changes nothing, and the cookie is SameSite=Strict");
+        desktop.Seen.Select(seen => seen.Path).Should().BeEquivalentTo(["/browser/api/clipboard", "/browser/"]);
+    }
+
+    [Fact]
+    public async Task should_say_bad_gateway_when_the_desktop_is_not_there_yet()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        var gone = desktop.Url;
+        await desktop.DisposeAsync();
+        using var factory = new RelayFactory(gone);
+        using var client = await factory.SignedInClientAsync();
+
+        var response = await client.GetAsync("/browser/", Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway, "the browser container may be starting: the page says so, and the operator's pages are unaffected");
+    }
+
+    [Theory]
+    [InlineData("/browser", true)]
+    [InlineData("/browser/", true)]
+    [InlineData("/browser/assets/app.js", true)]
+    [InlineData("/BROWSER/x", true)]
+    [InlineData("/browserx", false)]
+    [InlineData("/browser-x/", false)]
+    [InlineData("/api/v1/browser", false)]
+    [InlineData("/", false)]
+    public void should_give_the_loose_policy_to_the_path_of_the_relay_and_to_no_other(string path, bool relay)
+    {
+        Geminarr.Host.Http.BrowserRelay.IsRelayPath(new PathString(path)).Should().Be(relay);
     }
 
     private static async Task<ClientWebSocket> ConnectAsync(Uri address, string origin, string? cookie)

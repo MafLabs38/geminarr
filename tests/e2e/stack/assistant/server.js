@@ -1,6 +1,7 @@
 // A fake assistant for the end-to-end tests: a synthetic page that needs a sign-in, on its own host, like the real one. Nothing here is real.
 // `assistant` is the assistant (the page of the conversations), `signin` is the account provider's sign-in page. A POST to /admin/expire (on `assistant`) ends every session, as an expiry would.
 const http = require('node:http');
+const net = require('node:net');
 
 const sessions = new Set();
 let counter = 0;
@@ -87,6 +88,22 @@ function admin(request, response, url) {
   if (url.pathname === '/admin/expire' && request.method === 'POST') {
     sessions.clear();
     send(response, 204, undefined);
+    return true;
+  }
+  if (url.pathname === '/admin/reach' && request.method === 'GET') {
+    // Whether another container of the network can open a port of the browser container: a test of its isolation, from the outside (this one is outside).
+    const socket = net.connect({
+      host: url.searchParams.get('host') ?? '',
+      port: Number(url.searchParams.get('port')),
+      timeout: 3000,
+    });
+    const answer = (open) => {
+      socket.destroy();
+      send(response, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ open }));
+    };
+    socket.once('connect', () => answer(true));
+    socket.once('error', () => answer(false));
+    socket.once('timeout', () => answer(false));
     return true;
   }
   if (url.pathname === '/admin/visits' && request.method === 'GET') {

@@ -1,4 +1,6 @@
 using System.Net;
+using Geminarr.Api.V1.Access;
+using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Forwarder;
@@ -12,8 +14,11 @@ namespace Geminarr.Host.Http;
 /// </summary>
 public static class BrowserRelay
 {
-    private const string PathPattern = "/browser/{**path}";
+    private const string PathPattern = BrowserOptions.RelayPath + "{**path}";
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(30);
+
+    /// <summary>How often an open WebSocket looks at whether the session that opened it is still there.</summary>
+    private static readonly TimeSpan SessionCheck = TimeSpan.FromSeconds(5);
 
     /// <summary>Whether the path is the relay's: its pages draw the screen of another program and need other headers than Geminarr's own (see <see cref="SecurityHeaders"/>).</summary>
     public static bool IsRelayPath(PathString path) => path.StartsWithSegments(BrowserOptions.RelayPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
@@ -21,7 +26,7 @@ public static class BrowserRelay
     public static IServiceCollection AddGeminarrBrowserRelay(this IServiceCollection services)
     {
         services.AddHttpForwarder();
-        services.AddSingleton(new RelayClient(new HttpMessageInvoker(new SocketsHttpHandler
+        services.AddSingleton(_ => new RelayClient(new HttpMessageInvoker(new SocketsHttpHandler
         {
             UseProxy = false,
             AllowAutoRedirect = false,
@@ -54,26 +59,76 @@ public static class BrowserRelay
                 return;
             }
 
-            if (IsForeignWebSocket(context))
+            if (FromAnotherOrigin(context))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
             }
 
-            var error = await forwarder.SendAsync(context, destination, client, request, RelayTransformer.Instance);
-            if (error != ForwarderError.None && !context.Response.HasStarted)
+            // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
+            using var stop = new CancellationTokenSource();
+            var watching = context.WebSockets.IsWebSocketRequest
+                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
+                : Task.CompletedTask;
+            try
             {
-                context.Response.StatusCode = StatusCodes.Status502BadGateway;
+                var error = await forwarder.SendAsync(context, destination, client, request, RelayTransformer.Instance);
+                if (error != ForwarderError.None && !context.Response.HasStarted)
+                {
+                    context.Response.StatusCode = StatusCodes.Status502BadGateway;
+                }
+            }
+            finally
+            {
+                await stop.CancelAsync();
+                await watching;
             }
         });
         return app;
     }
 
-    /// <summary>A WebSocket that a page of another origin opens: the cookie of the session is <c>SameSite=Strict</c>, and the origin is checked all the same, as the handshake of a WebSocket is not bound by the same-origin policy.</summary>
-    private static bool IsForeignWebSocket(HttpContext context) =>
-        context.WebSockets.IsWebSocketRequest
-        && context.Request.Headers.Origin.ToString() is { Length: > 0 } origin
-        && (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || !string.Equals(uri.Authority, context.Request.Host.Value, StringComparison.OrdinalIgnoreCase));
+    /// <summary>
+    /// Whether a page of another origin sends this request: the handshake of a WebSocket is not bound by the same-origin policy, and a write to the desktop (a POST, a PUT) is a write whoever sends it.
+    /// The cookie of the session is <c>SameSite=Strict</c>; the origin is checked on top, where the browser says it (a request that names none is not from a page).
+    /// </summary>
+    private static bool FromAnotherOrigin(HttpContext context)
+    {
+        var safe = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method) || HttpMethods.IsOptions(context.Request.Method);
+        if (safe && !context.WebSockets.IsWebSocketRequest)
+        {
+            return false;
+        }
+
+        if (context.Request.Headers.Origin.ToString() is not { Length: > 0 } origin)
+        {
+            return false;
+        }
+
+        // The host and the port that the person's browser used (the proxy keeps the Host header): the default port of the scheme is the one that the origin leaves out.
+        return !Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Host, context.Request.Host.Host, StringComparison.OrdinalIgnoreCase)
+            || (context.Request.Host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort);
+    }
+
+    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, string? sessionId, CancellationToken stop)
+    {
+        using var timer = new PeriodicTimer(SessionCheck);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stop))
+            {
+                if (!sessions.IsActive(sessionId))
+                {
+                    context.Abort();
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The WebSocket ended by itself.
+        }
+    }
 
     /// <summary>The one client of the relay, in a type of its own so that no other service takes it for theirs.</summary>
     public sealed record RelayClient(HttpMessageInvoker Invoker);
@@ -94,6 +149,8 @@ public static class BrowserRelay
         {
             var proceed = await base.TransformResponseAsync(httpContext, proxyResponse, cancellationToken);
             httpContext.Response.Headers.Remove("Set-Cookie");
+            // A service worker that the desktop registers must not reach beyond its own path, whatever the desktop says: Geminarr's own pages are not its to control.
+            httpContext.Response.Headers.Remove("Service-Worker-Allowed");
             return proceed;
         }
     }

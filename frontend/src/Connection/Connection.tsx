@@ -55,19 +55,21 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
   const [sure, setSure] = useState(false);
   const paused = connection.state === 'Paused';
   const failure = pause.error ?? resume.error ?? disconnect.error;
+  // A second click while a request is on its way would send it twice (a disconnect attaches to the browser each time).
+  const busy = pause.isPending || resume.isPending || disconnect.isPending;
 
   return (
     <div className={styles.actions}>
       {paused ? (
-        <Button variant="quiet" onClick={() => resume.mutate()}>
+        <Button disabled={busy} variant="quiet" onClick={() => resume.mutate()}>
           {translate('ResumePasses')}
         </Button>
       ) : (
         <>
-          <Button variant="quiet" onClick={() => pause.mutate(PAUSE_HOURS)}>
+          <Button disabled={busy} variant="quiet" onClick={() => pause.mutate(PAUSE_HOURS)}>
             {translate('PauseHours', { hours: PAUSE_HOURS })}
           </Button>
-          <Button variant="quiet" onClick={() => pause.mutate(null)}>
+          <Button disabled={busy} variant="quiet" onClick={() => pause.mutate(null)}>
             {translate('PauseUntilResumed')}
           </Button>
         </>
@@ -75,7 +77,11 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
       {sure ? (
         <>
           <span>{translate('DisconnectConfirm')}</span>
-          <Button variant="danger" onClick={() => disconnect.mutate(undefined, { onSettled: () => setSure(false) })}>
+          <Button
+            disabled={busy}
+            variant="danger"
+            onClick={() => disconnect.mutate(undefined, { onSettled: () => setSure(false) })}
+          >
             {translate('DisconnectNow')}
           </Button>
           <Button variant="quiet" onClick={() => setSure(false)}>
@@ -83,7 +89,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
           </Button>
         </>
       ) : (
-        <Button variant="danger" onClick={() => setSure(true)}>
+        <Button disabled={busy} variant="danger" onClick={() => setSure(true)}>
           {translate('Disconnect')}
         </Button>
       )}
@@ -92,7 +98,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
   );
 }
 
-/** The session of the assistant: its state, where a person signs in (the browser container's own page), pause and resume, and the way to clear the session (SPEC §7, ADR 0016). */
+/** The session of the assistant: its state, where a person signs in (the browser container's desktop, relayed under /browser/), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
 export default function Connection() {
   const { data, error, isPending } = useConnection();
   const reason = reasonKeyOf(data?.reason ?? null);

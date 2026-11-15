@@ -20,6 +20,8 @@ services:
     volumes:
       # The configuration of the browser, profile included: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
       - browser-config:/config
+      # Makes the web desktop listen on the loopback of the namespace and nowhere else: it has no sign-in, so nothing but Geminarr may reach it (ADR 0017). Executable, from this repository.
+      - ./browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
     ports:
       # Geminarr's own page, the one port: on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
       # Never publish 3000 (the web desktop) or 9222 (the debugging port): they are for Geminarr alone.

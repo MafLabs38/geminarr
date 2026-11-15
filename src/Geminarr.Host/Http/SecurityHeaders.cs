@@ -13,7 +13,7 @@ public static class SecurityHeaders
     // scripts are inline. It is the only path that is given this much, it is behind the sign-in, and it is never framed.
     private const string RelayContentSecurityPolicy =
         "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; "
-        + "connect-src 'self' ws: wss: blob: data:; worker-src 'self' blob:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+        + "connect-src 'self' blob: data:; worker-src 'self' blob:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 
     /// <summary>
     /// Conservative headers on every response, errors included: they are set when the response starts, because the

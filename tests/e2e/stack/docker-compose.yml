@@ -39,6 +39,9 @@ services:
       # No login on the web desktop and nothing published for it: Geminarr relays it under /browser/, behind its own sign-in.
       SUBFOLDER: /browser/
       CHROME_CLI: --remote-debugging-port=9222
+    volumes:
+      # The desktop listens on the loopback of the namespace only (the same script as the deployment examples').
+      - ../../../deploy/browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
     ports:
       - '8282:8282'
       # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
