@@ -50,6 +50,12 @@ public sealed class ConnectionService
     {
         if (signedIn)
         {
+            // The view may have been closed (a pause, a disconnect) while the page was saying that it is done: a session is not made for a live view that is gone.
+            if (!_views.Active)
+            {
+                return;
+            }
+
             _browser.MarkSignedIn();
             _tracker.SignedIn();
         }

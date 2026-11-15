@@ -262,16 +262,28 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_say_not_connected_when_the_reader_finds_no_profile()
+    public async Task should_say_not_connected_when_the_reader_finds_no_profile_and_nothing_ever_worked()
     {
         _reader.Session = SessionCheck.NoProfile;
-        _connection.Connected();
 
         var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
 
         result!.Reason.Should().Be(ConnectionReasons.NotConnected);
         _connection.Current().State.Should().Be(ConnectionState.NotConnected);
         _sink.Heartbeats.Last().Error.Should().Be("Not connected.");
+    }
+
+    [Fact]
+    public async Task should_ask_for_a_sign_in_when_a_session_that_worked_has_lost_its_profile()
+    {
+        _reader.Session = SessionCheck.NoProfile;
+        _connection.Connected();
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        result!.Reason.Should().Be(ConnectionReasons.NeedsLogin);
+        _connection.Current().State.Should().Be(ConnectionState.NeedsLogin);
+        _sink.Heartbeats.Last().Attention!.Code.Should().Be(ConnectionReasons.NeedsLogin);
     }
 
     [Fact]

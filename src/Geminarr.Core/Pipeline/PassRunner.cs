@@ -185,8 +185,8 @@ public sealed class PassRunner
             var session = await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken);
             if (session == SessionCheck.NoProfile)
             {
-                _connection.NotConnected();
-                state.Fail(RunOutcomes.Skipped, ConnectionReasons.NotConnected);
+                var record = _connection.ProfileGone();
+                state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : ConnectionReasons.NotConnected);
                 return;
             }
 
