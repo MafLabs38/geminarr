@@ -20,6 +20,9 @@ public sealed class AllowedHostList
         }
     }
 
+    /// <summary>Whether every name is allowed (<c>*</c>): the list then says nothing about who a page is.</summary>
+    public bool AllowsAny => _any;
+
     /// <summary>Whether a <c>Host</c> header names an allowed host. A missing or empty one is not.</summary>
     public bool IsAllowed(string? hostHeader)
     {

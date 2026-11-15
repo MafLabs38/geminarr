@@ -75,4 +75,24 @@ public sealed class BrowserOptionsValidatorFixture
     {
         new BrowserOptionsValidator().Validate(null, new BrowserOptions { AllowedOpenPorts = ports }).Failed.Should().Be(!valid);
     }
+
+    [Theory]
+    [InlineData("3000")]
+    [InlineData("3001")]
+    [InlineData("9222")]
+    [InlineData("15001;3000")]
+    public void should_never_tolerate_the_port_of_the_desktop_or_of_the_debugging_address(string ports)
+    {
+        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222", AllowedOpenPorts = ports };
+
+        new BrowserOptionsValidator().Validate(null, options).Failed.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_tolerate_the_port_of_a_mesh_proxy()
+    {
+        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222", AllowedOpenPorts = "15001;15006;15021" };
+
+        new BrowserOptionsValidator().Validate(null, options).Succeeded.Should().BeTrue();
+    }
 }

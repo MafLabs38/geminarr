@@ -406,7 +406,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
 | `BROWSER__SESSIONCOOKIES` | **`SID;__Secure-1PSID`** | The names of the cookies that say the account is signed in (a guest mode shows the page to a visitor) |
 | `BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages whose redirect says the session is gone |
-| `BROWSER__ALLOWEDOPENPORTS` | none | Sandbox or test only: ports that may listen off the loopback of the shared namespace without the browser being called exposed |
+| `BROWSER__ALLOWEDOPENPORTS` | none | Ports that other containers of the pod open on purpose off the loopback (a mesh proxy, an exporter), not to be taken for the browser being exposed; never the desktop's or the debugging port |
 | `BROWSER__SIGNINGINPASSES` | **3** | Passes in a row that step aside while a tab is on a sign-in page; then the session is checked as usual |
 | `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **30** | How long the attachment and the assistant's page may take |
 | `BROWSER__ALLOWINSECUREASSISTANT` | **`false`** | A sandbox or a test only: plain http for the assistant and the sign-in pages |

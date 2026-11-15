@@ -44,8 +44,8 @@ public sealed class BrowserOptions
     public string SessionCookies { get; set; } = "SID;__Secure-1PSID";
 
     /// <summary>
-    /// A sandbox or a test only: ports that may listen off the loopback of the shared namespace without Geminarr calling the browser exposed (the test relay of the end-to-end stack), separated by <c>;</c>.
-    /// Nothing else is ever tolerated: the web desktop and the debugging port have no sign-in.
+    /// Ports that other containers of the same pod open on purpose, off the loopback, and that Geminarr must not take for the browser being exposed (a service-mesh proxy, a metrics exporter; the test relay of the
+    /// end-to-end stack), separated by <c>;</c>. Never the web desktop's or the debugging port: they have no sign-in (the start is refused).
     /// </summary>
     public string AllowedOpenPorts { get; set; } = string.Empty;
 
@@ -74,7 +74,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
-            ?? (OriginPolicy.Entries(options.AllowedOpenPorts).All(port => int.TryParse(port, out var number) && number is >= 1 and <= 65535) ? null : "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) must be port numbers separated by semicolons.")
+            ?? OpenPorts(options)
             ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problem);
     }
@@ -89,6 +89,21 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         }
 
         return null;
+    }
+
+    /// <summary>The ports that are tolerated off the loopback are port numbers, and none is the browser's own: its desktop (and the TLS port that goes with it) and its debugging port have no sign-in.</summary>
+    private static string? OpenPorts(BrowserOptions options)
+    {
+        var ports = OriginPolicy.Entries(options.AllowedOpenPorts);
+        if (!ports.All(port => int.TryParse(port, out var number) && number is >= 1 and <= 65535))
+        {
+            return "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) must be port numbers separated by semicolons.";
+        }
+
+        var browser = new[] { options.DesktopUrl, options.CdpUrl }.Where(address => Uri.TryCreate(address, UriKind.Absolute, out _)).Select(address => new Uri(address!).Port).Concat([3001]);
+        return ports.Select(int.Parse).Intersect(browser).Any()
+            ? "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) may not name the port of the browser's desktop or debugging address: they have no sign-in."
+            : null;
     }
 
     /// <summary>The debugging address is the key to the session and the web desktop has no sign-in of its own (Geminarr's is the only one): both are the loopback of the namespace the two containers share, never an address of a network.</summary>

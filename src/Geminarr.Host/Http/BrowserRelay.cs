@@ -80,7 +80,7 @@ public static class BrowserRelay
             // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
             using var stop = new CancellationTokenSource();
             var watching = context.WebSockets.IsWebSocketRequest
-                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
+                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.RequestServices.GetRequiredService<TimeProvider>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
                 : Task.CompletedTask;
             try
             {
@@ -116,13 +116,27 @@ public static class BrowserRelay
             return false;
         }
 
-        // The names the page may be reached by (the same list that admits the Host, so a proxy that rewrites the Host header works): the origin of a page of the product is one of them, with any port.
-        return !Uri.TryCreate(origin, UriKind.Absolute, out var uri) || !context.RequestServices.GetRequiredService<AllowedHostList>().IsAllowed(uri.Authority);
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+        {
+            return true;
+        }
+
+        // The page of the person is on the host and the port that its browser used (the scheme cannot be told behind a proxy that ends TLS, but a site on another port, on the same host, is another origin that the
+        // cookie, which is only SameSite, would still follow).
+        var request = context.Request.Host;
+        if (string.Equals(uri.Host, request.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return request.Port is { } port ? uri.Port != port : !uri.IsDefaultPort;
+        }
+
+        // A proxy that sends a Host of its own: the origin must still be one of the names the page may be reached by (the list that admits the Host), on a default port, and the list must say something (not `*`).
+        var hosts = context.RequestServices.GetRequiredService<AllowedHostList>();
+        return hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
     }
 
-    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, string? sessionId, CancellationToken stop)
+    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, TimeProvider clock, string? sessionId, CancellationToken stop)
     {
-        using var timer = new PeriodicTimer(SessionCheck);
+        using var timer = new PeriodicTimer(SessionCheck, clock);
         try
         {
             while (await timer.WaitForNextTickAsync(stop))

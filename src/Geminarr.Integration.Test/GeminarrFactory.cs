@@ -289,11 +289,15 @@ public sealed class RelayFactory : GeminarrFactoryBase
 {
     private readonly string _desktopUrl;
 
-    public RelayFactory(string desktopUrl, string? allowedHostNames = null)
+    public RelayFactory(string desktopUrl, string? allowedHostNames = null, bool movableClock = false)
         : base(createFolder: true)
     {
         _desktopUrl = desktopUrl;
         _allowedHostNames = allowedHostNames;
+        if (movableClock)
+        {
+            Clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
+        }
     }
 
     private readonly string? _allowedHostNames;

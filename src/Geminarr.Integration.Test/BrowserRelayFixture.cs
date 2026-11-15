@@ -102,7 +102,7 @@ public sealed class BrowserRelayFixture
     public async Task should_end_a_websocket_with_the_session_that_opened_it()
     {
         await using var desktop = await FakeDesktop.StartAsync();
-        using var factory = new RelayFactory(desktop.Url);
+        using var factory = new RelayFactory(desktop.Url, movableClock: true);
         factory.UseKestrel(0);
         factory.StartServer();
         var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
@@ -114,8 +114,17 @@ public sealed class BrowserRelayFixture
         logout.Headers.Add("Cookie", cookie);
 
         (await client.SendAsync(logout, Token)).EnsureSuccessStatusCode();
+        // The check of the session is a tick of the application's clock: the test moves it, and does not wait for it.
         using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
         patience.CancelAfter(TimeSpan.FromSeconds(30));
+        var ticking = Task.Run(async () =>
+        {
+            while (!patience.IsCancellationRequested)
+            {
+                factory.Clock!.Advance(TimeSpan.FromSeconds(6));
+                await Task.Delay(50, CancellationToken.None);
+            }
+        }, CancellationToken.None);
         var ended = false;
         try
         {
@@ -125,6 +134,9 @@ public sealed class BrowserRelayFixture
         {
             ended = true;
         }
+
+        await patience.CancelAsync();
+        await ticking;
 
         ended.Should().BeTrue("the desktop does not go on for somebody who signed out");
     }
@@ -174,6 +186,26 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
+    public async Task should_not_take_another_port_of_the_same_host_for_the_page()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.SignedInClientAsync();
+        HttpRequestMessage Write(string origin)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/browser/api/clipboard") { Content = new StringContent("x") };
+            request.Headers.Host = "localhost:8282";
+            request.Headers.Add("Origin", origin);
+            return request;
+        }
+
+        (await client.SendAsync(Write("http://localhost:8282"), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(Write("https://localhost:8282"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "the scheme cannot be told behind a proxy that ends TLS");
+        (await client.SendAsync(Write("http://localhost:9000"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "a hostile page on another port of the same host is another origin");
+        (await client.SendAsync(Write("http://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task should_judge_an_origin_by_the_names_the_page_may_be_reached_by_and_not_by_the_host_a_proxy_sends()
     {
         await using var desktop = await FakeDesktop.StartAsync();
@@ -188,8 +220,8 @@ public sealed class BrowserRelayFixture
         }
 
         (await client.SendAsync(Write("https://localhost"), Token)).StatusCode.Should().Be(HttpStatusCode.OK, "a proxy that sends its own Host does not make the page foreign to itself");
-        (await client.SendAsync(Write("https://geminarr.internal"), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.SendAsync(Write("https://evil.example"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.SendAsync(Write("http://localhost:9000"), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "another site on the same host is not the page, even if the host is a name the page has");
     }
 
     [Fact]
