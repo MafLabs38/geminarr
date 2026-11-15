@@ -25,6 +25,12 @@ public sealed class BrowserOptions
     /// <summary>The sign-in pages of the account provider: a redirect to one of them says that the session is gone.</summary>
     public string SignInHosts { get; set; } = "accounts.google.com";
 
+    /// <summary>
+    /// The names (never the values) of the cookies that say that the account is signed in, separated by <c>;</c>: one of them must be in the browser. The assistant's page is shown to a visitor who is not
+    /// signed in (a guest mode), so the page alone does not say it. Empty: the page alone decides.
+    /// </summary>
+    public string SessionCookies { get; set; } = "SID;__Secure-1PSID";
+
     /// <summary>A sandbox or a test only: the assistant and the sign-in pages may be on plain http.</summary>
     public bool AllowInsecureAssistant { get; set; }
 

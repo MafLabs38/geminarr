@@ -66,6 +66,8 @@ services:
       GEMINARR__BROWSER__PAGEURL: http://localhost:3000/
       GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
       GEMINARR__BROWSER__SIGNINHOSTS: signin
+      # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
+      GEMINARR__BROWSER__SESSIONCOOKIES: assistant
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab

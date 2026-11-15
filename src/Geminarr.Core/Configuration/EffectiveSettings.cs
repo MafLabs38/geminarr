@@ -74,6 +74,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__BROWSER__PAGEURL", string.IsNullOrWhiteSpace(_browser.Value.PageUrl) ? "not set" : _browser.Value.PageUrl, false),
         new("GEMINARR__BROWSER__ASSISTANTURL", _browser.Value.AssistantUrl, false),
         new("GEMINARR__BROWSER__SIGNINHOSTS", _browser.Value.SignInHosts, false),
+        new("GEMINARR__BROWSER__SESSIONCOOKIES", _browser.Value.SessionCookies, false),
         new("GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS", _browser.Value.SessionCheckTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__ALLOWINSECUREASSISTANT", _browser.Value.AllowInsecureAssistant ? "true" : "false", false),
         new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),

@@ -194,8 +194,8 @@ test.describe('smoke @smoke', () => {
     await signIn(page);
 
     const connection = page.getByRole('region', { name: 'Connection' });
-    // Nobody has signed in to the browser: not connected before the first pass, and asking for a sign-in once a pass has found the assistant's sign-in page.
-    await expect(connection.getByText(/^(Not connected|Sign in again)$/)).toBeVisible();
+    // Nobody has signed in to the browser: not connected before the first pass, degraded if that pass ran before the browser container was up, and asking for a sign-in once a pass has found nobody signed in.
+    await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
     await expect(connection.getByText('Not linked')).toBeVisible();
     // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
     const passes = page.getByRole('region', { name: 'Latest passes' });

@@ -44,7 +44,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             var page = await browser.Context.NewPageAsync();
             try
             {
-                return await LoadAsync(page, cancellationToken);
+                return await LoadAsync(page, browser.Context, cancellationToken);
             }
             finally
             {
@@ -110,7 +110,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
     }
 
-    private async Task<SessionCheck> LoadAsync(IPage page, CancellationToken cancellationToken)
+    private async Task<SessionCheck> LoadAsync(IPage page, IBrowserContext context, CancellationToken cancellationToken)
     {
         string? failure = null;
         try
@@ -134,7 +134,10 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return SessionVerdict.Decide(signInRedirectSeen: false, OriginPolicy.Classify(page.Url, Options));
+        var kind = OriginPolicy.Classify(page.Url, Options);
+        // The names of the cookies of the assistant's address, never their values: they say whether the account is signed in, which a guest page does not.
+        var names = kind == PageKind.Assistant ? (await context.CookiesAsync([Options.AssistantUrl])).Select(cookie => cookie.Name) : [];
+        return SessionVerdict.Decide(signInRedirectSeen: false, kind, SessionVerdict.HasSessionCookie(names, Options));
     }
 
     private static async Task CloseQuietlyAsync(IPage page)

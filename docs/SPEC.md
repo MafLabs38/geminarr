@@ -303,7 +303,7 @@ A pause **takes a state over and gives it back**: the record keeps the state, it
 
 1. The page *Connection* says that nobody has signed in and gives a link to **the page of the browser container** (`GEMINARR__BROWSER__PAGEURL`), behind the single sign-on and the browser's own login, opened in a tab of its own.
 2. The person signs in **by hand** to the dedicated account in that page (approving on their phone), once, and again whenever the provider asks.
-3. The next pass attaches to the browser, opens a page of its own on the assistant's address and looks at where it ends: the assistant's page means signed in (`connected`), a redirect to a sign-in page means signed out. What "signed in" looks like on the real page (a guest mode shows the assistant's page to a visitor) is measured by spike S1.
+3. The next pass attaches to the browser, opens a page of its own on the assistant's address and looks at where it ends, and at the **names** of the cookies of that address: the assistant's page **with a cookie of a signed-in account** (`SID`, `__Secure-1PSID`) means signed in (`connected`); a redirect to a sign-in page, or the assistant's page without such a cookie (Gemini shows its page to a visitor who is not signed in: measured on 2026-11-15) means signed out. No value of a cookie is read.
 4. *Disconnect* clears the cookies of the browser (and forgets the connection); the state is `not-connected`, and a person signs in again by hand.
 
 Geminarr never touches a page that it did not open, never changes the settings of the browser, and lets go of the browser after each attachment. What Chromium itself may reach is the network policy of the pod's (D-08, [network.md](network.md)).
@@ -403,6 +403,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
 | `BROWSER__CDPURL`, `BROWSER__PAGEURL` | none, none | The debugging address of the browser container (the loopback of a shared namespace: the key to the session) and the page where a person signs in |
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
+| `BROWSER__SESSIONCOOKIES` | **`SID;__Secure-1PSID`** | The names of the cookies that say the account is signed in (a guest mode shows the page to a visitor) |
 | `BROWSER__ASSISTANTURL`, `BROWSER__SIGNINHOSTS` | **`https://gemini.google.com/app`**, **`accounts.google.com`** | The page of the assistant that a pass opens, and the sign-in pages whose redirect says the session is gone |
 | `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **30** | How long the attachment and the assistant's page may take |
 | `BROWSER__VIEWPORTWIDTH`, `BROWSER__VIEWPORTHEIGHT` | **1280**, **800** | The size of the browser's screen |
