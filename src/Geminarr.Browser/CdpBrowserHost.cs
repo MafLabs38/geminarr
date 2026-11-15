@@ -23,6 +23,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private const int ListTimeoutSeconds = 5;
     private static readonly HttpClient Tabs = new() { Timeout = TimeSpan.FromSeconds(2 * ListTimeoutSeconds) };
 
+    private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
     private volatile int _reachable = -1;
 
@@ -47,7 +48,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             // Attaching makes a program of every tab of the browser for a moment: not while a person is typing on a sign-in page.
-            if (await APersonIsSigningInAsync(cancellationToken))
+            if (_signingIn.StepsAside(await ATabIsOnASignInPageAsync(cancellationToken), Options.SigningInPasses))
             {
                 return SessionCheck.SigningIn;
             }
@@ -107,7 +108,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     /// Whether a tab of the browser is on a sign-in page, read from the list of tabs that the debugging port serves over plain HTTP: nothing is attached to read it. A browser that does not answer is not a person
     /// signing in (the attachment says what is wrong).
     /// </summary>
-    private async Task<bool> APersonIsSigningInAsync(CancellationToken cancellationToken)
+    private async Task<bool> ATabIsOnASignInPageAsync(CancellationToken cancellationToken)
     {
         string failure;
         try

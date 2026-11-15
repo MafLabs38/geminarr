@@ -34,12 +34,14 @@ public sealed class SessionVerdictFixture
         decide.Should().Throw<ReaderException>().Which.Reason.Should().Be(ConnectionReasons.ReaderBroken);
     }
 
-
     [Theory]
     [InlineData("page", "https://accounts.example/signin/v2", true)]
     [InlineData("page", "https://accounts.example/", true)]
     [InlineData("page", "https://assistant.example/app", false)]
     [InlineData("page", "chrome://newtab/", false)]
+    [InlineData("page", "https://ACCOUNTS.example:8443/signin", true)]
+    [InlineData("page", "https://accounts.example.evil.example/", false)]
+    [InlineData("page", "not an address", false)]
     [InlineData("page", null, false)]
     [InlineData("service_worker", "https://accounts.example/sw.js", false)]
     [InlineData("background_page", "https://accounts.example/", false)]

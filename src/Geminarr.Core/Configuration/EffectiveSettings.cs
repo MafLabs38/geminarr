@@ -76,6 +76,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__BROWSER__SIGNINHOSTS", _browser.Value.SignInHosts, false),
         new("GEMINARR__BROWSER__SESSIONCOOKIES", _browser.Value.SessionCookies, false),
         new("GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS", _browser.Value.SessionCheckTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__BROWSER__SIGNINGINPASSES", _browser.Value.SigningInPasses.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__ALLOWINSECUREASSISTANT", _browser.Value.AllowInsecureAssistant ? "true" : "false", false),
         new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];

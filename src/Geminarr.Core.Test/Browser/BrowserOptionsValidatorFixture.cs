@@ -54,4 +54,12 @@ public sealed class BrowserOptionsValidatorFixture
     {
         new BrowserOptionsValidator().Validate(null, new BrowserOptions()).Succeeded.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public void should_refuse_a_number_of_passes_out_of_range_for_a_person_signing_in(int passes)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { SigningInPasses = passes }).Failed.Should().BeTrue();
+    }
 }

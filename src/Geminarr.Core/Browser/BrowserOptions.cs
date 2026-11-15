@@ -34,6 +34,12 @@ public sealed class BrowserOptions
     /// <summary>A sandbox or a test only: the assistant and the sign-in pages may be on plain http.</summary>
     public bool AllowInsecureAssistant { get; set; }
 
+    /// <summary>
+    /// How many passes in a row step aside because a tab of the browser is on a sign-in page (a person is signing in). A tab that stays there longer is not somebody typing (an account picker left open, a prompt
+    /// never finished): the pass then looks at the session as usual.
+    /// </summary>
+    public int SigningInPasses { get; set; } = 3;
+
     /// <summary>How long the page of the assistant may take to load when the session is checked.</summary>
     public int SessionCheckTimeoutSeconds { get; set; } = 30;
 }
@@ -48,7 +54,8 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             ?? Loopback(options.CdpUrl)
             ?? Address("PageUrl", options.PageUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
-            ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.");
+            ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
+            ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problem);
     }
 

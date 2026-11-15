@@ -39,7 +39,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `mnemarr-insecure-address` | The address is plain http to a host that is not the loopback | Use https, or, in a sandbox only, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP=true` |
 | `outbox-growing` | Something has waited for Mnemarr for more than an hour | Look at the `mnemarr` check: it says why |
 | `paused` | The operator asked for quiet | *Resume* on the page *Connection* |
-| `signing-in` (the reason of a skipped run, not a state) | A tab of the browser is on a sign-in page: a person is signing in, so the pass attached to nothing and said nothing of the session | Finish the sign-in, or close the tab. A tab that stays on a sign-in page for as many passes in a row as `GEMINARR__READER__LOGINFAILURES` counts as nobody signed in, and the state turns `needs-login` |
+| `signing-in` (the reason of a skipped run, not a state) | A tab of the browser is on a sign-in page: a person is signing in, so the pass attached to nothing and said nothing of the session | Finish the sign-in, or close the tab. A tab that stays on a sign-in page for `GEMINARR__BROWSER__SIGNINGINPASSES` passes in a row stops making the pass step aside: the session is then checked as usual (attached, measured), and the state says what is found |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 
 ## Recover

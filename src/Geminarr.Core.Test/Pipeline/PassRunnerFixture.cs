@@ -269,38 +269,6 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_count_a_sign_in_tab_that_stays_open_as_nobody_signed_in_after_as_many_passes_as_a_sign_in_takes()
-    {
-        _reader.Session = SessionCheck.SigningIn;
-        var subject = Subject();
-
-        // LoginFailures is 2: two passes step aside, then each counts as a pass that found nobody signed in.
-        (await subject.RunAsync(TestContext.Current.CancellationToken))!.Reason.Should().Be(ConnectionReasons.SigningIn);
-        (await subject.RunAsync(TestContext.Current.CancellationToken))!.Reason.Should().Be(ConnectionReasons.SigningIn);
-        _connection.Current().State.Should().Be(ConnectionState.NotConnected);
-        await subject.RunAsync(TestContext.Current.CancellationToken);
-        await subject.RunAsync(TestContext.Current.CancellationToken);
-
-        _connection.Current().State.Should().Be(ConnectionState.NeedsLogin);
-    }
-
-    [Fact]
-    public async Task should_start_counting_again_when_a_pass_finds_something_other_than_a_sign_in()
-    {
-        _reader.Say("c1", "T", "a");
-        var subject = Subject();
-        _reader.Session = SessionCheck.SigningIn;
-        await subject.RunAsync(TestContext.Current.CancellationToken);
-        _reader.Session = SessionCheck.SignedIn;
-        await subject.RunAsync(TestContext.Current.CancellationToken);
-        _reader.Session = SessionCheck.SigningIn;
-
-        (await subject.RunAsync(TestContext.Current.CancellationToken))!.Reason.Should().Be(ConnectionReasons.SigningIn);
-        (await subject.RunAsync(TestContext.Current.CancellationToken))!.Reason.Should().Be(ConnectionReasons.SigningIn);
-        _connection.Current().State.Should().Be(ConnectionState.Connected);
-    }
-
-    [Fact]
     public async Task should_say_not_connected_when_the_reader_finds_no_browser()
     {
         _reader.Session = SessionCheck.NoBrowser;
