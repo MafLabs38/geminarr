@@ -4,6 +4,8 @@ const http = require('node:http');
 
 const sessions = new Set();
 let counter = 0;
+// A guest mode shows the page of the assistant to a visitor who is not signed in (as the real one does), without the cookie of an account.
+let guest = false;
 
 const page = (title, body) =>
   `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="margin:0;font-family:sans-serif">${body}</body></html>`;
@@ -33,6 +35,7 @@ function signInPage(request, response, url) {
     request.on('end', () => {
       const token = `s${++counter}`;
       sessions.add(token);
+    guest = false;
       send(response, 302, { Location: `http://assistant:8081/auth?t=${token}` });
     });
     return;
@@ -61,6 +64,10 @@ function app(request, response) {
     );
     return;
   }
+  if (guest) {
+    send(response, 200, { 'Content-Type': 'text/html' }, page('Fake assistant', '<h1 style="margin:40px">Fake assistant: guest</h1>'));
+    return;
+  }
   send(response, 302, { Location: 'http://signin:8081/signin?next=/app' });
 }
 
@@ -74,6 +81,12 @@ function admin(request, response, url) {
   }
   if (url.pathname === '/admin/expire' && request.method === 'POST') {
     sessions.clear();
+    send(response, 204, undefined);
+    return true;
+  }
+  if (url.pathname === '/admin/guest' && request.method === 'POST') {
+    sessions.clear();
+    guest = true;
     send(response, 204, undefined);
     return true;
   }

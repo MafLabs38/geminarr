@@ -7,14 +7,13 @@ namespace Geminarr.Core.Test.Browser;
 public sealed class SessionVerdictFixture
 {
     [Theory]
-    [InlineData(false, PageKind.Assistant, true, SessionCheck.SignedIn)]
-    [InlineData(false, PageKind.Assistant, false, SessionCheck.SignedOut)]
-    [InlineData(true, PageKind.Assistant, true, SessionCheck.SignedOut)]
-    [InlineData(true, PageKind.Other, true, SessionCheck.SignedOut)]
-    [InlineData(false, PageKind.SignIn, true, SessionCheck.SignedOut)]
-    public void should_say_signed_out_when_sent_to_sign_in_or_without_the_cookie_of_an_account_and_signed_in_on_the_assistants_page_with_it(bool redirectSeen, PageKind page, bool cookie, SessionCheck expected)
+    [InlineData(PageKind.Assistant, true, SessionCheck.SignedIn)]
+    [InlineData(PageKind.Assistant, false, SessionCheck.SignedOut)]
+    [InlineData(PageKind.SignIn, true, SessionCheck.SignedOut)]
+    [InlineData(PageKind.SignIn, false, SessionCheck.SignedOut)]
+    public void should_say_signed_out_when_sent_to_sign_in_or_without_the_cookie_of_an_account_and_signed_in_on_the_assistants_page_with_it(PageKind page, bool cookie, SessionCheck expected)
     {
-        SessionVerdict.Decide(redirectSeen, page, cookie).Should().Be(expected);
+        SessionVerdict.Decide(page, cookie).Should().Be(expected);
     }
 
     [Theory]
@@ -31,16 +30,9 @@ public sealed class SessionVerdictFixture
     [Fact]
     public void should_say_the_reader_is_broken_when_the_page_is_neither_the_assistants_nor_a_sign_in()
     {
-        var decide = () => SessionVerdict.Decide(signInRedirectSeen: false, PageKind.Other, sessionCookiePresent: true);
+        var decide = () => SessionVerdict.Decide(PageKind.Other, sessionCookiePresent: true);
 
         decide.Should().Throw<ReaderException>().Which.Reason.Should().Be(ConnectionReasons.ReaderBroken);
     }
 
-    [Theory]
-    [InlineData(true, ConnectionReasons.ReaderBroken)]
-    [InlineData(false, ConnectionReasons.Unreachable)]
-    public void should_blame_the_page_when_the_policy_refused_it_and_the_network_otherwise(bool refused, string reason)
-    {
-        SessionVerdict.ReasonOfLoadFailure(refused).Should().Be(reason);
-    }
 }

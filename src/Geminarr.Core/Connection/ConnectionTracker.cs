@@ -101,8 +101,16 @@ public sealed class ConnectionTracker
     public ConnectionRecord Paused(DateTimeOffset? until) => Atomically(() => Move(ConnectionState.Paused, ConnectionReasons.Paused, failures: 0, ok: false, until, BeforeTakingOver()));
 
     /// <summary>Quiet is over: the state is what it was before, and the next pass says the rest.</summary>
-    public ConnectionRecord Resumed() =>
-        Atomically(() => BackToWhatItWas() ?? (_store.Get().Before is { State: ConnectionState.NotConnected } || _store.Get().LastOkAt is null ? Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false) : Move(ConnectionState.Connected, reason: null, failures: 0, ok: false)));
+    public ConnectionRecord Resumed() => Atomically(() => BackToWhatItWas() ?? NothingToGoBackTo());
+
+    /// <summary>Nothing worked before the pause (or nothing was known): the connection is not made yet; otherwise it was good and the next pass says so.</summary>
+    private ConnectionRecord NothingToGoBackTo()
+    {
+        var current = _store.Get();
+        return current.Before is { State: ConnectionState.NotConnected } || current.LastOkAt is null
+            ? Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)
+            : Move(ConnectionState.Connected, reason: null, failures: 0, ok: false);
+    }
 
     /// <summary>
     /// A move reads the record and writes it: two at once (a pass, a call of the operator, the page reading the state that settles) would each write over what the other decided. One at a time, in this process,

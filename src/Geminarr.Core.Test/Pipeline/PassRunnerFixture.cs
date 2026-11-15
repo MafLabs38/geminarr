@@ -318,6 +318,7 @@ public sealed class PassRunnerFixture : IDisposable
 
     [Theory]
     [InlineData(ConnectionReasons.ReaderBroken, "reader-broken", "The assistant's page is no longer what the reader knows.")]
+    [InlineData(ConnectionReasons.BrowserFailed, null, "The browser of the container could not be reached.")]
     [InlineData(ConnectionReasons.RateLimited, null, "The assistant asked to slow down.")]
     [InlineData(ConnectionReasons.Unreachable, null, "The assistant could not be reached.")]
     [InlineData("something-else", null, "The last pass failed.")]
@@ -333,6 +334,22 @@ public sealed class PassRunnerFixture : IDisposable
         heartbeat.Error.Should().Be(sentence);
         heartbeat.Attention?.Code.Should().Be(attention);
         _connection.Current().State.Should().Be(ConnectionState.Degraded);
+    }
+
+    [Fact]
+    public async Task should_never_ask_for_a_sign_in_because_the_browser_cannot_be_reached()
+    {
+        _reader.FailWith = new ReaderException(ConnectionReasons.BrowserFailed, "details that stay here");
+        var subject = Subject();
+
+        for (var pass = 0; pass < 4; pass++)
+        {
+            await subject.RunAsync(TestContext.Current.CancellationToken);
+        }
+
+        var connection = _connection.Current();
+        (connection.State, connection.LastReason).Should().Be((ConnectionState.Degraded, ConnectionReasons.BrowserFailed));
+        _sink.Heartbeats.Should().OnlyContain(heartbeat => heartbeat.Attention == null);
     }
 
     [Fact]

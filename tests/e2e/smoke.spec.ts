@@ -306,6 +306,9 @@ test.describe('smoke @smoke', () => {
     await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
     await page.getByRole('button', { name: 'Yes, disconnect' }).click();
     await expect(page.getByText('Not connected', { exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // The assistant now shows its page to a guest (as the real one does): the page is the right one, but no cookie says that an account is signed in, so it is not a session.
+    expect((await request.post('http://localhost:8091/admin/guest')).status()).toBe(204);
     await runNow();
     await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('NeedsLogin');
   });

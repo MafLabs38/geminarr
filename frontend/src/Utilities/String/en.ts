@@ -108,12 +108,10 @@ const en = {
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
   ReasonBrowserFailed:
-    'The browser of the container could not be started: look at its log, its memory and the setting of its sandbox.',
+    'The browser container does not answer: check that it runs and that its debugging address is the one Geminarr is given.',
   ReasonReaderBroken: "The assistant's page is no longer what the reader knows.",
   ReasonUnreachable: 'The assistant could not be reached: Geminarr tries again.',
   ReasonPaused: 'Reading is paused: nothing is read until the pause ends or you resume.',
-  ReasonProfileNotPrivate:
-    'The folder of the browser profile can be read by others: it holds a signed-in session. Fix its permissions.',
   ReasonDataFolderMissing: 'The data folder does not exist: its volume is not mounted.',
   ReasonDataFolderReadOnly: 'The data folder cannot be written: check the permissions of its volume.',
   ReasonOperatorNotConfigured: 'No operator is configured, so nobody can sign in. Set the name and the password file.',

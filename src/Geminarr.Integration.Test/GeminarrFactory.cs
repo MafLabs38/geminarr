@@ -271,6 +271,7 @@ public sealed class BrowserFactory : GeminarrFactoryBase
     protected override void AddSettings(Dictionary<string, string?> settings)
     {
         settings["Reader:Kind"] = "Web";
+        settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
         settings["Browser:PageUrl"] = "https://browser.homelab.example/";
     }
 

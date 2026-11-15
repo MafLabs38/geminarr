@@ -87,6 +87,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         _playwright?.Dispose();
+        _attached.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -162,7 +163,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         var kind = OriginPolicy.Classify(page.Url, Options);
         // The names of the cookies of the assistant's address, never their values: they say whether the account is signed in, which a guest page does not.
         var names = kind == PageKind.Assistant ? (await context.CookiesAsync([Options.AssistantUrl])).Select(cookie => cookie.Name) : [];
-        return SessionVerdict.Decide(signInRedirectSeen: false, kind, SessionVerdict.HasSessionCookie(names, Options));
+        return SessionVerdict.Decide(kind, SessionVerdict.HasSessionCookie(names, Options));
     }
 
     private static async Task CloseQuietlyAsync(IPage page)

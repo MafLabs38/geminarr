@@ -11,7 +11,7 @@ services:
     environment:
       PUID: "1000"
       PGID: "1000"
-      TZ: Europe/Paris
+      TZ: Etc/UTC # your time zone
       # The login of the browser's own page (the page must also be behind your single sign-on): a name, and the password in a file.
       CUSTOM_USER: change-me-browser-user
       FILE__PASSWORD: /run/secrets/browser_password

@@ -9,11 +9,10 @@ public sealed class HeartbeatContentFixture
 
     private static ConnectionRecord Record(ConnectionState state, string? reason, ConnectionBefore? before = null) => new(state, Now, Now, 2, reason, null, before);
 
-    [Theory]
-    [InlineData(ConnectionState.Paused)]
-    public void should_go_on_asking_for_a_sign_in_while_the_operator_pauses(ConnectionState taken)
+    [Fact]
+    public void should_go_on_asking_for_a_sign_in_while_the_operator_pauses()
     {
-        var record = Record(taken, ConnectionReasons.Paused, new ConnectionBefore(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, 2));
+        var record = Record(ConnectionState.Paused, ConnectionReasons.Paused, new ConnectionBefore(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, 2));
 
         HeartbeatContent.AttentionOf(record, "https://geminarr.homelab.example")!.Code.Should().Be(ConnectionReasons.NeedsLogin);
         HeartbeatContent.ErrorOf(record).Should().Be("The session has expired.");

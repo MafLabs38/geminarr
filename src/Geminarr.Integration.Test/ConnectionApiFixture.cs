@@ -56,6 +56,17 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_never_give_the_debugging_address_or_the_names_of_the_cookies()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        var body = await client.GetStringAsync("/api/v1/connection", Token);
+
+        body.Should().NotContain("127.0.0.1").And.NotContain("9222").And.NotContain("__Secure-1PSID").And.NotContain("SessionCookies");
+    }
+
+    [Fact]
     public async Task should_pause_with_a_limit_resume_and_disconnect()
     {
         using var factory = new BrowserFactory();

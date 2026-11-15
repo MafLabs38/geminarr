@@ -6,16 +6,13 @@ namespace Geminarr.Core.Browser;
 /// <summary>How the page the browser ended on, and what it saw on the way, say whether the session is good (SPEC §7.2). A pure function: the browser only tells it what it saw.</summary>
 public static class SessionVerdict
 {
-    /// <summary>Why the assistant's page could not be loaded: a page that the policy refused is a page that is no longer what the reader knows; the network and the time are not the session's.</summary>
-    public static string ReasonOfLoadFailure(bool refusedByThePolicy) => refusedByThePolicy ? ConnectionReasons.ReaderBroken : ConnectionReasons.Unreachable;
-
     /// <summary>
-    /// Signed out when the browser was sent to a sign-in page (or ended on one), or ended on the assistant's page without the cookie of a signed-in account (a guest mode shows the page to a visitor);
+    /// Signed out when the browser ended on a sign-in page (a redirect of the assistant to one), or ended on the assistant's page without the cookie of a signed-in account (a guest mode shows the page to a visitor);
     /// signed in when it ended on the assistant's own page with that cookie; any other page is the reader's problem.
     /// </summary>
-    public static SessionCheck Decide(bool signInRedirectSeen, PageKind finalPage, bool sessionCookiePresent)
+    public static SessionCheck Decide(PageKind finalPage, bool sessionCookiePresent)
     {
-        if (signInRedirectSeen || finalPage == PageKind.SignIn)
+        if (finalPage == PageKind.SignIn)
         {
             return SessionCheck.SignedOut;
         }

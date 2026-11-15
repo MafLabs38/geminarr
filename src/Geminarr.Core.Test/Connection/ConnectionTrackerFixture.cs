@@ -130,4 +130,27 @@ public sealed class ConnectionTrackerFixture : IDisposable
         subject.Resumed();
         store.Get().PausedUntil.Should().BeNull();
     }
+
+    [Fact]
+    public void should_let_a_pass_write_once_the_pause_has_ended_and_settle_the_state_on_the_next_read()
+    {
+        var subject = Subject();
+        subject.Connected();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        _clock.Advance(TimeSpan.FromHours(2));
+
+        subject.Failed(ConnectionReasons.Unreachable).State.Should().Be(ConnectionState.Degraded, "the pause is over: what the pass found is told");
+        subject.Current().State.Should().Be(ConnectionState.Degraded);
+    }
+
+    [Fact]
+    public void should_keep_what_was_known_before_the_first_pause_when_the_pause_is_asked_again()
+    {
+        var subject = Subject(loginFailures: 1);
+        subject.SignedOut();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        subject.Paused(until: null);
+
+        subject.Resumed().State.Should().Be(ConnectionState.NeedsLogin, "the second pause did not replace what the first one took over");
+    }
 }

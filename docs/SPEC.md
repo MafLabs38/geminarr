@@ -401,13 +401,11 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | Setting | Default | Purpose |
 |---|---|---|
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
-| `BROWSER__CDPURL`, `BROWSER__PAGEURL` | none, none | The debugging address of the browser container (the loopback of a shared namespace: the key to the session) and the page where a person signs in |
+| `BROWSER__CDPURL`, `BROWSER__PAGEURL` | none, none | The debugging address of the browser container (a loopback address, refused otherwise: the key to the session, in a namespace the two containers share) and the page where a person signs in |
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
 | `BROWSER__SESSIONCOOKIES` | **`SID;__Secure-1PSID`** | The names of the cookies that say the account is signed in (a guest mode shows the page to a visitor) |
-| `BROWSER__ASSISTANTURL`, `BROWSER__SIGNINHOSTS` | **`https://gemini.google.com/app`**, **`accounts.google.com`** | The page of the assistant that a pass opens, and the sign-in pages whose redirect says the session is gone |
+| `BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages whose redirect says the session is gone |
 | `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **30** | How long the attachment and the assistant's page may take |
-| `BROWSER__VIEWPORTWIDTH`, `BROWSER__VIEWPORTHEIGHT` | **1280**, **800** | The size of the browser's screen |
-| `BROWSER__SIGNINDETECTION` | **`Confirm`** | How the end of a sign-in is known: `Confirm` (the operator says so, and the browser must be on the assistant's page), or `Page` (the page alone) |
 | `BROWSER__ALLOWINSECUREASSISTANT` | **`false`** | A sandbox or a test only: plain http for the assistant and the sign-in pages |
 | `PUBLICURL` | none | The address of Geminarr's page as the operator reaches it (http or https, a host, no credentials); its host is allowed, and it is the address that goes in the `attention` signal |
 | `ALLOWEDHOSTNAMES` | **`localhost;127.0.0.1;[::1]`** | The names the page may be reached by (commas, semicolons or spaces; ports ignored; `*` for every name): any other `Host` is refused, the probes excepted. **Not** the `AllowedHosts` key of ASP.NET, which stays `*` |
@@ -460,10 +458,10 @@ A degraded check never makes `ready` fail (the container is still useful to look
 ### 11.2 Rules that follow (D-08, D-09)
 
 - **The dedicated account** holds only Gemini conversations: no mailbox in use, no saved passwords, no link to the main account (never its recovery address; strong password kept outside Google's password manager; 2-step verification on the phone). A Brand Account does not isolate (it is reached from the main one).
-- **The profile** is on its own volume, readable by the container's user only; never in logs, an API response, a health page, a crash dump, a command line or an environment dump; excluded from clear backups; the browser has no extension, sync or password manager. *Disconnect* deletes it.
+- **The profile** is the browser container's, on its own volume: Geminarr never reads its files, only the names of the cookies of the assistant's address through the debugging port; never in logs, an API response, a health page, a crash dump, a command line or an environment dump; excluded from clear backups; the browser has no extension, sync or password manager. *Disconnect* clears the browser's cookies.
 - **The page of Geminarr and the page of the browser container** are behind the proxy's single sign-on and Geminarr's own login (and the browser's own login on its page); the debugging address of the browser is on the loopback of a shared namespace and nowhere else.
 - **Network egress is a list** ([network.md](network.md)): the assistant's origin, the account provider's sign-in origin, the configured Mnemarr. The browser container's network policy holds the list (a policy knows addresses, not names).
-- **The container** runs non-root, with a read-only root file system, no capabilities, no service-account token. The browser's sandbox needs are stated and minimal (Q-10).
+- **Geminarr's container** runs non-root, with a read-only root file system, no capabilities, no service-account token. **The browser container** is a third party's image that starts as root for its init: it drops every capability but the six its init needs, takes no new privilege, and has memory, ephemeral-storage and shared-memory limits ([DEPLOYMENT.md](DEPLOYMENT.md), Q-18).
 - **Nothing of a conversation is ever logged**; the logs carry ids, counts, durations and reason codes.
 
 ### 11.3 Threats

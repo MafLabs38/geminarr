@@ -16,21 +16,25 @@ public static class HeartbeatContent
     };
 
     /// <summary>A short sentence with no path and no content: what Mnemarr shows next to the machine.</summary>
-    public static string? ErrorOf(ConnectionRecord connection) => Effective(connection).State switch
+    public static string? ErrorOf(ConnectionRecord connection)
     {
-        ConnectionState.Connected => null,
-        ConnectionState.Paused => null,
-        ConnectionState.NotConnected => "Not connected.",
-        ConnectionState.NeedsLogin => "The session has expired.",
-        _ => Effective(connection).LastReason switch
+        var effective = Effective(connection);
+        return effective.State switch
         {
-            ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
-            ConnectionReasons.BrowserFailed => "The browser of the container could not be reached.",
-            ConnectionReasons.RateLimited => "The assistant asked to slow down.",
-            ConnectionReasons.Unreachable => "The assistant could not be reached.",
-            _ => "The last pass failed.",
-        },
-    };
+            ConnectionState.Connected => null,
+            ConnectionState.Paused => null,
+            ConnectionState.NotConnected => "Not connected.",
+            ConnectionState.NeedsLogin => "The session has expired.",
+            _ => effective.LastReason switch
+            {
+                ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
+                ConnectionReasons.BrowserFailed => "The browser of the container could not be reached.",
+                ConnectionReasons.RateLimited => "The assistant asked to slow down.",
+                ConnectionReasons.Unreachable => "The assistant could not be reached.",
+                _ => "The last pass failed.",
+            },
+        };
+    }
 
     /// <summary>What a person is asked for: only the two codes Mnemarr knows. The address is where to answer, given only when Mnemarr would keep it (https, or loopback).</summary>
     public static Attention? AttentionOf(ConnectionRecord connection, string? publicUrl)

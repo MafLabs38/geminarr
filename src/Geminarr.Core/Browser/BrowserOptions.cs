@@ -45,6 +45,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         var problem =
             (OriginPolicy.AssistantHost(options) is null ? "Browser:AssistantUrl (GEMINARR__BROWSER__ASSISTANTURL) must be an https address with a host (http only when the sandbox switch allows it)." : null)
             ?? Address("CdpUrl", options.CdpUrl)
+            ?? Loopback(options.CdpUrl)
             ?? Address("PageUrl", options.PageUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.");
@@ -62,6 +63,12 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
 
         return null;
     }
+
+    /// <summary>The debugging address is the key to the session and carries no authentication: it is the loopback of the namespace the two containers share, never an address of a network.</summary>
+    private static string? Loopback(string? value) =>
+        string.IsNullOrWhiteSpace(value) || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsLoopback)
+            ? null
+            : "Browser:CdpUrl (GEMINARR__BROWSER__CDPURL) must be a loopback address (127.0.0.1, [::1] or localhost): the debugging port is never reached over a network.";
 
     private static string? Address(string setting, string? value) =>
         string.IsNullOrWhiteSpace(value) || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.Host.Length > 0 && uri.UserInfo.Length == 0)
