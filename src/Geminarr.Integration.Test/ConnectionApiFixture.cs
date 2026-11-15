@@ -86,6 +86,20 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_tell_the_operator_what_a_disconnect_could_not_remove_and_not_be_connected_all_the_same()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        factory.Browser.LeftWhenDestroyed = 2;
+
+        var response = await client.PostAsync("/api/v1/connection/disconnect", content: null, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        (await response.Content.ReadAsStringAsync(Token)).Should().Contain("2 entries of the profile folder could not be removed");
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.State.Should().Be("NotConnected");
+    }
+
+    [Fact]
     public async Task should_show_the_pictures_of_the_browser_and_take_its_input_over_the_socket()
     {
         using var factory = new BrowserFactory();

@@ -168,7 +168,7 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
 
                 if (left > 0)
                 {
-                    throw new IOException($"{left} entries of the profile folder could not be removed: empty it by hand.");
+                    throw new ProfileNotEmptiedException(left);
                 }
             }
 

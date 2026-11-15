@@ -150,11 +150,19 @@ internal sealed class PlaywrightLiveView : ILiveView
         try
         {
             _frames.Writer.TryWrite(Convert.FromBase64String(picture.GetString() ?? string.Empty));
+        }
+        catch (FormatException)
+        {
+            // A picture that is not what it should be is dropped; the browser still has to be told it was received, or it sends no other.
+        }
+
+        try
+        {
             await _cdp.SendAsync("Page.screencastFrameAck", new Dictionary<string, object> { ["sessionId"] = id.GetInt32() });
         }
-        catch (Exception ex) when (ex is PlaywrightException or FormatException or InvalidOperationException)
+        catch (Exception ex) when (ex is PlaywrightException or InvalidOperationException)
         {
-            // The browser is closing, or a picture was not what it should be: the next one will do.
+            // The browser is closing: the live view is ending.
         }
     }
 }
