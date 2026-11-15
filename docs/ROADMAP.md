@@ -15,7 +15,7 @@
 | Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Vertical 2: the link to Mnemarr | **Built**, in review |
-| Vertical 3: the session and the live view | **Built** and walked against a fake assistant and the real page as a guest, in review; the real sign-in of the dedicated account is the first step of spike S1 |
+| Vertical 3: the browser container and the connection to it ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)) | In progress: replaces the embedded browser (ADR 0015, pull request 23), which Google refuses at sign-in |
 | Verticals 4 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*
@@ -53,13 +53,14 @@
 - Built with the demonstration reader (a sandbox setting, `GEMINARR__READER__KIND=Demo`) and proved on a real Mnemarr (pairing, 3 000 lines, found by search). [ADR 0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md). **"Run now" and the list of passes are here** (they were planned for vertical 4: the demonstration needs them); the full *Runs* page is still vertical 4.
 - Not now: the browser, the real assistant, masking (nothing real is read yet).
 
-## Vertical 3 — The session and the live view *(built)*
+## Vertical 3 — The browser container and the connection to it
 
-*Demo: press Sign in; the container's browser appears on the page; sign in to the dedicated account with the phone; the state is Connected; restart the container and it is still connected; Disconnect and the profile is gone.*
+*Demo: open the page of the browser (behind the single sign-on), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected.*
 
-- F-CON-01..04, the browser project, the profile volume, the route filter, the Dockerfile stage for the browser by `TARGETARCH`, a smoke test of the arm64 image.
-- Built with a fake assistant on its own host and proved with a real Chromium on the image (the live view, the session that holds, its expiry, disconnect). [ADR 0015](adr/0015-the-browser-the-live-view-and-the-profile.md). **The moment to sign in to the dedicated Google account is here**: the sandbox is ready for it (see the pull request).
-- Not now: reading conversations.
+- ADR 0016. F-CON-01..04: the attachment to the browser (`GEMINARR__BROWSER__CDPURL`), the state machine, pause and disconnect, the health of the attachment.
+- **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; its sub-domain behind the single sign-on (the maintainer's sub-domain API, default template).
+- Spike S1 starts here: the first read of Gemini on a throw-away account, then on the dedicated one.
+- Not now: reading conversations (vertical 4).
 
 ## Vertical 4 — Read the conversations
 
