@@ -7,7 +7,7 @@ namespace Geminarr.Integration.Test;
 /// <summary>The connection to the assistant through the API, with a browser in memory: the rules of access, the state, the page of the browser, the pause and the disconnect.</summary>
 public sealed class ConnectionApiFixture
 {
-    private static readonly CancellationToken Token = TestContext.Current.CancellationToken;
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Theory]
     [InlineData("POST", "/api/v1/connection/pause")]

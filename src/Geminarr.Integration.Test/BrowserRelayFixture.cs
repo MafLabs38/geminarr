@@ -13,7 +13,7 @@ namespace Geminarr.Integration.Test;
 /// <summary>The relay of the web desktop of the browser (ADR 0017): closed without a sign-in, the only way to the desktop, and it keeps Geminarr's session to itself.</summary>
 public sealed class BrowserRelayFixture
 {
-    private static readonly CancellationToken Token = TestContext.Current.CancellationToken;
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task should_send_a_person_without_a_session_to_the_sign_in_page_and_reach_the_desktop_for_nobody()
@@ -120,29 +120,25 @@ public sealed class BrowserRelayFixture
         desktop.Seen.Should().ContainSingle("the desktop has the one socket");
 
         (await client.SendAsync(logout, Token)).EnsureSuccessStatusCode();
-        // The check of the session is a tick of the application's clock: the test gives it one, a few seconds of that clock (the session lasts hours), and does not wait for it.
+        // The check of the session is a tick of the application's clock (the session lasts hours): the test gives it a few seconds of that clock at a time, until the socket has ended, and sleeps for no longer.
         using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
         patience.CancelAfter(TimeSpan.FromSeconds(30));
-        var ticking = Task.Run(async () =>
-        {
-            for (var tick = 0; tick < 5 && !patience.IsCancellationRequested; tick++)
-            {
-                factory.Clock!.Advance(TimeSpan.FromSeconds(6));
-                await Task.Delay(200, CancellationToken.None);
-            }
-        }, CancellationToken.None);
         var ended = false;
+        var receiving = socket.ReceiveAsync(new byte[64], patience.Token);
+        while (!receiving.IsCompleted && !patience.IsCancellationRequested)
+        {
+            factory.Clock!.Advance(TimeSpan.FromSeconds(6));
+            await Task.Delay(50, CancellationToken.None);
+        }
+
         try
         {
-            ended = (await socket.ReceiveAsync(new byte[64], patience.Token)).MessageType == WebSocketMessageType.Close;
+            ended = (await receiving).MessageType == WebSocketMessageType.Close;
         }
         catch (WebSocketException)
         {
             ended = true;
         }
-
-        await patience.CancelAsync();
-        await ticking;
 
         ended.Should().BeTrue("the desktop does not go on for somebody who signed out");
     }
@@ -162,6 +158,10 @@ public sealed class BrowserRelayFixture
         {
             await client.GetAsync("/browser/api/files", Token),
             await client.GetAsync("/browser/api/", Token),
+            await client.GetAsync("/browser//api/files", Token),
+            await client.GetAsync("/browser/api%2Ffiles", Token),
+            await client.GetAsync("/browser/assets/%2e%2e/api/files", Token),
+            await client.GetAsync("/browser/./api/files", Token),
             await client.GetAsync("/browser/pelorus/stream", Token),
             await client.PostAsync("/browser/api/clipboard", new StringContent("x"), Token),
             await client.PutAsync("/browser/assets/index.js", new StringContent("x"), Token),

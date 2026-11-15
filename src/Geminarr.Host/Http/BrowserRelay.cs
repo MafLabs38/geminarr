@@ -3,6 +3,7 @@ using Geminarr.Api.V1.Access;
 using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Forwarder;
 
@@ -114,6 +115,17 @@ public static class BrowserRelay
     public static bool IsRelayed(HttpRequest request)
     {
         if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method))
+        {
+            return false;
+        }
+
+        // The path is forwarded as it came, and the desktop's web server merges slashes, decodes and resolves dots before it picks a route: a path that is not in its plain form (`//api/files`, `api%2Ffiles`, `./api`)
+        // would pass the comparison below and still reach a route that is not the relay's. The client of the desktop asks for plain paths only.
+        var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        var target = string.IsNullOrEmpty(raw) ? request.Path.Value ?? string.Empty : raw;
+        var query = target.IndexOf('?', StringComparison.Ordinal);
+        var rawPath = query < 0 ? target : target[..query];
+        if (rawPath.Contains("//", StringComparison.Ordinal) || rawPath.Contains('%', StringComparison.Ordinal) || rawPath.Contains('\\', StringComparison.Ordinal) || rawPath.Split('/').Any(segment => segment is "." or ".."))
         {
             return false;
         }

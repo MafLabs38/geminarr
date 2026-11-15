@@ -378,6 +378,17 @@ test.describe('smoke @smoke', () => {
     expect(page.status()).toBe(200);
     expect(await page.text()).toContain('Selkies');
     expect(page.headers()['set-cookie']).toBeUndefined();
+    // What the desktop's web server offers beyond its client (its files, its other services) is not relayed, by any spelling of the path: the server merges slashes and decodes before it routes.
+    for (const path of [
+      '/browser/api/files',
+      '/browser//api/files',
+      '/browser/api%2Ffiles',
+      '/browser/pelorus/',
+      '/browser/api/',
+    ]) {
+      expect((await api.get(path)).status(), path).toBe(404);
+    }
+    expect((await api.post('/browser/api/clipboard')).status()).toBe(404);
   });
 
   test('the system status page shows the version of the running build', async ({ page }) => {

@@ -9,12 +9,11 @@ import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import PageHeading from 'Components/Page/PageHeading';
 import StatusLabel from 'Components/Status/StatusLabel';
-import { type Kind, kinds } from 'Helpers/Props/kinds';
 import { reasonKeyOf } from 'Overview/healthTexts';
-import type { TranslationKey } from 'Utilities/String/en';
 import translate from 'Utilities/String/translate';
 
 import styles from './Connection.module.css';
+import { connectionStates } from './connectionStates';
 import { type Connection as ConnectionState, useConnection, useDisconnect, usePause, useResume } from './useConnection';
 
 /** The hours of the quick pause. */
@@ -22,14 +21,6 @@ export const PAUSE_HOURS = 6;
 
 /** The states in which a person may have to sign in: a paused connection keeps what it was, and a connected one has nothing to ask. */
 const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConnected', 'NeedsLogin', 'Degraded']);
-
-export const states: Readonly<Record<ConnectionState['state'], { kind: Kind; text: TranslationKey }>> = {
-  Connected: { kind: kinds.SUCCESS, text: 'ConnectionConnected' },
-  NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
-  Degraded: { kind: kinds.WARNING, text: 'ConnectionDegraded' },
-  NotConnected: { kind: kinds.INFO, text: 'ConnectionNotConnected' },
-  Paused: { kind: kinds.INFO, text: 'ConnectionPaused' },
-};
 
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
 function SignIn({ pagePath }: Readonly<{ pagePath: string | null }>) {
@@ -102,7 +93,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
 export default function Connection() {
   const { data, error, isPending } = useConnection();
   const reason = reasonKeyOf(data?.reason ?? null);
-  const state = data ? states[data.state] : undefined;
+  const state = data ? connectionStates[data.state] : undefined;
 
   return (
     <PageContent title={translate('Connection')}>
