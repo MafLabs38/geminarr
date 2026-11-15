@@ -532,7 +532,7 @@ Reading a consumer product by automation is against the provider's terms of use.
 | Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 4 |
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |
-| Q-14 | Does the account provider accept a sign-in from the headless shell of Chromium (its user agent says it is headless)? If not: the full browser, or another way to present itself, which is a decision | ❓ (spike S1) |
+| Q-14 | Does the account provider accept a sign-in from the headless shell of Chromium? **Answered on 2026-11-15, no**: on the first real try the sign-in page said "Couldn't sign you in: this browser or app may not be secure" (the provider's refusal of a browser it reads as automated; not a certificate problem). What follows is a decision of the maintainer (the full browser in a virtual display, another way to sign in, or the Takeout import without a session), not something to get around silently | ✅ answered, ❓ the way forward |
 | Q-15 | Do the assistant's background requests to the sign-in host keep the cookies fresh, so that refusing them outside a live view lets the session expire? | ❓ (spike S1) |
 | Q-16 | Does the assistant's page, or the sign-in page, need a frame from a host other than its own that the policy now refuses (a navigation to a host of files)? | ❓ (spike S1) |
 
