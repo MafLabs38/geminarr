@@ -123,6 +123,23 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_not_let_a_pass_that_began_before_a_disconnect_say_what_it_found_afterwards()
+    {
+        var subject = Subject();
+        subject.StartSignIn();
+        subject.SignInEnded(signedIn: true);
+        _views.Cancel();
+        using var pass = _tracker.BeginPass();
+
+        await subject.DisconnectAsync(TestContext.Current.CancellationToken);
+        _tracker.Connected();
+        _tracker.ProfileGone();
+
+        subject.Current().State.Should().Be(ConnectionState.NotConnected);
+        subject.Current().LastOkAt.Should().BeNull();
+    }
+
+    [Fact]
     public async Task should_stay_not_connected_through_a_pause_and_a_resume_after_a_disconnect()
     {
         var subject = Subject();

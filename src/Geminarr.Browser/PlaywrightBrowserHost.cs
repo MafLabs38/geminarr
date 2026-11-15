@@ -139,13 +139,19 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         }
         catch
         {
-            // A browser that was started and not handed over is closed, or it would hold the profile for the next launch.
-            if (session is not null)
+            try
             {
-                await session.DisposeAsync();
+                // A browser that was started and not handed over is closed, or it would hold the profile for the next launch.
+                if (session is not null)
+                {
+                    await session.DisposeAsync();
+                }
+            }
+            finally
+            {
+                _busy.Release();
             }
 
-            _busy.Release();
             throw;
         }
     }
