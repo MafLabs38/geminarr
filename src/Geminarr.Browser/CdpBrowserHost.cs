@@ -34,7 +34,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     {
         if (!State().Configured)
         {
-            return SessionCheck.NoProfile;
+            return SessionCheck.NoBrowser;
         }
 
         await _attached.WaitAsync(cancellationToken);

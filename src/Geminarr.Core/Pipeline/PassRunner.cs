@@ -183,7 +183,7 @@ public sealed class PassRunner
         try
         {
             var session = await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken);
-            if (session == SessionCheck.NoProfile)
+            if (session == SessionCheck.NoBrowser)
             {
                 _connection.NotConnected();
                 state.Fail(RunOutcomes.Skipped, ConnectionReasons.NotConnected);

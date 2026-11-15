@@ -13,7 +13,7 @@ public sealed class WebReaderFixture
 
         var check = await new WebReader(browser).CheckSessionAsync(TestContext.Current.CancellationToken);
 
-        check.Should().Be(SessionCheck.NoProfile);
+        check.Should().Be(SessionCheck.NoBrowser);
         browser.Checks.Should().Be(0);
     }
 

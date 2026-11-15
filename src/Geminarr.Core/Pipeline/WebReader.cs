@@ -19,7 +19,7 @@ public sealed class WebReader : IConversationReader
     public string Source => ConversationSources.Web;
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
-        _browser.State().Configured ? _browser.CheckSessionAsync(cancellationToken) : Task.FromResult(SessionCheck.NoProfile);
+        _browser.State().Configured ? _browser.CheckSessionAsync(cancellationToken) : Task.FromResult(SessionCheck.NoBrowser);
 
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
 

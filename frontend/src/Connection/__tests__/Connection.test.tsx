@@ -80,7 +80,7 @@ describe('Connection', () => {
     expect(screen.getByText('Paused until')).toBeInTheDocument();
   });
 
-  it('pauses for some hours or until resumed, and resumes', async () => {
+  it('pauses for some hours or until resumed', async () => {
     const calls = serveApi({
       'GET /connection': () => base,
       'POST /connection/pause': () => base,
@@ -98,6 +98,26 @@ describe('Connection', () => {
         { hours: null },
       ]),
     );
+  });
+
+  it('resumes a paused connection', async () => {
+    const calls = serveApi({
+      'GET /connection': () => ({ ...base, state: 'Paused', pausedUntil: '2026-11-13T15:00:00Z' }),
+      'POST /connection/resume': () => base,
+    });
+    renderAt(<Connection />);
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Resume' }));
+
+    await waitFor(() => expect(calls.some((call) => call.key === 'POST /connection/resume')).toBe(true));
+  });
+
+  it('shows no sign-in instructions while the passes are paused', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'Paused', pausedUntil: '2026-11-13T15:00:00Z' }) });
+    renderAt(<Connection />);
+
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
   });
 
   it('asks twice before it disconnects, and can be backed out of', async () => {

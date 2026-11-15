@@ -144,7 +144,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: TZ
-              value: Europe/Paris
+              value: Etc/UTC   # your time zone
             # The login of the browser's own page, from a secret: the page is behind your single sign-on AND this login.
             - name: CUSTOM_USER
               value: change-me-browser-user
@@ -158,11 +158,9 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
-          readinessProbe:
-            tcpSocket:
-              port: desktop
-            periodSeconds: 15
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL] # NOSONAR kubernetes:S5849: every capability is dropped first; these six are what the image's init needs (tested), and nothing else
+          # No readiness probe on purpose: a pod is Ready only when all its containers are, so a browser that is down would take Geminarr's own page, API and health out of the Service. The health of the
+          # browser is Geminarr's `browser` check (degraded, never unready), and the web desktop's own page says when it is not there.
           resources:
             requests:
               cpu: 250m

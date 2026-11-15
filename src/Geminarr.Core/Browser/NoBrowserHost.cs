@@ -7,7 +7,7 @@ public sealed class NoBrowserHost : IBrowserHost
 {
     public BrowserState State() => new(Configured: false, Reachable: null);
 
-    public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(SessionCheck.NoProfile);
+    public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(SessionCheck.NoBrowser);
 
     public Task DisconnectAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

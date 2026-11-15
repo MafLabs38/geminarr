@@ -1,6 +1,6 @@
 # Geminarr — Functional and Technical Specification
 
-> **Status**: draft v0.6 (2026-11-13). The architecture and the security model are decided (D-01 to D-23); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
+> **Status**: draft v0.7 (2026-11-15). The architecture and the security model are decided (D-01 to D-24); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
 > **Related documents**: [VISION.md](VISION.md) (why) · [ROADMAP.md](ROADMAP.md) (the verticals) · [adr/](adr/README.md) (decision records) · [mnemarr-changes.md](mnemarr-changes.md) (what Mnemarr must gain)
 > **Audience**: the project owner, contributors.
 >
@@ -117,7 +117,7 @@ How it fits the constellation:
 
 | Project | Role | Rules |
 |---|---|---|
-| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
+| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IBrowserHost`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
 | `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: it attaches to the browser container, checks the session, clears it | Behind the ports of Core; selectors and calls of the web product stay here |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |

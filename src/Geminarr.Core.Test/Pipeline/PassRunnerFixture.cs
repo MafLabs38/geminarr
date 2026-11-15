@@ -254,7 +254,7 @@ public sealed class PassRunnerFixture : IDisposable
     [Fact]
     public async Task should_say_not_connected_when_the_reader_finds_no_browser()
     {
-        _reader.Session = SessionCheck.NoProfile;
+        _reader.Session = SessionCheck.NoBrowser;
 
         var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
 

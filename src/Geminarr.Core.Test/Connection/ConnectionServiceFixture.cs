@@ -51,6 +51,7 @@ public sealed class ConnectionServiceFixture : IDisposable
         subject.Resume();
         subject.Current().State.Should().Be(ConnectionState.Connected);
         subject.Resume();
+        subject.Current().State.Should().Be(ConnectionState.Connected, "resuming what is not paused changes nothing");
     }
 
     [Fact]

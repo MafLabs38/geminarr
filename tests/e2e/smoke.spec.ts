@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto';
 /** The operator of the e2e stack (tests/e2e/stack/docker-compose.yml): a test-only value. */
 const OPERATOR = { name: 'e2e-operator', password: 'e2e-admin-password' };
 
-/** A name that nobody else uses: the lockout counts per name, and the operator's must stay free for the other tests. */
 /** A value that a test needs and that the configuration must give: its absence is a failure of the setup, said as one. */
 function required<T>(value: T | undefined | null): T {
   if (value === undefined || value === null) {
@@ -14,6 +13,7 @@ function required<T>(value: T | undefined | null): T {
   return value;
 }
 
+/** A name that nobody else uses: the lockout counts per name, and the operator's must stay free for the other tests. */
 const unique = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 
 /** A request context that has signed in: it keeps the session cookie, and sends the header a write needs. */

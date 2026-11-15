@@ -20,6 +20,9 @@ import { type Connection as ConnectionState, useConnection, useDisconnect, usePa
 /** The hours of the quick pause. */
 export const PAUSE_HOURS = 6;
 
+/** The states in which a person may have to sign in: a paused connection keeps what it was, and a connected one has nothing to ask. */
+const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConnected', 'NeedsLogin', 'Degraded']);
+
 export const states: Readonly<Record<ConnectionState['state'], { kind: Kind; text: TranslationKey }>> = {
   Connected: { kind: kinds.SUCCESS, text: 'ConnectionConnected' },
   NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
@@ -136,7 +139,7 @@ export default function Connection() {
                 <p className={styles.reason}>{translate(reason)}</p>
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
-              {data.hasBrowser && data.state !== 'Connected' && <SignIn pageUrl={data.browserPageUrl} />}
+              {data.hasBrowser && SIGN_IN_STATES.has(data.state) && <SignIn pageUrl={data.browserPageUrl} />}
               {data.hasBrowser && <Actions connection={data} />}
             </>
           )}
