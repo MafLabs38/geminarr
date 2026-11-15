@@ -26,63 +26,90 @@ function cookie(request) {
   return match ? match[1] : null;
 }
 
+const send = (response, status, headers = {}, body) => response.writeHead(status, headers).end(body);
+
+// One function for each page of the fake: the handler below only picks which.
+function signInPage(request, response, url) {
+  if (request.method === 'POST') {
+    request.resume();
+    request.on('end', () => {
+      const token = `s${++counter}`;
+      sessions.add(token);
+      send(response, 302, { Location: `http://assistant:8081/auth?t=${token}` });
+    });
+    return;
+  }
+  send(response, 200, { 'Content-Type': 'text/html' }, signIn(url.searchParams.get('next') ?? '/app'));
+}
+
+function auth(response, url) {
+  send(response, 302, {
+    'Set-Cookie': `assistant=${url.searchParams.get('t')}; Path=/; Max-Age=3600`,
+    Location: '/app',
+  });
+}
+
+function app(request, response) {
+  const token = cookie(request);
+  if (token && sessions.has(token)) {
+    send(
+      response,
+      200,
+      { 'Content-Type': 'text/html' },
+      page(
+        'Fake assistant',
+        '<h1 style="margin:40px">Fake assistant: signed in</h1><img src="/hop" width="1" height="1" alt="">',
+      ),
+    );
+    return;
+  }
+  send(response, 302, { Location: 'http://signin:8081/signin?next=/app' });
+}
+
+function hop(response) {
+  hits.hop += 1;
+  send(response, 302, { Location: 'http://offlist:8081/trap' });
+}
+
+function offlist(response) {
+  hits.offlist += 1;
+  send(response, 200, { 'Content-Type': 'text/plain' }, 'a host that is not on the list');
+}
+
+function admin(request, response, url) {
+  if (url.pathname === '/admin/hits') {
+    send(response, 200, { 'Content-Type': 'application/json' }, JSON.stringify(hits));
+    return true;
+  }
+  if (url.pathname === '/admin/expire' && request.method === 'POST') {
+    sessions.clear();
+    send(response, 204);
+    return true;
+  }
+  return false;
+}
+
+// Each route: [host, path, page].
+const routes = [
+  ['signin', '/signin', (request, response, url) => signInPage(request, response, url)],
+  ['assistant', '/auth', (request, response, url) => auth(response, url)],
+  ['assistant', '/app', (request, response) => app(request, response)],
+  ['assistant', '/hop', (request, response) => hop(response)],
+];
+
 http
   .createServer((request, response) => {
     const url = new URL(request.url, 'http://x');
     const host = (request.headers.host ?? '').split(':')[0];
-    if (host === 'signin' && url.pathname === '/signin') {
-      if (request.method === 'POST') {
-        request.resume();
-        request.on('end', () => {
-          const token = `s${++counter}`;
-          sessions.add(token);
-          response.writeHead(302, { Location: `http://assistant:8081/auth?t=${token}` });
-          response.end();
-        });
-        return;
-      }
-      response.writeHead(200, { 'Content-Type': 'text/html' }).end(signIn(url.searchParams.get('next') ?? '/app'));
-      return;
-    }
-    if (host === 'assistant' && url.pathname === '/auth') {
-      response
-        .writeHead(302, {
-          'Set-Cookie': `assistant=${url.searchParams.get('t')}; Path=/; Max-Age=3600`,
-          Location: '/app',
-        })
-        .end();
-      return;
-    }
     if (host === 'offlist') {
-      hits.offlist += 1;
-      response.writeHead(200, { 'Content-Type': 'text/plain' }).end('a host that is not on the list');
-      return;
-    }
-    if (host === 'assistant' && url.pathname === '/hop') {
-      hits.hop += 1;
-      response.writeHead(302, { Location: 'http://offlist:8081/trap' }).end();
-      return;
-    }
-    if (url.pathname === '/admin/hits') {
-      response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(hits));
-      return;
-    }
-    if (url.pathname === '/admin/expire' && request.method === 'POST') {
-      sessions.clear();
-      response.writeHead(204).end();
-      return;
-    }
-    if (host === 'assistant' && url.pathname === '/app') {
-      const token = cookie(request);
-      if (token && sessions.has(token)) {
-        response
-          .writeHead(200, { 'Content-Type': 'text/html' })
-          .end(page('Fake assistant', '<h1 style="margin:40px">Fake assistant: signed in</h1><img src="/hop" width="1" height="1" alt="">'));
-        return;
+      offlist(response);
+    } else if (!admin(request, response, url)) {
+      const route = routes.find(([routeHost, path]) => routeHost === host && path === url.pathname);
+      if (route) {
+        route[2](request, response, url);
+      } else {
+        send(response, 404);
       }
-      response.writeHead(302, { Location: 'http://signin:8081/signin?next=/app' }).end();
-      return;
     }
-    response.writeHead(404).end();
   })
   .listen(8081);
