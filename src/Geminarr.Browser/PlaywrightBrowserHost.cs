@@ -157,17 +157,18 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         {
             if (Directory.Exists(Folder))
             {
-                // The folder is a mount point: its content goes, not the folder.
+                // The session is forgotten first: if the rest cannot be removed, nobody reads the folder as a session any more, and the operator is told that it is not empty.
+                File.Delete(Path.Combine(Folder, SignedInMarker));
+                // The folder is a mount point: its content goes, not the folder. Every entry is tried, and a file that stays is said at the end.
+                var left = 0;
                 foreach (var entry in Directory.EnumerateFileSystemEntries(Folder))
                 {
-                    if (Directory.Exists(entry))
-                    {
-                        Directory.Delete(entry, recursive: true);
-                    }
-                    else
-                    {
-                        File.Delete(entry);
-                    }
+                    left += TryRemove(entry) ? 0 : 1;
+                }
+
+                if (left > 0)
+                {
+                    throw new IOException($"{left} entries of the profile folder could not be removed: empty it by hand.");
                 }
             }
 
@@ -176,6 +177,27 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
         finally
         {
             _busy.Release();
+        }
+    }
+
+    private static bool TryRemove(string entry)
+    {
+        try
+        {
+            if (Directory.Exists(entry))
+            {
+                Directory.Delete(entry, recursive: true);
+            }
+            else
+            {
+                File.Delete(entry);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
