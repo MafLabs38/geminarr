@@ -160,6 +160,18 @@ export default function LiveView({ ticket, onEnded }: Readonly<LiveViewProps>) {
       return;
     }
     event.preventDefault();
+    // A character is sent as the text it makes, not as a key of the layout of the remote browser: the person's keyboard decides what the character is (AltGr + à is "@" on a French keyboard, and AltGr reaches
+    // the page as Ctrl + Alt, which the remote browser would take for a shortcut). A key with Ctrl or Meta (not AltGr) is a shortcut and goes as a key. AltGr itself is not sent.
+    if (event.key === 'AltGraph') {
+      return;
+    }
+    const altGraph = event.getModifierState('AltGraph') || (event.ctrlKey && event.altKey);
+    if (event.key.length === 1 && (altGraph || !(event.ctrlKey || event.metaKey))) {
+      if (type === 'keydown') {
+        send({ t: 'text', text: event.key });
+      }
+      return;
+    }
     if (type === 'keydown') {
       pressed.current.add(event.key);
     } else {
