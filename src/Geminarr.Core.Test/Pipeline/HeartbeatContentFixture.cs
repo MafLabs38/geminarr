@@ -30,6 +30,15 @@ public sealed class HeartbeatContentFixture
     }
 
     [Fact]
+    public void should_say_the_browser_could_not_be_started_without_asking_anybody_for_anything()
+    {
+        var record = Record(ConnectionState.Degraded, ConnectionReasons.BrowserFailed);
+
+        HeartbeatContent.ErrorOf(record).Should().Be("The browser of the container could not be started.");
+        HeartbeatContent.AttentionOf(record, "https://geminarr.homelab.example").Should().BeNull();
+    }
+
+    [Fact]
     public void should_say_nothing_is_wrong_when_a_live_view_or_a_pause_has_nothing_before_it()
     {
         HeartbeatContent.ErrorOf(Record(ConnectionState.Paused, ConnectionReasons.Paused)).Should().BeNull();

@@ -117,6 +117,8 @@ const en = {
   ReasonNeedsLogin: 'The session has expired: sign in again.',
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
+  ReasonBrowserFailed:
+    'The browser of the container could not be started: look at its log, its memory and the setting of its sandbox.',
   ReasonReaderBroken: "The assistant's page is no longer what the reader knows.",
   ReasonUnreachable: 'The assistant could not be reached: Geminarr tries again.',
   ReasonPaused: 'Reading is paused: nothing is read until the pause ends or you resume.',

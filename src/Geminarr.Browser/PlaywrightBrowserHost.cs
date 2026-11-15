@@ -222,12 +222,12 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
 
     private async Task<BrowserSession> LaunchAsync(bool liveView)
     {
-        EnsureFolder();
-        _playwright ??= await Playwright.CreateAsync();
         var options = _options.Value;
         string failure;
         try
         {
+            EnsureFolder();
+            _playwright ??= await Playwright.CreateAsync();
             var context = await _playwright.Chromium.LaunchPersistentContextAsync(Folder, new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = true,
@@ -253,13 +253,13 @@ public sealed class PlaywrightBrowserHost : IBrowserHost, IAsyncDisposable
 
             return session;
         }
-        catch (PlaywrightException ex)
+        catch (Exception ex) when (ex is PlaywrightException or IOException or UnauthorizedAccessException)
         {
             failure = ex.GetType().Name;
         }
 
         // Never the message: it can hold the path of the browser or of the profile.
         _logger.LogError("The browser could not be started ({Type}).", failure);
-        throw new ReaderException(ConnectionReasons.ReaderBroken, "The browser could not be started.");
+        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser could not be started.");
     }
 }

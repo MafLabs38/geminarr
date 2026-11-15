@@ -451,7 +451,7 @@ Every limit and interval above comes from configuration with that default; none 
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
 | `profile` | `profile-missing`, `profile-not-private`, `profile-unreadable`, `profile-read-only` (only with a browser) |
-| `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable`, `paused`, and `connecting` while a person signs in |
+| `connection` | `not-connected`, `needs-login`, `reader-broken`, `browser-failed`, `rate-limited`, `unreachable`, `paused`, and `connecting` while a person signs in |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
 
