@@ -269,7 +269,17 @@ describe('LiveView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     view.unmount();
 
-    expect(onEnded).toHaveBeenCalledWith(false, false);
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(false, false);
+    expect(open().closed).toBe(true);
+  });
+
+  it('closes the socket without telling the parent when it goes away, so that a second mount reports its own end', () => {
+    const onEnded = vi.fn();
+    const view = render(<LiveView onEnded={onEnded} ticket={ticket} />);
+
+    view.unmount();
+
+    expect(onEnded).not.toHaveBeenCalled();
     expect(open().closed).toBe(true);
   });
 

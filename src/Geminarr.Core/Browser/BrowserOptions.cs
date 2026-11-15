@@ -1,3 +1,4 @@
+using Geminarr.Core.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Browser;
@@ -92,4 +93,35 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
 
     private static string? Range(string setting, int value, int min, int max) =>
         value >= min && value <= max ? null : $"Browser:{setting} (GEMINARR__BROWSER__{setting.ToUpperInvariant()}) must be between {min} and {max}.";
+}
+
+/// <summary>The profile is the session and the data folder is backed up: the two are never the same folder, nor one inside the other (disconnecting empties the profile).</summary>
+public sealed class ProfileFolderValidator : IValidateOptions<BrowserOptions>
+{
+    private readonly IOptions<GeminarrOptions> _geminarr;
+
+    public ProfileFolderValidator(IOptions<GeminarrOptions> geminarr)
+    {
+        _geminarr = geminarr;
+    }
+
+    public ValidateOptionsResult Validate(string? name, BrowserOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.ProfileFolder) || string.IsNullOrWhiteSpace(_geminarr.Value.DataFolder))
+        {
+            return ValidateOptionsResult.Success;
+        }
+
+        var profile = Normal(options.ProfileFolder);
+        var data = Normal(_geminarr.Value.DataFolder);
+        return profile == data || profile.StartsWith(data + "/", StringComparison.Ordinal) || data.StartsWith(profile + "/", StringComparison.Ordinal) || profile == "/"
+            ? ValidateOptionsResult.Fail("Browser:ProfileFolder (GEMINARR__BROWSER__PROFILEFOLDER) must be a folder of its own: not the data folder, not inside it, not above it.")
+            : ValidateOptionsResult.Success;
+    }
+
+    private static string Normal(string folder)
+    {
+        var full = Path.GetFullPath(folder).Replace('\\', '/');
+        return full.Length > 1 ? full.TrimEnd('/') : full;
+    }
 }

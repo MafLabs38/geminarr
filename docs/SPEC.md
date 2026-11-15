@@ -302,6 +302,8 @@ The browser profile (cookies, local storage) of the dedicated account is the **s
 
 A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`.
 
+A live view and a pause **take a state over and give it back**: the record keeps the state, its reason and its count before `connecting` or `paused`, and goes back to them when the live view ends without a sign-in or the pause ends (a sign-in that was made is a new good session). While they last, **Mnemarr is told the state they took over** (the error and the attention of `needs-login`, `reader-broken`), with `paused: true` for a pause: a heartbeat without the attention would end the episode that asked for the sign-in, and a mail could follow. The moves that a pass makes are ignored while a person signs in and while the passes are paused.
+
 ### 7.3 The live view (F-LGN)
 
 The operator signs in once, **through Geminarr's page**, to a browser running in the container:
