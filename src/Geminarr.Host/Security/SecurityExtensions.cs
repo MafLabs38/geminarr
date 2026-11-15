@@ -1,5 +1,6 @@
 using Geminarr.Api.V1.Access;
 using Geminarr.Core.Access;
+using Geminarr.Host.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -41,6 +42,13 @@ public static class SecurityExtensions
         // An API answers with a status, never with a redirect to a login page.
         cookie.Events.OnRedirectToLogin = context =>
         {
+            // A person who opens the page of the browser without a session (a bookmark, a phone that was asleep) is taken to the sign-in page of the interface, not to an error.
+            if (HttpMethods.IsGet(context.Request.Method) && BrowserRelay.IsRelayPath(context.Request.Path))
+            {
+                context.Response.Redirect("/");
+                return Task.CompletedTask;
+            }
+
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return Task.CompletedTask;
         };

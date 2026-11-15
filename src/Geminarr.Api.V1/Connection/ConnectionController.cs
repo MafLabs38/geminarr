@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Geminarr.Api.V1.Connection;
 
 /// <summary>The connection to the assistant: its state (SPEC §7.2), since when, the last pass that worked, why it is not simply connected, which reader reads, whether a browser reads, and until when the passes are paused.</summary>
-public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, string? BrowserPageUrl);
+public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, string? BrowserPagePath);
 
 /// <summary>How long to pause: hours, or until the operator resumes when it is missing.</summary>
 public sealed record PauseRequest(double? Hours);
@@ -37,7 +37,7 @@ public sealed class ConnectionController : ControllerBase
     public ConnectionResource Get()
     {
         var record = _connection.Current();
-        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, _browser.Value.PageUrl);
+        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? null : BrowserOptions.RelayPath);
     }
 
     /// <summary>Quiet: no pass reads until the moment given, or until the operator resumes.</summary>

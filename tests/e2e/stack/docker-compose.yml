@@ -36,14 +36,13 @@ services:
     environment:
       PUID: '1000'
       PGID: '1000'
-      CUSTOM_USER: e2e
-      PASSWORD: e2e-browser-password
+      # No login on the web desktop and nothing published for it: Geminarr relays it under /browser/, behind its own sign-in.
+      SUBFOLDER: /browser/
       CHROME_CLI: --remote-debugging-port=9222
     ports:
       - '8282:8282'
       # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
       - '127.0.0.1:9223:9223'
-      - '127.0.0.1:3000:3000'
     networks:
       default:
         aliases:
@@ -75,7 +74,7 @@ services:
       GEMINARR__READER__LOGINFAILURES: '1'
       GEMINARR__READER__POLLMINUTES: '1'
       GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
-      GEMINARR__BROWSER__PAGEURL: http://localhost:3000/
+      GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
       GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
       GEMINARR__BROWSER__SIGNINHOSTS: signin
       # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.

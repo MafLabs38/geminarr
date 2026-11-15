@@ -1,6 +1,6 @@
 # 0016 — The browser is a container of its own, and a person signs in to it by hand
 
-- **Status**: accepted by the maintainer in the conversation of 2026-11-15; the choice of the image is open (Q-18)
+- **Status**: accepted by the maintainer in the conversation of 2026-11-15; the choice of the image is open (Q-18). **Its decisions on the browser's web desktop (an address of its own, a login of its own, a sub-domain behind the single sign-on) are replaced by [0017](0017-the-browser-is-for-geminarr-alone-and-geminarr-relays-its-screen.md)**: the browser is for Geminarr alone and Geminarr relays its screen
 - **Date**: 2026-11-15
 - **Supersedes**: [0015](0015-the-browser-the-live-view-and-the-profile.md) (the embedded browser, the live view, the sign-in detection, the sandbox of the embedded browser)
 - **Spec**: D-24, F-CON-01 to F-CON-04, F-LGN; applies ADR 0004 (a dedicated account) and D-08 (read-only, on the assistant's own pages)

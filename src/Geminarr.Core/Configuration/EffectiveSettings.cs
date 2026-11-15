@@ -71,7 +71,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__READER__DEMOGROWSECONDS", _pass.Reading.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _pass.Reading.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__CDPURL", string.IsNullOrWhiteSpace(_browser.Value.CdpUrl) ? NotSet : "set", false),
-        new("GEMINARR__BROWSER__PAGEURL", string.IsNullOrWhiteSpace(_browser.Value.PageUrl) ? NotSet : _browser.Value.PageUrl, false),
+        new("GEMINARR__BROWSER__DESKTOPURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__ASSISTANTURL", _browser.Value.AssistantUrl, false),
         new("GEMINARR__BROWSER__SIGNINHOSTS", _browser.Value.SignInHosts, false),
         new("GEMINARR__BROWSER__SESSIONCOOKIES", _browser.Value.SessionCookies, false),

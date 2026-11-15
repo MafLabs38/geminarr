@@ -9,6 +9,12 @@ public static class SecurityHeaders
     private const string ContentSecurityPolicy =
         "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
+    // The pages of the browser's web desktop (ADR 0017) are another program's: they draw on a canvas, decode audio and video, start workers from blobs and talk over a WebSocket to this origin, and their own
+    // scripts are inline. It is the only path that is given this much, it is behind the sign-in, and it is never framed.
+    private const string RelayContentSecurityPolicy =
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; "
+        + "connect-src 'self' ws: wss: blob: data:; worker-src 'self' blob:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+
     /// <summary>
     /// Conservative headers on every response, errors included: they are set when the response starts, because the
     /// exception handler clears the response, headers and all, before it writes its own.
@@ -31,7 +37,7 @@ public static class SecurityHeaders
                     && headers.ContainsKey("Content-Security-Policy");
                 if (!keepsOwnHeaders)
                 {
-                    headers["Content-Security-Policy"] = ContentSecurityPolicy;
+                    headers["Content-Security-Policy"] = BrowserRelay.IsRelayPath(context.Request.Path) ? RelayContentSecurityPolicy : ContentSecurityPolicy;
                 }
 
                 if (ApiPaths.IsApi(context.Request.Path) && !keepsOwnHeaders)

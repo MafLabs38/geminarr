@@ -13,7 +13,7 @@ const base: ConnectionResource = {
   reader: 'Web',
   hasBrowser: true,
   pausedUntil: null,
-  browserPageUrl: 'https://browser.homelab.example/',
+  browserPagePath: '/browser/',
 };
 
 describe('Connection', () => {
@@ -51,17 +51,17 @@ describe('Connection', () => {
 
     const link = await screen.findByRole('link', { name: 'Open the browser' });
 
-    expect(link).toHaveAttribute('href', 'https://browser.homelab.example/');
+    expect(link).toHaveAttribute('href', '/browser/');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
   });
 
-  it('says when the address of the page of the browser is not given', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, browserPageUrl: null }) });
+  it('says when no desktop is given to relay', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, browserPagePath: null }) });
     renderAt(<Connection />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('GEMINARR__BROWSER__PAGEURL');
+    expect(await screen.findByRole('alert')).toHaveTextContent('GEMINARR__BROWSER__DESKTOPURL');
   });
 
   it('does not ask to sign in when the session is good', async () => {

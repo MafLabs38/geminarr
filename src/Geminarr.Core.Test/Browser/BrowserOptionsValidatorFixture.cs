@@ -30,15 +30,16 @@ public sealed class BrowserOptionsValidatorFixture
     }
 
     [Theory]
-    [InlineData("https://browser.homelab.example/", true)]
-    [InlineData("http://browser:3000", true)]
+    [InlineData("http://127.0.0.1:3000", true)]
+    [InlineData("http://localhost:3000/", true)]
     [InlineData("", true)]
+    [InlineData("https://browser.homelab.example/", false)]
+    [InlineData("http://browser:3000", false)]
     [InlineData("javascript:alert(1)", false)]
-    [InlineData("not an address", false)]
-    [InlineData("http://user:secret@browser:3000", false)]
-    public void should_accept_an_http_address_with_a_host_and_no_credentials_for_the_page_of_the_browser(string address, bool valid)
+    [InlineData("http://user:secret@127.0.0.1:3000", false)]
+    public void should_accept_only_a_loopback_address_for_the_web_desktop_of_the_browser(string address, bool valid)
     {
-        new BrowserOptionsValidator().Validate(null, new BrowserOptions { PageUrl = address }).Failed.Should().Be(!valid);
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { DesktopUrl = address }).Failed.Should().Be(!valid);
     }
 
     [Theory]

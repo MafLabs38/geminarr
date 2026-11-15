@@ -44,7 +44,7 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
-    public async Task should_give_the_address_of_the_page_of_the_browser_where_a_person_signs_in()
+    public async Task should_give_the_path_of_the_relay_of_the_browser_where_a_person_signs_in()
     {
         using var factory = new BrowserFactory();
         using var client = await factory.SignedInClientAsync();
@@ -52,7 +52,7 @@ public sealed class ConnectionApiFixture
         var connection = await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token);
 
         connection!.HasBrowser.Should().BeTrue();
-        connection.BrowserPageUrl.Should().Be("https://browser.homelab.example/");
+        connection.BrowserPagePath.Should().Be("/browser/");
     }
 
     [Fact]

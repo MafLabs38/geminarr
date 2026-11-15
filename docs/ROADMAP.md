@@ -55,10 +55,10 @@
 
 ## Vertical 3 — The browser container and the connection to it
 
-*Demo: open the page of the browser (behind the single sign-on), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected.*
+*Demo: open the browser from Geminarr's page (relayed under `/browser/`, no second login), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected.*
 
 - ADR 0016. F-CON-01..04: the attachment to the browser (`GEMINARR__BROWSER__CDPURL`), the state machine, pause and disconnect, the health of the attachment.
-- **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; its sub-domain behind the single sign-on (the maintainer's sub-domain API, default template).
+- **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; no sub-domain, no port and no login of its own: Geminarr relays its web desktop under `/browser/` behind its own sign-in (ADR 0017).
 - Spike S1 starts here: the first read of Gemini on a throw-away account, then on the dedicated one.
 - Not now: reading conversations (vertical 4).
 

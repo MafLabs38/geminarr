@@ -272,9 +272,31 @@ public sealed class BrowserFactory : GeminarrFactoryBase
     {
         settings["Reader:Kind"] = "Web";
         settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
-        settings["Browser:PageUrl"] = "https://browser.homelab.example/";
+        settings["Browser:DesktopUrl"] = "http://127.0.0.1:3000";
     }
 
     protected override void ConfigureServices(IServiceCollection services) =>
         services.AddSingleton<Geminarr.Core.Browser.IBrowserHost>(Browser);
+}
+
+/// <summary>A host that relays the web desktop of a browser (a fake one, started by the test) under <c>/browser/</c>.</summary>
+public sealed class RelayFactory : GeminarrFactoryBase
+{
+    private readonly string _desktopUrl;
+
+    public RelayFactory(string desktopUrl)
+        : base(createFolder: true)
+    {
+        _desktopUrl = desktopUrl;
+    }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        settings["Browser:DesktopUrl"] = _desktopUrl;
+        settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
+        settings["Reader:Kind"] = "Web";
+    }
+
+    protected override void ConfigureServices(IServiceCollection services) =>
+        services.AddSingleton<Geminarr.Core.Browser.IBrowserHost>(new Support.FakeBrowserHost());
 }

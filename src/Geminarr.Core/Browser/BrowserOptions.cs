@@ -16,8 +16,14 @@ public sealed class BrowserOptions
     /// </summary>
     public string? CdpUrl { get; set; }
 
-    /// <summary>The address of the page of the browser (its web desktop) where a person signs in: shown on the page of the connection, never used by Geminarr.</summary>
-    public string? PageUrl { get; set; }
+    /// <summary>
+    /// The web desktop of the browser container (for example <c>http://127.0.0.1:3000</c>): the screen of an ordinary Chromium where a person signs in by hand. Geminarr relays it, behind its own sign-in, at
+    /// <see cref="RelayPath"/>: nothing else reaches it (ADR 0017), so it is a loopback address of the namespace the two containers share. Without it, nothing is relayed.
+    /// </summary>
+    public string? DesktopUrl { get; set; }
+
+    /// <summary>Where Geminarr relays the web desktop of the browser; the desktop is told to serve itself under this path (<c>SUBFOLDER</c> of its image).</summary>
+    public const string RelayPath = "/browser/";
 
     /// <summary>The page of the assistant that is opened to check the session; its host is the only one Geminarr navigates to.</summary>
     public string AssistantUrl { get; set; } = "https://gemini.google.com/app";
@@ -51,8 +57,9 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         var problem =
             (OriginPolicy.AssistantHost(options) is null ? "Browser:AssistantUrl (GEMINARR__BROWSER__ASSISTANTURL) must be an https address with a host (http only when the sandbox switch allows it)." : null)
             ?? Address("CdpUrl", options.CdpUrl)
-            ?? Loopback(options.CdpUrl)
-            ?? Address("PageUrl", options.PageUrl)
+            ?? Loopback("CdpUrl", options.CdpUrl)
+            ?? Address("DesktopUrl", options.DesktopUrl)
+            ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
             ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
@@ -71,11 +78,11 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         return null;
     }
 
-    /// <summary>The debugging address is the key to the session and carries no authentication: it is the loopback of the namespace the two containers share, never an address of a network.</summary>
-    private static string? Loopback(string? value) =>
+    /// <summary>The debugging address is the key to the session and the web desktop has no sign-in of its own (Geminarr's is the only one): both are the loopback of the namespace the two containers share, never an address of a network.</summary>
+    private static string? Loopback(string setting, string? value) =>
         string.IsNullOrWhiteSpace(value) || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsLoopback)
             ? null
-            : "Browser:CdpUrl (GEMINARR__BROWSER__CDPURL) must be a loopback address (127.0.0.1, [::1] or localhost): the debugging port is never reached over a network.";
+            : $"Browser:{setting} (GEMINARR__BROWSER__{setting.ToUpperInvariant()}) must be a loopback address (127.0.0.1, [::1] or localhost): the browser is never reached over a network.";
 
     private static string? Address(string setting, string? value) =>
         string.IsNullOrWhiteSpace(value) || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.Host.Length > 0 && uri.UserInfo.Length == 0)

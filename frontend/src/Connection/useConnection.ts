@@ -17,8 +17,8 @@ export interface Connection {
   /** A browser reads this Geminarr: there is something to pause and to disconnect. */
   hasBrowser: boolean;
   pausedUntil: string | null;
-  /** The page of the browser container, where a person signs in by hand (ADR 0016), or null when it is not given. */
-  browserPageUrl: string | null;
+  /** Where Geminarr relays the web desktop of the browser, where a person signs in by hand (ADR 0017), or null when no desktop is given. */
+  browserPagePath: string | null;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;

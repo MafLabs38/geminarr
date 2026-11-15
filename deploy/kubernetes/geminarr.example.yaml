@@ -1,7 +1,7 @@
 # Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
-# One pod, two containers (ADR 0016): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
-# Both pages must be behind a login: publish them behind your single sign-on, and nothing else of them. The browser's debugging port is the key to the
-# session: it listens on the loopback of the pod, which the two containers share, and it is never in a Service or in a network policy.
+# One pod, two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
+# The browser is for Geminarr alone: no Service, no ingress, no login of its own. Its debugging port and its web desktop listen in the pod, which the two containers share,
+# and Geminarr relays the desktop under /browser/ behind its own sign-in: Geminarr's page is the only thing that is published (behind your single sign-on if you have one).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -83,14 +83,14 @@ spec:
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
-            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the debugging address (the loopback of the pod)
-            # and the page of the browser where a person signs in (behind your single sign-on). The person signs in by hand; Geminarr never types a credential.
+            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the debugging address and the web desktop (both on
+            # the loopback of the pod, nothing else is accepted). The person signs in by hand, in the desktop that Geminarr relays; Geminarr never types a credential.
             - name: GEMINARR__READER__KIND
               value: Web
             - name: GEMINARR__BROWSER__CDPURL
               value: http://127.0.0.1:9222
-            - name: GEMINARR__BROWSER__PAGEURL
-              value: https://browser.homelab.example
+            - name: GEMINARR__BROWSER__DESKTOPURL
+              value: http://127.0.0.1:3000
           securityContext:
             runAsNonRoot: true
             runAsUser: 1654
@@ -135,9 +135,6 @@ spec:
         # It starts as root (its init sets the user from PUID and PGID); harden it further for the platform you run on, and test that Chromium still starts.
         - name: browser
           image: lscr.io/linuxserver/chromium@sha256:<digest>   # pin by digest, never `latest`
-          ports:
-            - name: desktop
-              containerPort: 3000
           env:
             - name: PUID
               value: "1000"
@@ -145,14 +142,13 @@ spec:
               value: "1000"
             - name: TZ
               value: Etc/UTC   # your time zone
-            # The login of the browser's own page, from a secret: the page is behind your single sign-on AND this login.
-            - name: CUSTOM_USER
-              value: change-me-browser-user
-            - name: FILE__PASSWORD
-              value: /run/browser/password
-            # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share).
+            # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share), and the page the browser opens: the assistant, which
+            # sends a person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it, and it is no container port of the pod.
             - name: CHROME_CLI
-              value: --remote-debugging-port=9222
+              value: --remote-debugging-port=9222 https://gemini.google.com/app
+            # The web desktop is served under this path, where Geminarr relays it.
+            - name: SUBFOLDER
+              value: /browser/
           # Hardening, tried with Docker on 2026-11-15 (not yet on Kubernetes): the init of the image needs these few capabilities to set the user and the files, and nothing else.
           securityContext:
             allowPrivilegeEscalation: false
@@ -174,13 +170,7 @@ spec:
               mountPath: /config
             - name: shm
               mountPath: /dev/shm
-            - name: browser-secret
-              mountPath: /run/browser
-              readOnly: true
       volumes:
-        - name: browser-secret
-          secret:
-            secretName: geminarr-browser   # the file `password`: `kubectl -n geminarr create secret generic geminarr-browser --from-file=password=./browser-password`
         - name: browser
           persistentVolumeClaim:
             claimName: geminarr-browser
@@ -219,22 +209,8 @@ spec:
       port: 8282
       targetPort: http
 ---
-# The page of the browser container, where a person signs in by hand: publish it behind your single sign-on (the maintainer's sub-domain API, or your ingress), and its own login stays on.
-apiVersion: v1
-kind: Service
-metadata:
-  name: geminarr-browser
-  namespace: geminarr
-spec:
-  selector:
-    app.kubernetes.io/name: geminarr
-  ports:
-    - name: desktop
-      port: 3000
-      targetPort: desktop
----
-# Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
-# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
+# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's port: the web desktop of the browser (3000) and its debugging port (9222) have
+# no sign-in of their own, so no other pod may reach them, whatever listens in the pod. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -253,8 +229,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
-        - protocol: TCP
-          port: 3000
 ---
 # What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
 # of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.

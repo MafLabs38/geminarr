@@ -21,6 +21,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0014](0014-the-pass-the-outbox-and-mnemarrs-positions.md) | The pass, the outbox and Mnemarr's positions | D-22, F-LNK-01 to F-LNK-04 |
 | [0015](0015-the-browser-the-live-view-and-the-profile.md) | The browser, the live view and the profile *(superseded by 0016)* | D-23 (withdrawn) |
 | [0016](0016-the-browser-is-a-container-of-its-own.md) | The browser is a container of its own, and a person signs in to it by hand | D-24, F-CON-01 to F-CON-04, F-LGN |
+| [0017](0017-the-browser-is-for-geminarr-alone-and-geminarr-relays-its-screen.md) | The browser is for Geminarr alone, and Geminarr relays its screen behind its own sign-in | D-25, F-CON-01, F-LGN |
 
 ## Template
 

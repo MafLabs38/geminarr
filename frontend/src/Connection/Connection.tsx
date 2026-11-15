@@ -32,13 +32,13 @@ export const states: Readonly<Record<ConnectionState['state'], { kind: Kind; tex
 };
 
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
-function SignIn({ pageUrl }: Readonly<{ pageUrl: string | null }>) {
+function SignIn({ pagePath }: Readonly<{ pagePath: string | null }>) {
   return (
     <div className={styles.block}>
       <p>{translate('SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
-      {pageUrl ? (
-        <a className={styles.open} href={pageUrl} rel="noopener noreferrer" target="_blank">
+      {pagePath ? (
+        <a className={styles.open} href={pagePath} rel="noopener noreferrer" target="_blank">
           {translate('OpenTheBrowser')}
         </a>
       ) : (
@@ -139,7 +139,7 @@ export default function Connection() {
                 <p className={styles.reason}>{translate(reason)}</p>
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
-              {data.hasBrowser && SIGN_IN_STATES.has(data.state) && <SignIn pageUrl={data.browserPageUrl} />}
+              {data.hasBrowser && SIGN_IN_STATES.has(data.state) && <SignIn pagePath={data.browserPagePath} />}
               {data.hasBrowser && <Actions connection={data} />}
             </>
           )}

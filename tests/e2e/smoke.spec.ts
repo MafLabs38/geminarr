@@ -257,11 +257,15 @@ test.describe('smoke @smoke', () => {
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 
-    // Nobody has signed in to the browser yet: the page says so and sends the person to the browser's own page, in a tab of its own.
+    // Nobody has signed in to the browser yet: the page says so and sends the person to the browser, in a tab of its own, through Geminarr and its own sign-in (no second login).
     const open = page.getByRole('link', { name: 'Open the browser' });
     await expect(open).toBeVisible({ timeout: 90_000 });
-    await expect(open).toHaveAttribute('href', 'http://localhost:3000/');
+    await expect(open).toHaveAttribute('href', '/browser/');
     await expect(open).toHaveAttribute('target', '_blank');
+    const [desktop] = await Promise.all([page.context().waitForEvent('page'), open.click()]);
+    await expect(desktop).toHaveURL(/\/browser\/$/);
+    await expect(desktop).toHaveTitle(/Chromium|Selkies/, { timeout: 60_000 });
+    await desktop.close();
 
     // The person signs in, in the browser container, by hand: here a script plays the person against the fake assistant, through the debugging port of the test (never Geminarr).
     const signInByHand = async () => {
@@ -345,6 +349,26 @@ test.describe('smoke @smoke', () => {
       expect((await request.post('/api/v1/connection/pause', { data: { hours: 1 } })).status()).toBe(403);
     },
   );
+
+  test('the web desktop of the browser is reached through Geminarr only, behind its sign-in @browserless', async ({
+    request,
+    playwright,
+    baseURL,
+  }) => {
+    const anonymous = await request.get('/browser/', { maxRedirects: 0 });
+    expect(anonymous.status()).toBe(302);
+    expect(anonymous.headers().location).toBe('/');
+    expect((await request.get('/browser/api/websockets', { maxRedirects: 0 })).status()).toBe(302);
+
+    // The desktop is no port of the machine: it listens in the namespace of the two containers and nowhere else, and it has no login of its own.
+    await expect(request.get('http://localhost:3000/', { timeout: 5_000 })).rejects.toThrow();
+
+    const api = await signedInRequest(playwright, required(baseURL));
+    const page = await api.get('/browser/');
+    expect(page.status()).toBe(200);
+    expect(await page.text()).toContain('Selkies');
+    expect(page.headers()['set-cookie']).toBeUndefined();
+  });
 
   test('the system status page shows the version of the running build', async ({ page }) => {
     await signIn(page, '/system/status');

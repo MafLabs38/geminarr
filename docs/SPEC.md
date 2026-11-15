@@ -1,6 +1,6 @@
 # Geminarr — Functional and Technical Specification
 
-> **Status**: draft v0.7 (2026-11-15). The architecture and the security model are decided (D-01 to D-24); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
+> **Status**: draft v0.8 (2026-11-15). The architecture and the security model are decided (D-01 to D-25); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
 > **Related documents**: [VISION.md](VISION.md) (why) · [ROADMAP.md](ROADMAP.md) (the verticals) · [adr/](adr/README.md) (decision records) · [mnemarr-changes.md](mnemarr-changes.md) (what Mnemarr must gain)
 > **Audience**: the project owner, contributors.
 >
@@ -87,6 +87,7 @@ How it fits the constellation:
 | ✅ D-22 | **One pass is the unit of work; the outbox holds the only copy of a turn until Mnemarr acknowledges it; Mnemarr's positions win; the key is a file; a demonstration reader (a sandbox setting) proves the chain before the real reader exists.** | The reader is the unknown; the chain after it is the same whatever reads. | [0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md) |
 | ✅ D-23 | *Withdrawn.* One Chromium that Geminarr launches and drives, a route filter and a live view: Google refuses a browser that a program drives at sign-in (Q-14). | — | [0015](adr/0015-the-browser-the-live-view-and-the-profile.md) (superseded) |
 | ✅ D-24 | **The browser is a container of its own that a person signs in to by hand; Geminarr only attaches to it, through a debugging address on the loopback of a network namespace that the two share.** Every decision stays in Core; the container is in the infrastructure as code and every deployment file in the same pull request. | Google accepts a manual sign-in in an ordinary browser and refuses one that a program drives; the debugging port is the key to the session, so it is never on a network. | [0016](adr/0016-the-browser-is-a-container-of-its-own.md) |
+| ✅ D-25 | **The browser is for Geminarr alone: no port, no Service, no address, no sign-in of its own. Geminarr relays its web desktop under `/browser/`, behind the operator's own sign-in, and the browser opens on the assistant.** The debugging address and the desktop address must be loopback addresses. | One identity (the person signs in to Geminarr once, and only the account's own credentials are typed); the browser is a support that Geminarr uses to reach the assistant, and nothing else may reach it. | [0017](adr/0017-the-browser-is-for-geminarr-alone-and-geminarr-relays-its-screen.md) |
 | ✅ D-18 | **Review findings are answered in a register** (`docs/review-decisions/`) that the four agents read; a blocker, critical, high or major finding that is not fixed is accepted by the maintainer in a comment, checked by the `review-decisions` job. | The agents always find something and forget between rounds; the maintainer keeps control of what is serious without chasing the rest. | [0010](adr/0010-review-findings-are-answered-in-a-register-the-agents-read.md) |
 
 ---
@@ -301,8 +302,8 @@ A pause **takes a state over and gives it back**: the record keeps the state, it
 
 ### 7.3 Signing in (F-LGN)
 
-1. The page *Connection* says that nobody has signed in and gives a link to **the page of the browser container** (`GEMINARR__BROWSER__PAGEURL`), behind the single sign-on and the browser's own login, opened in a tab of its own.
-2. The person signs in **by hand** to the dedicated account in that page (approving on their phone), once, and again whenever the provider asks.
+1. The page *Connection* says that nobody has signed in and gives a link to **`/browser/`**, opened in a tab of its own: Geminarr relays the web desktop of the browser container there, behind the operator's own sign-in (D-25: no second login, no address of the browser's own). The browser opens on the assistant, which sends a person who is not signed in to the provider's sign-in page: the link lands there.
+2. The person signs in **by hand** to the dedicated account in that desktop (approving on their phone), once, and again whenever the provider asks.
 3. The next pass attaches to the browser, opens a page of its own on the assistant's address and looks at where it ends, and at the **names** of the cookies of that address: the assistant's page **with a cookie of a signed-in account** (`SID`, `__Secure-1PSID`) means signed in (`connected`); a redirect to a sign-in page, or the assistant's page without such a cookie (Gemini shows its page to a visitor who is not signed in: measured on 2026-11-15) means signed out. No value of a cookie is read.
 4. *Disconnect* clears the cookies of the browser (and forgets the connection); the state is `not-connected`, and a person signs in again by hand.
 
@@ -335,7 +336,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-SYS-04 | Identity of the environment (name, picture, version) in the menu | S | 1b ✅ |
 | **F-ACC** | **Operator access** | | |
 | F-ACC-01 | The operator: a name and a password file (D-19, ADR 0011); a session cookie; the header of writes; the outcome of each sign-in in the log, never what was typed | M | 1 ✅ |
-| F-ACC-02 | Behind the proxy's single sign-on **and** Geminarr's own login (nothing is reachable anonymously except the probes) | M | 1 ✅ |
+| F-ACC-02 | Behind Geminarr's own login, and the proxy's single sign-on if there is one (nothing is reachable anonymously except the probes; the browser's desktop is reached only through Geminarr, D-25) | M | 1 ✅ |
 | F-ACC-03 | The API description (`/openapi`) behind the sign-in; `AllowedHostNames` restricted to the loopback names and the host of `PUBLICURL` (a DNS-rebinding page must not reach the loopback address) | M | 1 ✅ |
 | F-ACC-04 | The server **enforces** the `X-Geminarr-Request` header on every write that is not a GET, HEAD or OPTIONS, with a test, before the first write endpoint ships | M | 1 ✅ |
 | **F-LNK** | **The link to Mnemarr** | | |
@@ -401,7 +402,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | Setting | Default | Purpose |
 |---|---|---|
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
-| `BROWSER__CDPURL`, `BROWSER__PAGEURL` | none, none | The debugging address of the browser container (a loopback address, refused otherwise: the key to the session, in a namespace the two containers share) and the page where a person signs in |
+| `BROWSER__CDPURL`, `BROWSER__DESKTOPURL` | none, none | The debugging address of the browser container and its web desktop, which Geminarr relays under `/browser/` (both loopback addresses of a shared namespace, refused otherwise: the first is the key to the session, the second has no sign-in of its own) |
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
 | `BROWSER__SESSIONCOOKIES` | **`SID;__Secure-1PSID`** | The names of the cookies that say the account is signed in (a guest mode shows the page to a visitor) |
 | `BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages whose redirect says the session is gone |
@@ -460,7 +461,7 @@ A degraded check never makes `ready` fail (the container is still useful to look
 
 - **The dedicated account** holds only Gemini conversations: no mailbox in use, no saved passwords, no link to the main account (never its recovery address; strong password kept outside Google's password manager; 2-step verification on the phone). A Brand Account does not isolate (it is reached from the main one).
 - **The profile** is the browser container's, on its own volume: Geminarr never reads its files, only the names of the cookies of the assistant's address through the debugging port; never in logs, an API response, a health page, a crash dump, a command line or an environment dump; excluded from clear backups; the browser has no extension, sync or password manager. *Disconnect* clears the browser's cookies.
-- **The page of Geminarr and the page of the browser container** are behind the proxy's single sign-on and Geminarr's own login (and the browser's own login on its page); the debugging address of the browser is on the loopback of a shared namespace and nowhere else.
+- **Geminarr's page is the only page**, behind its own login (and the proxy's single sign-on if there is one). The browser container has no address, no Service and no sign-in of its own: its web desktop is relayed under `/browser/` behind the operator's session, and its debugging address is on the loopback of a shared namespace and nowhere else. **The operator's password is therefore the key to the session** (D-25, ADR 0017).
 - **Network egress is a list** ([network.md](network.md)): the assistant's origin, the account provider's sign-in origin, the configured Mnemarr. The browser container's network policy holds the list (a policy knows addresses, not names).
 - **Geminarr's container** runs non-root, with a read-only root file system, no capabilities, no service-account token. **The browser container** is a third party's image that starts as root for its init: it drops every capability but the six its init needs, takes no new privilege, and has memory, ephemeral-storage and shared-memory limits ([DEPLOYMENT.md](DEPLOYMENT.md), Q-18).
 - **Nothing of a conversation is ever logged**; the logs carry ids, counts, durations and reason codes.
@@ -470,7 +471,7 @@ A degraded check never makes `ready` fail (the container is still useful to look
 | Threat | Control |
 |---|---|
 | Theft of the profile (volume read, container escape) | Dedicated account (impact limited to Gemini history); volume permissions; no clear backup; disconnect; revocation from the account's device list |
-| Takeover of the browser container (its page, or its debugging port) | The page behind the single sign-on and the browser's own login; the debugging port on the loopback of a shared namespace, in no Service and no policy; the dedicated account bounds the damage |
+| Takeover of the browser container (its screen, or its debugging port) | No address of its own: the screen only through Geminarr's relay and its sign-in (lockout, session, origin check of the WebSocket, no cookie in either direction); the debugging port on the loopback of a shared namespace, in no Service and no policy; the dedicated account bounds the damage |
 | Malicious Takeout archive (zip slip, bomb, symlink) | §8 safety rules; bounds; no extraction by name |
 | Leak through a log or an error message | Reason codes only; tests that grep the logs of a run for the text of a turn and for cookie names |
 | Theft or misuse of the Mnemarr key | Ingest-only, machine-bound, file mode `0600`, revocable in Mnemarr; HTTPS only |
@@ -553,5 +554,6 @@ Reading a consumer product by automation is against the provider's terms of use.
 | 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-18, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |
 | 2026-11-13 | v0.6: vertical 3 built as an embedded browser with a live view (D-23). *Withdrawn on 2026-11-15.* |
 | 2026-11-15 | v0.7: Google refuses a browser that a program drives at sign-in (Q-14, measured); D-24: the browser is a container of its own that a person signs in to by hand and Geminarr attaches to ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)); section 7 rewritten; the `BROWSER__*` settings, the `browser` check and the deployment files updated in the same change. |
+| 2026-11-15 | v0.8: D-25: the browser is for Geminarr alone (no port, no address, no sign-in of its own) and Geminarr relays its web desktop under `/browser/` behind the operator's sign-in; `BROWSER__PAGEURL` becomes `BROWSER__DESKTOPURL` ([ADR 0017](adr/0017-the-browser-is-for-geminarr-alone-and-geminarr-relays-its-screen.md)). |
 | 2026-11-13 | v0.5: vertical 2 built: D-22 (the pass, the outbox, Mnemarr's positions, the key is a file, the demonstration reader), the schema versioned by `PRAGMA user_version`, the API and settings of the link, `mnemarr-rejected`. |
 | 2026-11-13 | v0.4: Mnemarr's side delivered (0.4.0): the contract of §5 aligned with what it does (a title of the sender, 20 000-character turns, the attention rules, the mail that points to Mnemarr, the consolidate switch, `positions?machine=`); D-19 (one operator, a session in memory), D-20 (the mail is Mnemarr's); the verticals renumbered (access, link, session, reader, import, production); vertical 1 built. |

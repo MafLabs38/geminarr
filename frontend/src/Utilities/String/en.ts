@@ -37,7 +37,7 @@ const en = {
     'Sign in by hand, in the page of the browser container: Geminarr never types a credential. The next pass finds the session.',
   SignInDedicated: 'Use the dedicated account, never your main one.',
   OpenTheBrowser: 'Open the browser',
-  BrowserPageNotGiven: 'The address of the browser page is not set (GEMINARR__BROWSER__PAGEURL).',
+  BrowserPageNotGiven: 'No browser desktop is given to relay (GEMINARR__BROWSER__DESKTOPURL).',
   ConnectionConnected: 'Connected',
   DemoReaderNotice:
     'A demonstration reader is on: the conversations are synthetic. It is for a sandbox, never for a real deployment.',

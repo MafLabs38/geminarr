@@ -21,6 +21,7 @@ builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrBrowser();
+builder.Services.AddGeminarrBrowserRelay();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
 builder.Services.AddGeminarrSecurity();
@@ -55,9 +56,11 @@ app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
+app.UseWebSockets();
 app.UseRouting();
 app.UseGeminarrSecurity();
 app.MapControllers();
+app.MapGeminarrBrowserRelay();
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();
