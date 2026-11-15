@@ -32,6 +32,9 @@ public static class ConnectionReasons
     public const string Unreachable = "unreachable";
     public const string Paused = "paused";
     public const string Connecting = "connecting";
+
+    /// <summary>The browser itself could not be started (memory, a sandbox the platform refuses, a wrong path): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
+    public const string BrowserFailed = "browser-failed";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>
