@@ -79,7 +79,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
             {translate('DisconnectNow')}
           </Button>
           <Button variant="quiet" onClick={() => setSure(false)}>
-            {translate('CancelPairing')}
+            {translate('Cancel')}
           </Button>
         </>
       ) : (

@@ -139,6 +139,26 @@ describe('Connection', () => {
     await waitFor(() => expect(calls.some((call) => call.key === 'POST /connection/disconnect')).toBe(true));
   });
 
+  it('reads the state again after a disconnect that did not reach the browser, which forgot the connection all the same', async () => {
+    let connected = true;
+    const calls = serveApi({
+      'GET /connection': () => ({ ...base, state: connected ? 'Connected' : 'NotConnected' }),
+      'POST /connection/disconnect': () => {
+        connected = false;
+        return Response.json({ title: 'The browser could not be reached.' }, { status: 502 });
+      },
+    });
+    renderAt(<Connection />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Disconnect' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, disconnect' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The browser could not be reached.');
+    await waitFor(() => expect(calls.filter((call) => call.key === 'GET /connection').length).toBeGreaterThan(1));
+    expect(await screen.findByText('Not connected', { selector: 'span' })).toBeInTheDocument();
+  });
+
   it('says why a pause was refused', async () => {
     serveApi({
       'GET /connection': () => base,

@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
@@ -9,14 +11,16 @@ namespace Geminarr.Browser;
 
 /// <summary>
 /// The browser container (ADR 0016), reached through its debugging address. Geminarr never launches a browser: a person uses it by hand and signs in to it, and this only attaches, opens a page of its own,
-/// looks at where the assistant's address ends, closes that page and lets go. It never types a credential, never changes the settings of the browser and never touches a page that it did not open.
-/// One attachment at a time. Nothing of what a page holds is logged, only the kind of a failure.
+/// looks at where the assistant's address ends, closes that page and lets go. It never types a credential and never changes a setting of the browser. Attaching shows every tab of the browser to the driver for the seconds of a pass, so a pass first reads the list of tabs (plain
+/// HTTP, nothing attached) and steps aside while one of them is on a sign-in page: a person is signing in. One attachment at a time. Nothing of what a page holds is logged, only the kind of a failure.
 /// </summary>
 public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 {
     private readonly IOptions<BrowserOptions> _options;
     private readonly ILogger<CdpBrowserHost> _logger;
     private readonly SemaphoreSlim _attached = new(1, 1);
+    private static readonly HttpClient Tabs = new() { Timeout = TimeSpan.FromSeconds(10) };
+
     private IPlaywright? _playwright;
     private volatile int _reachable = -1;
 
@@ -40,6 +44,12 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         await _attached.WaitAsync(cancellationToken);
         try
         {
+            // Attaching makes a program of every tab of the browser for a moment: not while a person is typing on a sign-in page.
+            if (await APersonIsSigningInAsync(cancellationToken))
+            {
+                return SessionCheck.SigningIn;
+            }
+
             await using var browser = await AttachAsync(cancellationToken);
             return await OnTheBrowserAsync(async () =>
             {
@@ -90,6 +100,31 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         _attached.Dispose();
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>
+    /// Whether a tab of the browser is on a sign-in page, read from the list of tabs that the debugging port serves over plain HTTP: nothing is attached to read it. A browser that does not answer is not a person
+    /// signing in (the attachment says what is wrong).
+    /// </summary>
+    private async Task<bool> APersonIsSigningInAsync(CancellationToken cancellationToken)
+    {
+        string failure;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            var tabs = await Tabs.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(Options.CdpUrl!), "/json/list"), timeout.Token);
+            return tabs?.Any(tab => tab.Type == "page" && tab.Url is not null && OriginPolicy.Classify(tab.Url, Options) == PageKind.SignIn) == true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            failure = ex.GetType().Name;
+        }
+
+        _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
+        return false;
+    }
+
+    private sealed record TabInfo([property: JsonPropertyName("type")] string? Type, [property: JsonPropertyName("url")] string? Url);
 
     private async Task<Attachment> AttachAsync(CancellationToken cancellationToken)
     {

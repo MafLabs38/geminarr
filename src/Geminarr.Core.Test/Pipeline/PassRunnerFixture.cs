@@ -252,6 +252,23 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_step_aside_and_say_nothing_of_the_session_while_a_person_is_signing_in()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var before = _connection.Current();
+        _sink.Sent.Clear();
+        _reader.Session = SessionCheck.SigningIn;
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.SigningIn));
+        _connection.Current().Should().Be(before);
+        _sink.Sent.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task should_say_not_connected_when_the_reader_finds_no_browser()
     {
         _reader.Session = SessionCheck.NoBrowser;

@@ -8,6 +8,7 @@ const en = {
   ApiReachable: 'API reachable',
   AppName: 'Geminarr',
   BackToOverview: 'Back to the overview',
+  Cancel: 'Cancel',
   CancelPairing: 'Cancel',
   ConnectionCouldNotRead: 'Could not read the connection: {message}',
   ConnectionIntro:

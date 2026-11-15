@@ -311,6 +311,30 @@ test.describe('smoke @smoke', () => {
     expect((await request.post('http://localhost:8091/admin/guest')).status()).toBe(204);
     await runNow();
     await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('NeedsLogin');
+
+    // A person is typing on a sign-in page of the browser: a pass steps aside (it opens nothing, so the assistant is not asked for its page), and the next one, once the tab is closed, looks again.
+    const latestRunId = async () =>
+      ((await (await api.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ?? 0;
+    const visits = async () =>
+      ((await (await request.get('http://localhost:8091/admin/visits')).json()) as { visits: number }).visits;
+    const passAfter = async (previous: number) => {
+      await runNow();
+      await expect.poll(latestRunId, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(previous);
+      return latestRunId();
+    };
+    const peopleBrowser = await playwright.chromium.connectOverCDP('http://localhost:9223');
+    try {
+      const tab = await peopleBrowser.contexts()[0]?.newPage();
+      await tab?.goto('http://signin:8081/signin?next=/app');
+      const asked = await visits();
+      const steppedAside = await passAfter(await latestRunId());
+      expect(await visits()).toBe(asked);
+      await tab?.close();
+      await passAfter(steppedAside);
+      await expect.poll(visits, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(asked);
+    } finally {
+      await peopleBrowser.close();
+    }
   });
 
   test(

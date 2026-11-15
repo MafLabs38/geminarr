@@ -33,7 +33,7 @@ function useWrite<V, R>(send: (value: V) => Promise<R>) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: send,
-    onSuccess: () => client.invalidateQueries({ queryKey: ['api', connectionPath] }),
+    onSettled: () => client.invalidateQueries({ queryKey: ['api', connectionPath] }),
   });
 }
 

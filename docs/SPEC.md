@@ -292,7 +292,7 @@ The session (cookies, local storage) of the dedicated account is held by **a bro
 | `not-connected` | No browser configured, or the connection was just disconnected: nothing is read until a pass finds the browser | none | `error: "Not connected."` |
 | `connected` | Signed in and reading | yes | healthy |
 | `degraded` | Signed in but the last pass failed: reason `unreachable`, `rate-limited`, `reader-broken` or `browser-failed` (the browser container could not be reached) | backoff (§6.4) | `error` (+ `attention` for `reader-broken`) |
-| `needs-login` | Nobody is signed in to the browser, or the session is gone (N consecutive "not signed in"): a person signs in by hand | none | `error` + `attention: needs-login` |
+| `needs-login` | Nobody is signed in to the browser, or the session is gone (N consecutive "not signed in"): a person signs in by hand | a pass checks the session, and steps aside while a tab is on a sign-in page | `error` + `attention: needs-login` |
 | `paused` | The operator asked for quiet (until a time or until resumed) | none | `paused: true` |
 
 A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`. A browser that cannot be reached is `browser-failed`, which asks nobody to sign in.
@@ -306,7 +306,7 @@ A pause **takes a state over and gives it back**: the record keeps the state, it
 3. The next pass attaches to the browser, opens a page of its own on the assistant's address and looks at where it ends, and at the **names** of the cookies of that address: the assistant's page **with a cookie of a signed-in account** (`SID`, `__Secure-1PSID`) means signed in (`connected`); a redirect to a sign-in page, or the assistant's page without such a cookie (Gemini shows its page to a visitor who is not signed in: measured on 2026-11-15) means signed out. No value of a cookie is read.
 4. *Disconnect* clears the cookies of the browser (and forgets the connection); the state is `not-connected`, and a person signs in again by hand.
 
-Geminarr never touches a page that it did not open, never changes the settings of the browser, and lets go of the browser after each attachment. What Chromium itself may reach is the network policy of the pod's (D-08, [network.md](network.md)).
+**A pass steps aside while a person is signing in.** Attaching shows every tab of the browser to the driver for the seconds of a pass, which is what the provider refused when a program drove the sign-in (Q-14). So a pass first reads the list of tabs that the debugging port serves over plain HTTP (nothing attached), and if one of them is on a sign-in page it does nothing and says nothing of the session (the run is *skipped*, `signing-in`); the next pass looks again. Geminarr types and clicks nowhere, navigates in a page of its own only, and lets go of the browser after each attachment. What the driver does to the tabs that it sees for those seconds is measured in the spike (Q-17). What Chromium itself may reach is the network policy of the pod's (D-08, [network.md](network.md)).
 
 ---
 
