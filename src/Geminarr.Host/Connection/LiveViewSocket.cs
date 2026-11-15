@@ -119,20 +119,22 @@ public static class LiveViewSocket
             var inputs = ReceiveAsync(socket, view, connection, width, height, ends.Token);
             // By default nothing is decided from the address alone: the operator says they are signed in (the message "done"), and the browser must be on the assistant's page.
             var watch = detection == SignInDetection.Page ? WatchAsync(socket, view, connection, ends.Token) : Task.Delay(Timeout.Infinite, ends.Token).ContinueWith(static _ => false, TaskScheduler.Default);
-            try
-            {
-                var finished = await Task.WhenAny(pictures, inputs, watch);
-                signedIn = (finished == watch && watch.IsCompletedSuccessfully && watch.Result) || (finished == inputs && inputs.IsCompletedSuccessfully && inputs.Result);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
-            {
-                // The time is up, or the page went away.
-            }
-
+            // The first of the three to end decides: a sign-in that was said, or the end (the time is up, the page went away, the browser failed).
+            var finished = await Task.WhenAny(pictures, inputs, watch);
+            signedIn = finished is Task<bool> { IsCompletedSuccessfully: true, Result: true };
             await ends.CancelAsync();
-            // The three tasks end with the cancellation: they are awaited so that none is left to touch the socket after it is disposed, and none faults unobserved.
-            await Task.WhenAll(pictures, inputs, watch).ContinueWith(static _ => { }, TaskScheduler.Default);
+            // The tasks end with the cancellation: they are awaited so that none is left to touch the socket after it is disposed. One that failed (the browser, the socket) is said by its kind, and the live view ends.
+            await Task.WhenAll(pictures, inputs, watch).ContinueWith(task => FailureKinds(task, logger), TaskScheduler.Default);
             return signedIn;
+        }
+    }
+
+    private static void FailureKinds(Task all, ILogger logger)
+    {
+        foreach (var error in (all.Exception?.InnerExceptions ?? []).Where(error => error is not (OperationCanceledException or WebSocketException)))
+        {
+            // The kind only: the message of a browser's error holds its command line and the addresses it was on.
+            logger.LogWarning("The live view ended on an error ({Type}).", error.GetType().Name);
         }
     }
 
