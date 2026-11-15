@@ -132,17 +132,62 @@ describe('LiveView', () => {
     render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
     const screenElement = screen.getByLabelText('The browser of the Geminarr container');
 
-    fireEvent.keyDown(screenElement, { key: 'a' });
-    fireEvent.keyUp(screenElement, { key: 'a' });
+    fireEvent.keyDown(screenElement, { key: 'Enter' });
+    fireEvent.keyUp(screenElement, { key: 'Enter' });
     fireEvent.paste(screenElement, { clipboardData: { getData: () => 'secret pasted' } });
     fireEvent.paste(screenElement, { clipboardData: { getData: () => '' } });
 
     expect(open().sent.map((message) => JSON.parse(message) as Record<string, unknown>)).toEqual([
-      { t: 'keydown', key: 'a' },
-      { t: 'keyup', key: 'a' },
+      { t: 'keydown', key: 'Enter' },
+      { t: 'keyup', key: 'Enter' },
       { t: 'text', text: 'secret pasted' },
     ]);
     expect(document.body).not.toHaveTextContent('secret pasted');
+  });
+
+  it('sends a character as the text it makes, once, whatever the layout of the keyboard', () => {
+    render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
+    const screenElement = screen.getByLabelText('The browser of the Geminarr container');
+
+    fireEvent.keyDown(screenElement, { key: 'a' });
+    fireEvent.keyUp(screenElement, { key: 'a' });
+    fireEvent.keyDown(screenElement, { key: '1', shiftKey: true });
+    fireEvent.keyUp(screenElement, { key: '1', shiftKey: true });
+
+    expect(open().sent.map((message) => JSON.parse(message) as Record<string, unknown>)).toEqual([
+      { t: 'text', text: 'a' },
+      { t: 'text', text: '1' },
+    ]);
+  });
+
+  it('types an at sign with AltGr, which reaches the page as Ctrl and Alt, without sending the modifiers as a shortcut', () => {
+    render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
+    const screenElement = screen.getByLabelText('The browser of the Geminarr container');
+
+    fireEvent.keyDown(screenElement, { key: 'Control', ctrlKey: true });
+    fireEvent.keyDown(screenElement, { key: 'AltGraph', ctrlKey: true, altKey: true });
+    fireEvent.keyDown(screenElement, { key: '@', ctrlKey: true, altKey: true });
+    fireEvent.keyUp(screenElement, { key: '@', ctrlKey: true, altKey: true });
+    fireEvent.keyUp(screenElement, { key: 'AltGraph', ctrlKey: true, altKey: true });
+    fireEvent.keyUp(screenElement, { key: 'Control' });
+
+    const sent = open().sent.map((message) => JSON.parse(message) as Record<string, unknown>);
+    expect(sent).toContainEqual({ t: 'text', text: '@' });
+    expect(sent).not.toContainEqual(expect.objectContaining({ key: '@' }));
+    expect(sent).not.toContainEqual(expect.objectContaining({ key: 'AltGraph' }));
+  });
+
+  it('sends a key with Ctrl as a key (a shortcut), not as text', () => {
+    render(<LiveView onEnded={vi.fn()} ticket={ticket} />);
+    const screenElement = screen.getByLabelText('The browser of the Geminarr container');
+
+    fireEvent.keyDown(screenElement, { key: 'a', ctrlKey: true });
+    fireEvent.keyUp(screenElement, { key: 'a', ctrlKey: true });
+
+    expect(open().sent.map((message) => JSON.parse(message) as Record<string, unknown>)).toEqual([
+      { t: 'keydown', key: 'a' },
+      { t: 'keyup', key: 'a' },
+    ]);
   });
 
   it('gives the keyboard back to the page with the key combination, and sends nothing for it', () => {
