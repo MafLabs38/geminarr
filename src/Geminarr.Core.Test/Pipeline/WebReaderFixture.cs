@@ -7,7 +7,7 @@ namespace Geminarr.Core.Test.Pipeline;
 public sealed class WebReaderFixture
 {
     [Fact]
-    public async Task should_say_there_is_no_profile_when_no_browser_is_configured_and_not_attach()
+    public async Task should_say_there_is_no_browser_when_none_is_configured_and_attach_to_nothing()
     {
         var browser = new FakeBrowser { Configured = false };
 

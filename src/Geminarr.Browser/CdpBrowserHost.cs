@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
@@ -19,7 +20,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly IOptions<BrowserOptions> _options;
     private readonly ILogger<CdpBrowserHost> _logger;
     private readonly SemaphoreSlim _attached = new(1, 1);
-    private static readonly HttpClient Tabs = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private const int ListTimeoutSeconds = 5;
+    private static readonly HttpClient Tabs = new() { Timeout = TimeSpan.FromSeconds(2 * ListTimeoutSeconds) };
 
     private IPlaywright? _playwright;
     private volatile int _reachable = -1;
@@ -111,17 +113,19 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
             var tabs = await Tabs.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(Options.CdpUrl!), "/json/list"), timeout.Token);
-            return tabs?.Any(tab => tab.Type == "page" && tab.Url is not null && OriginPolicy.Classify(tab.Url, Options) == PageKind.SignIn) == true;
+            return SessionVerdict.APersonIsSigningIn((tabs ?? []).Select(tab => new BrowserTab(tab.Type, tab.Url)), Options);
         }
-        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
             failure = ex.GetType().Name;
         }
 
+        // A browser that cannot even list its tabs cannot be attached to either, and a guard that failed open would attach in the middle of a sign-in: the pass says the browser failed.
+        _reachable = 0;
         _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
-        return false;
+        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
     }
 
     private sealed record TabInfo([property: JsonPropertyName("type")] string? Type, [property: JsonPropertyName("url")] string? Url);
@@ -132,7 +136,19 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             _playwright ??= await Playwright.CreateAsync();
-            var browser = await _playwright.Chromium.ConnectOverCDPAsync(Options.CdpUrl!, new BrowserTypeConnectOverCDPOptions { Timeout = Options.SessionCheckTimeoutSeconds * 1_000 }).WaitAsync(cancellationToken);
+            var connecting = _playwright.Chromium.ConnectOverCDPAsync(Options.CdpUrl!, new BrowserTypeConnectOverCDPOptions { Timeout = Options.SessionCheckTimeoutSeconds * 1_000 });
+            IBrowser browser;
+            try
+            {
+                browser = await connecting.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // The pass gave up: a connection that completes later is closed, not left open on the browser.
+                _ = CloseWhenConnectedAsync(connecting);
+                throw;
+            }
+
             if (browser.Contexts.Count > 0)
             {
                 _reachable = 1;
@@ -199,6 +215,18 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         // The names of the cookies of the assistant's address, never their values: they say whether the account is signed in, which a guest page does not.
         var names = kind == PageKind.Assistant ? (await context.CookiesAsync([Options.AssistantUrl])).Select(cookie => cookie.Name) : [];
         return SessionVerdict.Decide(kind, SessionVerdict.HasSessionCookie(names, Options));
+    }
+
+    private static async Task CloseWhenConnectedAsync(Task<IBrowser> connecting)
+    {
+        try
+        {
+            await (await connecting).CloseAsync();
+        }
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+        {
+            // It never connected: there is nothing to close.
+        }
     }
 
     private static async Task CloseQuietlyAsync(IPage page)

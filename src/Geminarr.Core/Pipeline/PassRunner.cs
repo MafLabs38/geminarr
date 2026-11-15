@@ -190,11 +190,16 @@ public sealed class PassRunner
                 return;
             }
 
+            // A person is signing in: the pass steps aside and says nothing of the session (the next one will); a sign-in tab that stays open too long is nobody signed in.
             if (session == SessionCheck.SigningIn)
             {
-                // A person is signing in: the pass steps aside and says nothing of the session (the next one will).
-                state.Fail(RunOutcomes.Skipped, ConnectionReasons.SigningIn);
-                return;
+                if (_connection.SteppedAside())
+                {
+                    state.Fail(RunOutcomes.Skipped, ConnectionReasons.SigningIn);
+                    return;
+                }
+
+                session = SessionCheck.SignedOut;
             }
 
             if (session == SessionCheck.SignedOut)

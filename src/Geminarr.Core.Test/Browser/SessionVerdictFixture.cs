@@ -10,7 +10,6 @@ public sealed class SessionVerdictFixture
     [InlineData(PageKind.Assistant, true, SessionCheck.SignedIn)]
     [InlineData(PageKind.Assistant, false, SessionCheck.SignedOut)]
     [InlineData(PageKind.SignIn, true, SessionCheck.SignedOut)]
-    [InlineData(PageKind.SignIn, false, SessionCheck.SignedOut)]
     public void should_say_signed_out_when_sent_to_sign_in_or_without_the_cookie_of_an_account_and_signed_in_on_the_assistants_page_with_it(PageKind page, bool cookie, SessionCheck expected)
     {
         SessionVerdict.Decide(page, cookie).Should().Be(expected);
@@ -35,4 +34,25 @@ public sealed class SessionVerdictFixture
         decide.Should().Throw<ReaderException>().Which.Reason.Should().Be(ConnectionReasons.ReaderBroken);
     }
 
+
+    [Theory]
+    [InlineData("page", "https://accounts.example/signin/v2", true)]
+    [InlineData("page", "https://accounts.example/", true)]
+    [InlineData("page", "https://assistant.example/app", false)]
+    [InlineData("page", "chrome://newtab/", false)]
+    [InlineData("page", null, false)]
+    [InlineData("service_worker", "https://accounts.example/sw.js", false)]
+    [InlineData("background_page", "https://accounts.example/", false)]
+    public void should_say_a_person_is_signing_in_when_a_page_of_the_browser_is_on_a_sign_in_page(string type, string? url, bool signingIn)
+    {
+        var options = new BrowserOptions { AssistantUrl = "https://assistant.example/app", SignInHosts = "accounts.example" };
+
+        SessionVerdict.APersonIsSigningIn([new BrowserTab("page", "chrome://newtab/"), new BrowserTab(type, url)], options).Should().Be(signingIn);
+    }
+
+    [Fact]
+    public void should_say_nobody_is_signing_in_when_the_browser_has_no_tab()
+    {
+        SessionVerdict.APersonIsSigningIn([], new BrowserOptions()).Should().BeFalse();
+    }
 }

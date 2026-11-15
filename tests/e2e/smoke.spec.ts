@@ -324,12 +324,12 @@ test.describe('smoke @smoke', () => {
     };
     const peopleBrowser = await playwright.chromium.connectOverCDP('http://localhost:9223');
     try {
-      const tab = await peopleBrowser.contexts()[0]?.newPage();
-      await tab?.goto('http://signin:8081/signin?next=/app');
+      const tab = await required(peopleBrowser.contexts()[0]).newPage();
+      await tab.goto('http://signin:8081/signin?next=/app');
       const asked = await visits();
       const steppedAside = await passAfter(await latestRunId());
       expect(await visits()).toBe(asked);
-      await tab?.close();
+      await tab.close();
       await passAfter(steppedAside);
       await expect.poll(visits, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(asked);
     } finally {

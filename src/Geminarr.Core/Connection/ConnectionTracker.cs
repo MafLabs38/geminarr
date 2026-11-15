@@ -15,6 +15,7 @@ public sealed class ConnectionTracker
     private readonly Lock _gate = new();
     private readonly AsyncLocal<long?> _passEpoch = new();
     private long _epoch;
+    private int _steppedAside;
 
     public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock)
     {
@@ -53,13 +54,20 @@ public sealed class ConnectionTracker
         public void Dispose() => _epoch.Value = null;
     }
 
+    /// <summary>
+    /// A pass stepped aside because a person is signing in. It does so for at most as many passes in a row as it takes to turn to <c>needs-login</c> (<c>LoginFailures</c>): a sign-in tab that is left open
+    /// is somebody who gave up, and from then on the passes count as nobody signed in. Says whether this pass may still step aside.
+    /// </summary>
+    public bool SteppedAside() => Atomically(() => ++_steppedAside <= _options.Value.LoginFailures);
+
     /// <summary>No reader is configured, or the pass found no profile: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
-    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
+    public ConnectionRecord NotConnected() => Atomically(() => ResetAside(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false))));
 
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
     {
         _epoch++;
+        _steppedAside = 0;
         var current = _store.Get();
         var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.NotConnected);
         if (record != current)
@@ -71,7 +79,7 @@ public sealed class ConnectionTracker
     });
 
     /// <summary>The session is good and the pass read what it came for.</summary>
-    public ConnectionRecord Connected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true)));
+    public ConnectionRecord Connected() => Atomically(() => ResetAside(() => WhenNotPaused(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true))));
 
     /// <summary>The pass found nobody signed in. The state turns <c>needs-login</c> when it happened enough times in a row; before that it stays what it was.</summary>
     public ConnectionRecord SignedOut() => Atomically(() => WhenNotPaused(() =>
@@ -95,7 +103,7 @@ public sealed class ConnectionTracker
     }));
 
     /// <summary>The pass could not read: the reader says why (a code of <see cref="ConnectionReasons"/>).</summary>
-    public ConnectionRecord Failed(string reason) => Atomically(() => WhenNotPaused(() => Move(ConnectionState.Degraded, reason, _store.Get().ConsecutiveFailures + 1, ok: false)));
+    public ConnectionRecord Failed(string reason) => Atomically(() => ResetAside(() => WhenNotPaused(() => Move(ConnectionState.Degraded, reason, _store.Get().ConsecutiveFailures + 1, ok: false))));
 
     /// <summary>The operator asked for quiet, until a moment or until they resume. What was known of the session is kept to go back to.</summary>
     public ConnectionRecord Paused(DateTimeOffset? until) => Atomically(() => Move(ConnectionState.Paused, ConnectionReasons.Paused, failures: 0, ok: false, until, BeforeTakingOver()));
@@ -116,12 +124,19 @@ public sealed class ConnectionTracker
     /// A move reads the record and writes it: two at once (a pass, a call of the operator, the page reading the state that settles) would each write over what the other decided. One at a time, in this process,
     /// which is the only one that writes (the lock is re-entrant: a move may call another).
     /// </summary>
-    private ConnectionRecord Atomically(Func<ConnectionRecord> move)
+    private T Atomically<T>(Func<T> move)
     {
         lock (_gate)
         {
             return move();
         }
+    }
+
+    /// <summary>A pass that found something other than a person signing in ends the streak of passes that stepped aside.</summary>
+    private ConnectionRecord ResetAside(Func<ConnectionRecord> move)
+    {
+        _steppedAside = 0;
+        return move();
     }
 
     /// <summary>A pass says what it found only when the passes are not paused: a pause that was asked for while a pass was reading is not undone by the pass that ends.</summary>

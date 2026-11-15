@@ -53,4 +53,16 @@ public sealed class OriginPolicyFixture
 
         (OriginPolicy.AssistantHost(options) is not null).Should().Be(accepted);
     }
+
+    [Theory]
+    [InlineData("https://sub.accounts.example/signin", true)]
+    [InlineData("https://accounts.example/signin", false)]
+    [InlineData("https://evilaccounts.example/signin", false)]
+    [InlineData("https://sub.accounts.example.evil.example/", false)]
+    public void should_match_a_wildcard_sign_in_host_under_its_domain_only(string address, bool signIn)
+    {
+        var options = new BrowserOptions { AssistantUrl = "https://assistant.example/app", SignInHosts = "*.accounts.example" };
+
+        (OriginPolicy.Classify(address, options) == PageKind.SignIn).Should().Be(signIn);
+    }
 }
