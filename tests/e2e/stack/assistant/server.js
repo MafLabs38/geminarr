@@ -26,7 +26,7 @@ function cookie(request) {
   return match ? match[1] : null;
 }
 
-const send = (response, status, headers = {}, body) => response.writeHead(status, headers).end(body);
+const send = (response, status, headers, body) => response.writeHead(status, headers ?? {}).end(body);
 
 // One function for each page of the fake: the handler below only picks which.
 function signInPage(request, response, url) {
@@ -83,7 +83,7 @@ function admin(request, response, url) {
   }
   if (url.pathname === '/admin/expire' && request.method === 'POST') {
     sessions.clear();
-    send(response, 204);
+    send(response, 204, undefined);
     return true;
   }
   return false;
@@ -108,7 +108,7 @@ http
       if (route) {
         route[2](request, response, url);
       } else {
-        send(response, 404);
+        send(response, 404, undefined);
       }
     }
   })
