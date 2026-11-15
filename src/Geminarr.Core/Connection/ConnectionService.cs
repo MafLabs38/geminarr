@@ -51,13 +51,7 @@ public sealed class ConnectionService
         _tracker.Paused(duration is { } span ? _clock.GetUtcNow() + span : null);
     }
 
-    public void Resume()
-    {
-        if (_tracker.Current().State == ConnectionState.Paused)
-        {
-            _tracker.Resumed();
-        }
-    }
+    public void Resume() => _tracker.ResumedIfPaused();
 }
 
 /// <summary>What the operator asked cannot be done now (no browser): a sentence of ours, said as it is. Any other error is not echoed.</summary>

@@ -103,6 +103,9 @@ public sealed class ConnectionTracker
     /// <summary>Quiet is over: the state is what it was before, and the next pass says the rest.</summary>
     public ConnectionRecord Resumed() => Atomically(() => BackToWhatItWas() ?? NothingToGoBackTo());
 
+    /// <summary>The operator resumes: only what is paused is resumed, and the reading and the move are one step (a pause that ended by itself just before is not resumed a second time).</summary>
+    public ConnectionRecord ResumedIfPaused() => Atomically(() => Current().State == ConnectionState.Paused ? Resumed() : _store.Get());
+
     /// <summary>Nothing worked before the pause (or nothing was known): the connection is not made yet; otherwise it was good and the next pass says so.</summary>
     private ConnectionRecord NothingToGoBackTo()
     {

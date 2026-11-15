@@ -32,4 +32,15 @@ public sealed class SigningInGuardFixture
     {
         new SigningInGuard().StepsAside(true, 0).Should().BeFalse();
     }
+
+    [Fact]
+    public void should_step_aside_again_for_a_new_sign_in_after_a_tab_that_stayed_too_long_is_closed()
+    {
+        var subject = new SigningInGuard();
+        subject.StepsAside(true, 1);
+        subject.StepsAside(true, 1).Should().BeFalse();
+        subject.StepsAside(false, 1);
+
+        subject.StepsAside(true, 1).Should().BeTrue();
+    }
 }

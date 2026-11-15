@@ -153,4 +153,17 @@ public sealed class ConnectionTrackerFixture : IDisposable
 
         subject.Resumed().State.Should().Be(ConnectionState.NeedsLogin, "the second pause did not replace what the first one took over");
     }
+
+    [Fact]
+    public void should_resume_only_what_is_paused()
+    {
+        var subject = Subject(loginFailures: 1);
+        subject.SignedOut();
+
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "nothing is paused: nothing changes");
+
+        subject.Paused(until: null);
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "the pause gives back what it took over");
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "and a second resume changes nothing");
+    }
 }

@@ -265,6 +265,7 @@ public sealed class PassRunnerFixture : IDisposable
 
         (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.SigningIn));
         _connection.Current().Should().Be(before);
+        _connection.Current().ConsecutiveFailures.Should().Be(0, "stepping aside is not a failure");
         _sink.Sent.Should().BeEmpty();
     }
 
