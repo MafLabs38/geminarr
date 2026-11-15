@@ -78,8 +78,15 @@ public sealed class ConnectionService
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
         _views.Cancel();
-        await _browser.DestroyProfileAsync(cancellationToken);
-        _tracker.Disconnected();
+        try
+        {
+            await _browser.DestroyProfileAsync(cancellationToken);
+        }
+        finally
+        {
+            // Whatever was left, nothing reads the folder as a session any more (the marker goes first): the state is not connected, and the error says what remains.
+            _tracker.Disconnected();
+        }
     }
 
     /// <summary>Quiet until a moment, or until the operator resumes.</summary>

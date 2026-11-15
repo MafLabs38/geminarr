@@ -8,6 +8,16 @@ namespace Geminarr.Core.Test.Pipeline;
 public sealed class WebReaderFixture
 {
     [Fact]
+    public async Task should_say_the_browser_failed_when_the_folder_of_the_profile_cannot_be_read()
+    {
+        var browser = new FakeBrowser { State = new ProfileState(Exists: true, HasSession: false, Private: true, Readable: false) };
+
+        var check = () => new WebReader(browser).CheckSessionAsync(TestContext.Current.CancellationToken);
+
+        (await check.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.BrowserFailed);
+    }
+
+    [Fact]
     public async Task should_say_there_is_no_profile_without_starting_a_browser_when_nobody_signed_in()
     {
         var browser = new FakeBrowser();
