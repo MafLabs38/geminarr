@@ -107,9 +107,19 @@ public sealed class ConnectionController : ControllerBase
     /// <summary>Closes the browser and deletes the profile: the session is gone, and the state is not connected. What waits for Mnemarr stays.</summary>
     [HttpPost("disconnect")]
     [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
-    public async Task<ConnectionResource> Disconnect(CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConnectionResource>> Disconnect(CancellationToken cancellationToken)
     {
-        await _connection.DisconnectAsync(cancellationToken);
+        try
+        {
+            await _connection.DisconnectAsync(cancellationToken);
+        }
+        catch (ProfileNotEmptiedException ex)
+        {
+            // The connection is forgotten, but a file of the profile stayed: the operator is told what to do (the sentence is ours, never a path).
+            return Problem(statusCode: StatusCodes.Status500InternalServerError, title: ex.Message);
+        }
+
         return Get();
     }
 }

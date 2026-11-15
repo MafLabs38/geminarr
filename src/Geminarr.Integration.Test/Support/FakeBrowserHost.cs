@@ -15,6 +15,9 @@ public sealed class FakeBrowserHost : IBrowserHost
 
     public bool FailToOpen { get; set; }
 
+    /// <summary>How many entries of the profile stay when it is destroyed (a file that is held, a permission).</summary>
+    public int LeftWhenDestroyed { get; set; }
+
     public ProfileState Profile() => _state;
 
     public void MarkSignedIn() => _state = _state with { HasSession = true };
@@ -36,7 +39,7 @@ public sealed class FakeBrowserHost : IBrowserHost
     {
         Destroyed++;
         _state = new ProfileState(Exists: true, HasSession: false, Private: true);
-        return Task.CompletedTask;
+        return LeftWhenDestroyed > 0 ? throw new Geminarr.Core.Browser.ProfileNotEmptiedException(LeftWhenDestroyed) : Task.CompletedTask;
     }
 }
 
