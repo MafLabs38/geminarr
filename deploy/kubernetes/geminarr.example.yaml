@@ -169,6 +169,8 @@ spec:
         # The browser container: an ordinary Chromium with a web desktop (a third party's image, pinned by digest: the choice of the image is the maintainer's, SPEC Q-18).
         # It starts as root (its init sets the user from PUID and PGID); harden it further for the platform you run on, and test that Chromium still starts.
         - name: browser
+          # Everything below that depends on the image (the paths of its web client that Geminarr relays, the nginx edits of the init script, the port of its TLS desktop) was tested with
+          # lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108. Another digest needs the same tests again: it is a different contract (SPEC Q-18).
           image: lscr.io/linuxserver/chromium@sha256:<digest>   # pin by digest, never `latest`
           env:
             - name: PUID

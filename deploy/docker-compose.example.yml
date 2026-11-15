@@ -5,6 +5,8 @@
 services:
   browser:
     # A third party's image, pinned by digest, never `latest`: the choice of the image is the maintainer's (SPEC Q-18).
+    # Everything below that depends on the image (the paths of its web client that Geminarr relays, the nginx edits of the init script, the port of its TLS desktop) was tested with
+    # lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108. Another digest needs the same tests again: it is a different contract (SPEC Q-18).
     image: lscr.io/linuxserver/chromium@sha256:<digest>
     restart: unless-stopped
     shm_size: 1gb

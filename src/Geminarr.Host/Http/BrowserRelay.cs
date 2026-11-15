@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Geminarr.Api.V1.Access;
 using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
@@ -14,7 +15,7 @@ namespace Geminarr.Host.Http;
 /// the two containers share, and the only way to it is this relay, behind the sign-in of the operator (the fallback policy closes every endpoint, this one included). The person opens it to sign in to the account by hand;
 /// Geminarr neither types nor clicks in it. What the relay sends on is the request of the person, without the cookie of Geminarr's session, and what comes back has no cookie either.
 /// </summary>
-public static class BrowserRelay
+public static partial class BrowserRelay
 {
     private const string PathPattern = BrowserOptions.RelayPath + "{**path}";
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(30);
@@ -109,8 +110,10 @@ public static class BrowserRelay
     }
 
     /// <summary>
-    /// What the relay forwards (ADR 0017): the pages of the desktop's client (a read), its WebSocket and its status. Not a write, not the files and not the other services that the image's web server offers: the client does not
-    /// use them, and a page of the desktop is served on Geminarr's own origin.
+    /// What the relay forwards (ADR 0017), by a list of what the client of the pinned image asks for, and nothing else: its page, its scripts, styles, fonts and pictures under <c>assets/</c>, a few files at the root, its
+    /// WebSocket and its status. Not a write, and not what else the image's web server may offer (a listing of files, other services, a development route): a page of the desktop is served on Geminarr's own origin,
+    /// so a route that nobody listed is not relayed, whatever a later version of the image adds (the desktop then shows a blank page, which is visible; a route relayed by default would be silent).
+    /// The path is matched as it came, in its plain form, because the desktop's web server merges slashes, decodes and resolves dots before it picks a route.
     /// </summary>
     public static bool IsRelayed(HttpRequest request)
     {
@@ -119,25 +122,14 @@ public static class BrowserRelay
             return false;
         }
 
-        // The path is forwarded as it came, and the desktop's web server merges slashes, decodes and resolves dots before it picks a route: a path that is not in its plain form (`//api/files`, `api%2Ffiles`, `./api`)
-        // would pass the comparison below and still reach a route that is not the relay's. The client of the desktop asks for plain paths only.
         var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
         var target = string.IsNullOrEmpty(raw) ? request.Path.Value ?? string.Empty : raw;
         var query = target.IndexOf('?', StringComparison.Ordinal);
-        var rawPath = query < 0 ? target : target[..query];
-        if (rawPath.Contains("//", StringComparison.Ordinal) || rawPath.Contains('%', StringComparison.Ordinal) || rawPath.Contains('\\', StringComparison.Ordinal) || rawPath.Split('/').Any(segment => segment is "." or ".."))
-        {
-            return false;
-        }
-
-        var api = BrowserOptions.RelayPath + "api";
-        if (request.Path.StartsWithSegments(api, StringComparison.OrdinalIgnoreCase))
-        {
-            return request.Path.Equals(api + "/websockets", StringComparison.OrdinalIgnoreCase) || request.Path.Equals(api + "/status", StringComparison.OrdinalIgnoreCase);
-        }
-
-        return !request.Path.StartsWithSegments(BrowserOptions.RelayPath + "pelorus", StringComparison.OrdinalIgnoreCase);
+        return RelayedPaths().IsMatch(query < 0 ? target : target[..query]);
     }
+
+    [GeneratedRegex(@"^/browser/(|api/websockets|api/status|manifest\.json|selkies-core\.js|icon(-[0-9]+)?\.png|assets/[A-Za-z0-9._-]+\.(js|css|woff2?|png|svg|wasm|json))$", RegexOptions.CultureInvariant)]
+    private static partial Regex RelayedPaths();
 
     /// <summary>
     /// Whether the origin that a WebSocket handshake names is another than the page's: a handshake is not bound by the same-origin policy, and the cookie of the session is only <c>SameSite</c>, which another port

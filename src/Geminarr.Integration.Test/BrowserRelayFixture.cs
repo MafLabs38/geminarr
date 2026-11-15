@@ -158,6 +158,12 @@ public sealed class BrowserRelayFixture
         {
             await client.GetAsync("/browser/api/files", Token),
             await client.GetAsync("/browser/api/", Token),
+            await client.GetAsync("/browser/files/", Token),
+            await client.GetAsync("/browser/Downloads/report.html", Token),
+            await client.GetAsync("/browser/assets/", Token),
+            await client.GetAsync("/browser/assets/sub/app.js", Token),
+            await client.GetAsync("/browser/assets/app.html", Token),
+            await client.GetAsync("/browser/devmode", Token),
             await client.GetAsync("/browser//api/files", Token),
             await client.GetAsync("/browser/api%2Ffiles", Token),
             await client.GetAsync("/browser/assets/%2e%2e/api/files", Token),
