@@ -1,83 +1,14 @@
 namespace Geminarr.Core.Browser;
 
 /// <summary>
-/// Which origins the browser may load (D-08, SPEC §7.3): the assistant's own, the hosts its page needs, and the account provider's sign-in pages <b>only during a live view</b>. Everything else
-/// is refused, so that a page that is not the assistant's cannot be reached from the signed-in profile. A pure function, tested without a browser.
+/// What page the browser ended on: the assistant's own (signed in), or a sign-in page of the account provider (signed out) (SPEC §7.2, D-08). Geminarr navigates to the assistant's host only, and reads
+/// the page it lands on with this. A pure function, tested without a browser.
 /// </summary>
 public static class OriginPolicy
 {
     /// <summary>The host of the assistant, or null when the address is not one that may be used.</summary>
     public static string? AssistantHost(BrowserOptions options) =>
         Uri.TryCreate(options.AssistantUrl, UriKind.Absolute, out var uri) && IsAllowedScheme(uri, options) && uri.Host.Length > 0 && uri.UserInfo.Length == 0 ? uri.Host.ToLowerInvariant() : null;
-
-    /// <summary>
-    /// Whether the browser may load this address, now. A page that is navigated to (the browser's own address, a frame) is the assistant's, or in a live view a sign-in page: the other hosts serve what the
-    /// assistant's page loads, and a link to one of them is never followed (some of them serve what anybody uploaded).
-    /// </summary>
-    public static bool Allows(string address, BrowserOptions options, bool liveView, bool navigation = false)
-    {
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        // A data: or blob: address is the page's own (an image, a worker); it reaches no host.
-        if (uri.Scheme is "data" or "blob" or "about")
-        {
-            return true;
-        }
-
-        var host = uri.Host.ToLowerInvariant();
-        if (host == AssistantHost(options))
-        {
-            return IsAllowedScheme(uri, options);
-        }
-
-        // Plain http is for a sandbox or a test that says so, never by default.
-        if (uri.Scheme != Uri.UriSchemeHttps && !(options.AllowInsecureAssistant && uri.Scheme == Uri.UriSchemeHttp))
-        {
-            return false;
-        }
-
-        return (!navigation && Matches(host, options.AllowedHosts)) || (liveView && Matches(host, options.SignInHosts));
-    }
-
-    /// <summary>
-    /// The host names that the browser may resolve at all (Chromium's <c>--host-resolver-rules</c>): the assistant's, the hosts of files, and the sign-in hosts in a live view. It is the floor under the route
-    /// filter, which sees only the first address of a redirect: a redirect to any other host fails to resolve, whatever the page, the frame or the socket that follows it.
-    /// </summary>
-    public static IReadOnlyList<string> ResolvableHosts(BrowserOptions options, bool liveView)
-    {
-        var hosts = new List<string>();
-        if (AssistantHost(options) is { } assistant)
-        {
-            hosts.Add(assistant);
-        }
-
-        hosts.AddRange(Entries(options.AllowedHosts));
-        if (liveView)
-        {
-            hosts.AddRange(Entries(options.SignInHosts));
-        }
-
-        return [.. hosts.Select(host => host.ToLowerInvariant()).Distinct(StringComparer.Ordinal)];
-    }
-
-    /// <summary>Whether a WebSocket may be opened to this address: the same rule as for a subresource, with its own scheme read as the one of a page (<c>wss</c> is <c>https</c>).</summary>
-    public static bool AllowsWebSocket(string address, BrowserOptions options, bool liveView)
-    {
-        var page = address;
-        if (address.StartsWith("wss:", StringComparison.OrdinalIgnoreCase))
-        {
-            page = "https:" + address[4..];
-        }
-        else if (address.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
-        {
-            page = "http:" + address[3..];
-        }
-
-        return Allows(page, options, liveView, navigation: false);
-    }
 
     /// <summary>How a page that was loaded is read: the assistant's own page (signed in), a sign-in page (signed out), or neither (the network, a page in between: nothing is said).</summary>
     public static PageKind Classify(string address, BrowserOptions options)

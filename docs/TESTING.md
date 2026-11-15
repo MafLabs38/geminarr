@@ -28,7 +28,7 @@
 - **The sink is tested against a fake Mnemarr** that implements the contract of SPEC §5 (positions, overlap skipped, no hole filled, heartbeat): the same fake serves the integration tests and, with `tests/e2e/stack`, the end-to-end ones.
 - **Access is a matrix** (`AccessFixture`): who is let in, with what, who is refused, for every call; and the life of a session (`SessionFixture`: the cookie's flags, a copy that dies at sign-out, the end of the lifetime), the lockout (`LockoutFixture`), the host names (`HostsFixture`) and a container with no operator (`NoOperatorFixture`). The throttle, the credentials, the registry and the host list are unit-tested with a fake clock.
 - **The session never leaks**: tests grep the logs, the API responses and the health output of a run for cookie names and for the text of a turn.
-- **The live view** is tested at its edges: a missing, reused or expired token, a wrong `Origin`, a second viewer, an unauthenticated caller.
+- **The attachment to the browser container** is tested at its edges: a browser that cannot be reached, a session that is gone (the fake assistant redirects to its sign-in page), a session cleared by *Disconnect*, a pause that a running pass cannot undo; the end-to-end test runs a real browser container from the pinned digest, and a script plays the person who signs in, against a fake assistant, never against Google.
 - **A Takeout archive is hostile input**: a path with `..`, an absolute path, a symlink, a bomb, a huge entry and a malformed file each have a test.
 
 ## 4. Conventions

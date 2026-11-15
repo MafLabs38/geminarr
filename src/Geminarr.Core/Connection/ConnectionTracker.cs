@@ -1,4 +1,3 @@
-using Geminarr.Core.Browser;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -6,40 +5,28 @@ namespace Geminarr.Core.Connection;
 
 /// <summary>
 /// Keeps the state of the connection as the passes find it (SPEC §7.2): connected when the session is good, <c>needs-login</c> only after several passes in a row found nobody signed
-/// in (a network error is never "not signed in"), degraded when a pass failed for another reason. The live view, pausing and disconnecting come with the next vertical.
+/// in (a network error is never "not signed in"), degraded when a pass failed for another reason. A pause takes the state over and gives it back. A person signs in to the browser by hand (ADR 0016): the next pass finds it.
 /// </summary>
 public sealed class ConnectionTracker
 {
     private readonly IConnectionStore _store;
     private readonly IOptions<ReaderOptions> _options;
     private readonly TimeProvider _clock;
-    private readonly LiveViewService _views;
-    private readonly IBrowserHost _browser;
     private readonly Lock _gate = new();
     private readonly AsyncLocal<long?> _passEpoch = new();
     private long _epoch;
 
-    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock, LiveViewService views, IBrowserHost browser)
+    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock)
     {
         _store = store;
         _options = options;
         _clock = clock;
-        _views = views;
-        _browser = browser;
     }
 
-    /// <summary>
-    /// The state as it is now. Two things end by themselves and are settled here, where everybody reads the state: a live view that nobody opened or that has ended (the state goes back to what the
-    /// profile says), and a pause whose moment has come (the passes resume).
-    /// </summary>
+    /// <summary>The state as it is now. A pause whose moment has come ends by itself, and is settled here, where everybody reads the state (the passes resume).</summary>
     public ConnectionRecord Current() => Atomically(() =>
     {
         var record = _store.Get();
-        if (record.State == ConnectionState.Connecting && !_views.Active)
-        {
-            return SignInEnded();
-        }
-
         return record.State == ConnectionState.Paused && record.PausedUntil is { } until && until <= _clock.GetUtcNow() ? Resumed() : record;
     });
 
@@ -67,16 +54,7 @@ public sealed class ConnectionTracker
     }
 
     /// <summary>No reader is configured, or the pass found no profile: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
-    public ConnectionRecord NotConnected() => Atomically(() => WhenNobodyIsSigningIn(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
-
-    /// <summary>
-    /// The profile is gone from under a connection that had worked (the volume was replaced, the folder emptied by hand): the session is lost and a person must sign in again, which is told as such; a connection that
-    /// never worked has nothing to lose and stays not connected.
-    /// </summary>
-    public ConnectionRecord ProfileGone() => Atomically(() =>
-        _store.Get().LastOkAt is null
-            ? NotConnected()
-            : WhenNobodyIsSigningIn(() => Move(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, _store.Get().ConsecutiveFailures, ok: false)));
+    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
@@ -93,13 +71,10 @@ public sealed class ConnectionTracker
     });
 
     /// <summary>The session is good and the pass read what it came for.</summary>
-    public ConnectionRecord Connected() => Atomically(() => WhenNobodyIsSigningIn(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true)));
-
-    /// <summary>A person signed in through the live view: the session is good.</summary>
-    public ConnectionRecord SignedIn() => Atomically(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true));
+    public ConnectionRecord Connected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true)));
 
     /// <summary>The pass found nobody signed in. The state turns <c>needs-login</c> when it happened enough times in a row; before that it stays what it was.</summary>
-    public ConnectionRecord SignedOut() => Atomically(() => WhenNobodyIsSigningIn(() =>
+    public ConnectionRecord SignedOut() => Atomically(() => WhenNotPaused(() =>
     {
         var current = _store.Get();
         // A streak of signed-out passes is its own: failures of another kind (the network, a limit, a page that changed) are not people being signed out and do not count towards it.
@@ -120,14 +95,7 @@ public sealed class ConnectionTracker
     }));
 
     /// <summary>The pass could not read: the reader says why (a code of <see cref="ConnectionReasons"/>).</summary>
-    public ConnectionRecord Failed(string reason) => Atomically(() => WhenNobodyIsSigningIn(() => Move(ConnectionState.Degraded, reason, _store.Get().ConsecutiveFailures + 1, ok: false)));
-
-    /// <summary>A person is signing in through the live view: nothing is read meanwhile, and what was known of the session is kept to go back to.</summary>
-    public ConnectionRecord Connecting() => Atomically(() => Move(ConnectionState.Connecting, ConnectionReasons.Connecting, failures: 0, ok: false, before: BeforeTakingOver()));
-
-    /// <summary>The live view ended without a session: the state is what it was before a person tried; with nothing to go back to, what the profile says.</summary>
-    public ConnectionRecord SignInEnded() =>
-        Atomically(() => BackToWhatItWas() ?? (_browser.Profile().HasSession ? Move(ConnectionState.NeedsLogin, ConnectionReasons.NeedsLogin, _store.Get().ConsecutiveFailures, ok: false) : Disconnected()));
+    public ConnectionRecord Failed(string reason) => Atomically(() => WhenNotPaused(() => Move(ConnectionState.Degraded, reason, _store.Get().ConsecutiveFailures + 1, ok: false)));
 
     /// <summary>The operator asked for quiet, until a moment or until they resume. What was known of the session is kept to go back to.</summary>
     public ConnectionRecord Paused(DateTimeOffset? until) => Atomically(() => Move(ConnectionState.Paused, ConnectionReasons.Paused, failures: 0, ok: false, until, BeforeTakingOver()));
@@ -148,8 +116,8 @@ public sealed class ConnectionTracker
         }
     }
 
-    /// <summary>A pass says what it found only when nobody is signing in: the live view's moves are the only ones that count then.</summary>
-    private ConnectionRecord WhenNobodyIsSigningIn(Func<ConnectionRecord> move)
+    /// <summary>A pass says what it found only when the passes are not paused: a pause that was asked for while a pass was reading is not undone by the pass that ends.</summary>
+    private ConnectionRecord WhenNotPaused(Func<ConnectionRecord> move)
     {
         var current = _store.Get();
         // A pass that began before the operator disconnected says what it found about a profile that is gone: it is not told to anybody.
@@ -158,22 +126,20 @@ public sealed class ConnectionTracker
             return current;
         }
 
-        var signingIn = current.State == ConnectionState.Connecting && _views.Active;
-        // A pause that was asked for while a pass was reading is not undone by the pass that ends: the pass said what it found, and the state is quiet.
         var paused = current.State == ConnectionState.Paused && (current.PausedUntil is null || current.PausedUntil > _clock.GetUtcNow());
-        return signingIn || paused ? current : move();
+        return paused ? current : move();
     }
 
     private ConnectionBefore? BeforeTakingOver()
     {
         var current = _store.Get();
-        return current.State is ConnectionState.Connecting or ConnectionState.Paused ? current.Before : new ConnectionBefore(current.State, current.LastReason, current.ConsecutiveFailures);
+        return current.State == ConnectionState.Paused ? current.Before : new ConnectionBefore(current.State, current.LastReason, current.ConsecutiveFailures);
     }
 
     private ConnectionRecord? BackToWhatItWas()
     {
         var current = _store.Get();
-        return current.Before is { State: not (ConnectionState.NotConnected or ConnectionState.Connecting or ConnectionState.Paused) } before
+        return current.Before is { State: not (ConnectionState.NotConnected or ConnectionState.Paused) } before
             ? Move(before.State, before.Reason, before.Failures, ok: false)
             : null;
     }

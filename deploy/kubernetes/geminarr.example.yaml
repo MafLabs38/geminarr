@@ -1,6 +1,7 @@
 # Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
-# The page (and, from the reader vertical on, the live view where the dedicated account is signed in) must be behind a login:
-# publish it behind your single sign-on, and nothing else of it.
+# One pod, two containers (ADR 0016): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
+# Both pages must be behind a login: publish them behind your single sign-on, and nothing else of them. The browser's debugging port is the key to the
+# session: it listens on the loopback of the pod, which the two containers share, and it is never in a Service or in a network policy.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -19,11 +20,11 @@ spec:
     requests:
       storage: 2Gi
 ---
-# The browser profile: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0015).
+# The configuration of the browser container, profile included: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0016).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: geminarr-profile
+  name: geminarr-browser
   namespace: geminarr
 spec:
   accessModes: [ReadWriteOnce]
@@ -39,7 +40,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate        # one writer to the database and, later, the one browser profile
+    type: Recreate        # one writer to the database and the one browser profile
   selector:
     matchLabels:
       app.kubernetes.io/name: geminarr
@@ -52,9 +53,6 @@ spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1654
-        runAsGroup: 1654
         fsGroup: 1654
         seccompProfile:
           type: RuntimeDefault
@@ -85,10 +83,18 @@ spec:
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
-            # The browser reads the session of the assistant and gives the operator a live view to sign in through: set it to Web (the default, None, reads nothing).
-            # - name: GEMINARR__READER__KIND
-            #   value: Web
+            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the debugging address (the loopback of the pod)
+            # and the page of the browser where a person signs in (behind your single sign-on). The person signs in by hand; Geminarr never types a credential.
+            - name: GEMINARR__READER__KIND
+              value: Web
+            - name: GEMINARR__BROWSER__CDPURL
+              value: http://127.0.0.1:9222
+            - name: GEMINARR__BROWSER__PAGEURL
+              value: https://browser.homelab.example
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -109,13 +115,11 @@ spec:
               memory: 256Mi
               ephemeral-storage: 64Mi
             limits:
-              memory: 1Gi   # the browser (Chromium) needs about 300 MB while it is open
-              ephemeral-storage: 512Mi
+              memory: 256Mi
+              ephemeral-storage: 64Mi
           volumeMounts:
             - name: data
               mountPath: /config
-            - name: profile
-              mountPath: /profile
             - name: tmp
               mountPath: /tmp
             - name: operator
@@ -127,7 +131,57 @@ spec:
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
+        # The browser container: an ordinary Chromium with a web desktop (a third party's image, pinned by digest: the choice of the image is the maintainer's, SPEC Q-18).
+        # It starts as root (its init sets the user from PUID and PGID); harden it further for the platform you run on, and test that Chromium still starts.
+        - name: browser
+          image: lscr.io/linuxserver/chromium@sha256:<digest>   # pin by digest, never `latest`
+          ports:
+            - name: desktop
+              containerPort: 3000
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Europe/Paris
+            # The login of the browser's own page, from a secret: the page is behind your single sign-on AND this login.
+            - name: CUSTOM_USER
+              value: change-me-browser-user
+            - name: FILE__PASSWORD
+              value: /run/browser/password
+            # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share).
+            - name: CHROME_CLI
+              value: --remote-debugging-port=9222
+          readinessProbe:
+            tcpSocket:
+              port: desktop
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi   # Chromium with a page open
+          volumeMounts:
+            - name: browser
+              mountPath: /config
+            - name: shm
+              mountPath: /dev/shm
+            - name: browser-secret
+              mountPath: /run/browser
+              readOnly: true
       volumes:
+        - name: browser-secret
+          secret:
+            secretName: geminarr-browser   # the file `password`: `kubectl -n geminarr create secret generic geminarr-browser --from-file=password=./browser-password`
+        - name: browser
+          persistentVolumeClaim:
+            claimName: geminarr-browser
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi   # Chromium's shared memory
         - name: operator
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
@@ -142,12 +196,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data
-        - name: profile
-          persistentVolumeClaim:
-            claimName: geminarr-profile
         - name: tmp
           emptyDir:
-            sizeLimit: 384Mi   # the browser's temporary files and shared memory (--disable-dev-shm-usage) live here; the limit of the container is 512Mi
+            sizeLimit: 64Mi
 ---
 apiVersion: v1
 kind: Service
@@ -161,6 +212,20 @@ spec:
     - name: http
       port: 8282
       targetPort: http
+---
+# The page of the browser container, where a person signs in by hand: publish it behind your single sign-on (the maintainer's sub-domain API, or your ingress), and its own login stays on.
+apiVersion: v1
+kind: Service
+metadata:
+  name: geminarr-browser
+  namespace: geminarr
+spec:
+  selector:
+    app.kubernetes.io/name: geminarr
+  ports:
+    - name: desktop
+      port: 3000
+      targetPort: desktop
 ---
 # Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
 # could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
@@ -182,12 +247,15 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
+        - protocol: TCP
+          port: 3000
 ---
 # What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
 # of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
-# The browser (GEMINARR__READER__KIND=Web) also needs https to the assistant's hosts (GEMINARR__BROWSER__ASSISTANTURL, ALLOWEDHOSTS and SIGNINHOSTS: the list of
-# docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
-# port 443 for this pod only. The route filter of the browser holds the list in either case. The exact list is the spike S1's (ROADMAP), and a new destination is a decision.
+# The browser container (the same pod) also needs https to the assistant and to the account provider's sign-in pages, and whatever a Chromium reaches on its own (the list
+# of docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
+# port 443 for this pod only. The exact list is the spike S1's (ROADMAP), and a new destination is a decision. The debugging port of the browser is on the loopback: no policy
+# is needed for it, and none may open it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -221,3 +289,11 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # The browser container: https to the assistant and to the account provider (adjust to your plugin, see above).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - protocol: TCP
+          port: 443

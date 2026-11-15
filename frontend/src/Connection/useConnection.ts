@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { apiSend } from 'Helpers/Api/apiGet';
 import { useApiQuery } from 'Helpers/Hooks/useApiQuery';
 
-export type ConnectionStateName = 'NotConnected' | 'Connected' | 'Degraded' | 'NeedsLogin' | 'Connecting' | 'Paused';
+export type ConnectionStateName = 'NotConnected' | 'Connected' | 'Degraded' | 'NeedsLogin' | 'Paused';
 
 /** The connection to the assistant, as the passes find it. */
 export interface Connection {
@@ -15,20 +15,11 @@ export interface Connection {
   reason: string | null;
   /** `None`, `Web` or `Demo`: which reader reads. */
   reader: string;
-  /** A browser reads this Geminarr: there is something to sign in to. */
+  /** A browser reads this Geminarr: there is something to pause and to disconnect. */
   hasBrowser: boolean;
   pausedUntil: string | null;
-  liveViewMinutes: number;
-}
-
-/** A live view that was asked for: where to connect, the token that opens it once, and how big the screen is. */
-export interface LiveViewTicket {
-  id: string;
-  token: string;
-  path: string;
-  expiresAt: string;
-  width: number;
-  height: number;
+  /** The page of the browser container, where a person signs in by hand (ADR 0016), or null when it is not given. */
+  browserPageUrl: string | null;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
@@ -51,15 +42,6 @@ function useWrite<V, R>(send: (value: V) => Promise<R>) {
     mutationFn: send,
     onSuccess: () => client.invalidateQueries({ queryKey: ['api', connectionPath] }),
   });
-}
-
-/** Asks for a live view: the browser's screen, where the operator signs in. */
-export function useStartLiveView() {
-  return useWrite(() => apiSend<LiveViewTicket>('POST', `${connectionPath}/live-views`));
-}
-
-export function useCloseLiveView() {
-  return useWrite(() => apiSend('DELETE', `${connectionPath}/live-views`));
 }
 
 /** Quiet for some hours, or until the operator resumes when no number is given. */

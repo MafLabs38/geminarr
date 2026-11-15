@@ -137,24 +137,24 @@ public sealed class FakeKeys : IKeyStore
     }
 }
 
-/// <summary>A browser in memory: the profile and the session are what the test says, and a live view is a channel the test writes to.</summary>
+/// <summary>A browser in memory: what the attachment finds is what the test says.</summary>
 public sealed class FakeBrowser : IBrowserHost
 {
-    public ProfileState State { get; set; } = new(Exists: true, HasSession: false, Private: true);
+    public bool Configured { get; set; } = true;
+
+    public bool? Reachable { get; set; }
 
     public SessionCheck Check { get; set; } = SessionCheck.SignedIn;
 
     public Exception? FailCheck { get; set; }
 
+    public Exception? FailDisconnect { get; set; }
+
     public int Checks { get; private set; }
 
-    public int Destroyed { get; private set; }
+    public int Disconnected { get; private set; }
 
-    public FakeLiveView? View { get; private set; }
-
-    public ProfileState Profile() => State;
-
-    public void MarkSignedIn() => State = State with { HasSession = true };
+    public BrowserState State() => new(Configured, Reachable);
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
@@ -162,55 +162,16 @@ public sealed class FakeBrowser : IBrowserHost
         return FailCheck is not null ? throw FailCheck : Task.FromResult(Check);
     }
 
-    public Task<ILiveView> OpenLiveViewAsync(CancellationToken cancellationToken)
+    public Task DisconnectAsync(CancellationToken cancellationToken)
     {
-        View = new FakeLiveView();
-        return Task.FromResult<ILiveView>(View);
-    }
-
-    public Task DestroyProfileAsync(CancellationToken cancellationToken)
-    {
-        Destroyed++;
-        State = new ProfileState(Exists: true, HasSession: false, Private: true);
-        return Task.CompletedTask;
-    }
-}
-
-public sealed class FakeLiveView : ILiveView
-{
-    private readonly System.Threading.Channels.Channel<byte[]> _frames = System.Threading.Channels.Channel.CreateUnbounded<byte[]>();
-
-    public System.Threading.Channels.ChannelReader<byte[]> Frames => _frames.Reader;
-
-    public (int Width, int Height) Size => (1280, 800);
-
-    public PageKind Page { get; set; } = PageKind.SignIn;
-
-    public List<LiveInput> Inputs { get; } = [];
-
-    public bool Disposed { get; private set; }
-
-    public void Show(byte[] frame) => _frames.Writer.TryWrite(frame);
-
-    public Task SendAsync(LiveInput input, CancellationToken cancellationToken)
-    {
-        Inputs.Add(input);
-        return Task.CompletedTask;
-    }
-
-    public Task<PageKind> CurrentPageAsync(CancellationToken cancellationToken) => Task.FromResult(Page);
-
-    public ValueTask DisposeAsync()
-    {
-        Disposed = true;
-        _frames.Writer.TryComplete();
-        return ValueTask.CompletedTask;
+        Disconnected++;
+        return FailDisconnect is not null ? throw FailDisconnect : Task.CompletedTask;
     }
 }
 
 /// <summary>The state machine of the connection, built the way the tests need it.</summary>
 public static class Tracking
 {
-    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock, FakeBrowser? browser = null, LiveViewService? views = null) =>
-        new(store, options, clock, views ?? new LiveViewService(Geminarr.Core.Test.Access.Options.Of(new BrowserOptions()), clock), browser ?? new FakeBrowser());
+    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock) =>
+        new(store, options, clock);
 }

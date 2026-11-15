@@ -21,7 +21,6 @@ const states: Readonly<Record<Connection['state'], { kind: Kind; text: Translati
   NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
   Degraded: { kind: kinds.WARNING, text: 'ConnectionDegraded' },
   NotConnected: { kind: kinds.INFO, text: 'ConnectionNotConnected' },
-  Connecting: { kind: kinds.INFO, text: 'ConnectionConnecting' },
   Paused: { kind: kinds.INFO, text: 'ConnectionPaused' },
 };
 

@@ -3,7 +3,6 @@ using Geminarr.Browser;
 using Geminarr.Core;
 using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
-using Geminarr.Host.Connection;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
 using Geminarr.Host.Pipeline;
@@ -58,9 +57,7 @@ app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
 app.UseGeminarrSecurity();
-app.UseWebSockets();
 app.MapControllers();
-app.MapGeminarrLiveView();
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();

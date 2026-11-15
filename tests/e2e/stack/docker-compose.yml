@@ -16,31 +16,57 @@ services:
         aliases:
           - assistant
           - signin
-          - offlist
+  # The browser container (ADR 0016): an ordinary Chromium with a web desktop, a person signs in to it by hand. Its debugging port listens on the loopback of its own network namespace, which Geminarr shares.
+  # The image is a third party's, pinned by digest (the maintainer chooses it, SPEC Q-18). The ports of Geminarr are published here, since Geminarr uses this namespace.
+  browser:
+    image: lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108
+    shm_size: 1gb
+    environment:
+      PUID: '1000'
+      PGID: '1000'
+      CUSTOM_USER: e2e
+      PASSWORD: e2e-browser-password
+      CHROME_CLI: --remote-debugging-port=9222
+    ports:
+      - '8282:8282'
+      # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
+      - '127.0.0.1:9223:9223'
+      - '127.0.0.1:3000:3000'
+    networks:
+      default:
+        aliases:
+          - browser
+  debug-relay:
+    image: alpine/socat@sha256:71131702f671a88b3808a70b7330f9679cd9b9933adcafadc191508edfe55bba
+    command: tcp-listen:9223,fork,reuseaddr tcp:127.0.0.1:9222
+    network_mode: service:browser
+    depends_on:
+      - browser
   geminarr:
     build:
       context: ../../..
-    ports:
-      - '8282:8282'
+    # Shares the network namespace of the browser container: the debugging address is the loopback, never a network.
+    network_mode: service:browser
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
       - /config:uid=1654,gid=1654
-      - /profile:uid=1654,gid=1654,mode=0700
     depends_on:
       - assistant
+      - browser
     # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
     environment:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
       GEMINARR__AUTH__ADMINPASSWORDFILE: /run/admin-password
       GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
-      # The reader is the browser, and the "assistant" is a fake one on this network (a synthetic page that needs a sign-in, on its own host like the real one).
+      # The reader is the browser container, and the "assistant" is a fake one on this network (a synthetic page that needs a sign-in, on its own host like the real one).
       GEMINARR__READER__KIND: Web
       GEMINARR__READER__LOGINFAILURES: '1'
+      GEMINARR__READER__POLLMINUTES: '1'
+      GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
+      GEMINARR__BROWSER__PAGEURL: http://localhost:3000/
       GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
       GEMINARR__BROWSER__SIGNINHOSTS: signin
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
-      # The fake assistant sends everybody who is not signed in to its sign-in page: the page the browser is on says it.
-      GEMINARR__BROWSER__SIGNINDETECTION: Page
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg

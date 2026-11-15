@@ -62,11 +62,11 @@ Geminarr never deploys itself, and the CI has no access to your hosts: a version
 image: ghcr.io/<owner>/geminarr:0.1.0
 ```
 
-**A tool that follows the registry.** For example [Flux](https://fluxcd.io) image automation, which records the newest version in your own infrastructure repository (a deployment is then a commit there, and a rollback a `git revert`). Below 1.0 a breaking change is a minor, and Geminarr keeps a database and a browser profile: stay on one minor and move to the next deliberately. The shape of such a folder is in [DEPLOYMENT.md](DEPLOYMENT.md).
+**A tool that follows the registry.** For example [Flux](https://fluxcd.io) image automation, which records the newest version in your own infrastructure repository (a deployment is then a commit there, and a rollback a `git revert`). Below 1.0 a breaking change is a minor, and Geminarr keeps a database, and the browser container keeps a profile: stay on one minor and move to the next deliberately. The shape of such a folder is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## The browser (from vertical 3)
+## The browser (ADR 0016)
 
-The session's browser (Chromium, with its system libraries) is part of the image, installed in the last stage by Playwright's own driver, for the architecture of that stage: the `image` job installs QEMU so that the arm64 image is built too, and that stage is the slow one (several minutes). The base of the image is Ubuntu, no longer chiseled. The end-to-end test runs the amd64 image only: **a smoke test of the pushed arm64 image is a precondition of the vertical that adds the browser**, as it was for Mnemarr's vector library. A browser upgrade is an image version with a line in the [runbook](runbook.md).
+The browser is **not in the image**: it is a container of its own, a third party's image **pinned by digest** (the maintainer chooses it, SPEC Q-18), declared next to Geminarr in every deployment file (`deploy/`, the GitOps folder). The Geminarr image stays a small chiseled one; the only thing it carries for the browser is the Node driver that Playwright ships, of the target architecture, to attach to it. The final stage only copies files, so the arm64 image is built without emulation. **A new version of the browser image is a deliberate change** (a new digest, a line in the runbook), because the session lives in its profile. The end-to-end test runs the browser container from the pinned digest.
 
 ## The seed tag
 

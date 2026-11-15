@@ -4,8 +4,6 @@ const http = require('node:http');
 
 const sessions = new Set();
 let counter = 0;
-// What each host was asked for: `hop` is a redirect that the assistant's page asks for, `offlist` is where it leads (a host that the browser must never reach).
-const hits = { hop: 0, offlist: 0 };
 
 const page = (title, body) =>
   `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="margin:0;font-family:sans-serif">${body}</body></html>`;
@@ -58,7 +56,7 @@ function app(request, response) {
       { 'Content-Type': 'text/html' },
       page(
         'Fake assistant',
-        '<h1 style="margin:40px">Fake assistant: signed in</h1><img src="/hop" width="1" height="1" alt="">',
+        '<h1 style="margin:40px">Fake assistant: signed in</h1>',
       ),
     );
     return;
@@ -66,19 +64,12 @@ function app(request, response) {
   send(response, 302, { Location: 'http://signin:8081/signin?next=/app' });
 }
 
-function hop(response) {
-  hits.hop += 1;
-  send(response, 302, { Location: 'http://offlist:8081/trap' });
-}
-
-function offlist(response) {
-  hits.offlist += 1;
-  send(response, 200, { 'Content-Type': 'text/plain' }, 'a host that is not on the list');
-}
-
 function admin(request, response, url) {
-  if (url.pathname === '/admin/hits') {
-    send(response, 200, { 'Content-Type': 'application/json' }, JSON.stringify(hits));
+  if (url.pathname === '/admin/session' && request.method === 'POST') {
+    // A session for a person who signs in: the test plays the person, in the browser container (the cookie is set by /auth).
+    const token = `s${++counter}`;
+    sessions.add(token);
+    send(response, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ token }));
     return true;
   }
   if (url.pathname === '/admin/expire' && request.method === 'POST') {
@@ -94,16 +85,13 @@ const routes = [
   ['signin', '/signin', (request, response, url) => signInPage(request, response, url)],
   ['assistant', '/auth', (request, response, url) => auth(response, url)],
   ['assistant', '/app', (request, response) => app(request, response)],
-  ['assistant', '/hop', (request, response) => hop(response)],
 ];
 
 http
   .createServer((request, response) => {
     const url = new URL(request.url, 'http://x');
     const host = (request.headers.host ?? '').split(':')[0];
-    if (host === 'offlist') {
-      offlist(response);
-    } else if (!admin(request, response, url)) {
+    if (!admin(request, response, url)) {
       const route = routes.find(([routeHost, path]) => routeHost === host && path === url.pathname);
       if (route) {
         route[2](request, response, url);

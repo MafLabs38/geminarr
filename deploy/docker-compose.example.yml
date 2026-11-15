@@ -1,17 +1,46 @@
 # Geminarr on a Docker host. Copy, adjust the values marked <...>, then `docker compose up -d`.
-# The image runs as a non-root user (uid 1654) with no shell: the data folder must be writable by that user.
+# Two containers (ADR 0016): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
+# Geminarr runs in the network namespace of the browser: the debugging port of the browser is on the loopback of that namespace, never on a network. The ports of both
+# are therefore published on the `browser` service.
 services:
+  browser:
+    # A third party's image, pinned by digest, never `latest`: the choice of the image is the maintainer's (SPEC Q-18).
+    image: lscr.io/linuxserver/chromium@sha256:<digest>
+    restart: unless-stopped
+    shm_size: 1gb
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Europe/Paris
+      # The login of the browser's own page (the page must also be behind your single sign-on): a name, and the password in a file.
+      CUSTOM_USER: change-me-browser-user
+      FILE__PASSWORD: /run/secrets/browser_password
+      # The debugging port, on the loopback of the container only: Geminarr reaches it through the namespace that the two share.
+      CHROME_CLI: --remote-debugging-port=9222
+    volumes:
+      # The configuration of the browser, profile included: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
+      - browser-config:/config
+    ports:
+      # Loopback only: publish them through a reverse proxy with TLS and your single sign-on in front. Geminarr's own page, and the page of the browser where a person signs in.
+      - "127.0.0.1:8282:8282"
+      - "127.0.0.1:3000:3000"
+    secrets:
+      - browser_password
+    deploy:
+      resources:
+        limits:
+          memory: 2G   # Chromium with a page open
+
   geminarr:
     image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
     restart: unless-stopped
-    ports:
-      # Loopback only: Geminarr speaks plain HTTP. Publish it through a reverse proxy with TLS and your single sign-on in front,
-      # or change the address on purpose. Everything but the probes needs the operator's sign-in.
-      - "127.0.0.1:8282:8282"
+    # The network of the browser: the debugging address is its loopback, never a network.
+    network_mode: service:browser
+    depends_on:
+      - browser
     volumes:
       # - ./geminarr-logo.png:/run/identity/logo.png:ro   # the picture of the menu (see GEMINARR__IDENTITY__LOGOFILE below); not in git
       - geminarr-data:/config               # database and settings: back this up.
-      - geminarr-profile:/profile           # the browser profile: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (SPEC §7.1).
     environment:
       GEMINARR__DATAFOLDER: /config
       # The operator: a name that is not obvious (whoever knows it can lock it out for fifteen minutes) and the password in a file (a secret).
@@ -27,15 +56,18 @@ services:
       # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
-      # The browser reads the session of the assistant and gives the operator a live view to sign in through: Web (the default, None, reads nothing). It needs the memory below.
-      # GEMINARR__READER__KIND: Web
+      # The browser container reads the session of the assistant: the reader Web (the default, None, reads nothing), the debugging address (the loopback of the shared
+      # namespace) and the page of the browser where a person signs in (the address of the `browser` page behind your single sign-on). Geminarr never types a credential.
+      GEMINARR__READER__KIND: Web
+      GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
+      GEMINARR__BROWSER__PAGEURL: https://browser.homelab.example
       # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
     secrets:
       - geminarr_operator_password
     # Hardening: nothing writes outside the data folder and a temporary folder.
     read_only: true
     tmpfs:
-      - /tmp:size=384m,mode=1777   # the browser's temporary files and shared memory live here
+      - /tmp
     cap_drop:
       - ALL
     security_opt:
@@ -43,12 +75,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G   # the browser (Chromium) needs about 300 MB while it is open; 256M is enough for the container without a browser
+          memory: 256M
 
 secrets:
   geminarr_operator_password:
     file: ./geminarr-operator-password   # one line, at least 12 characters; not in git
+  browser_password:
+    file: ./browser-password             # the login of the browser's own page; not in git
 
 volumes:
   geminarr-data:
-  geminarr-profile:
+  browser-config:

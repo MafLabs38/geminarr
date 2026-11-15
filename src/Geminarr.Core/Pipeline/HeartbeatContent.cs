@@ -20,13 +20,12 @@ public static class HeartbeatContent
     {
         ConnectionState.Connected => null,
         ConnectionState.Paused => null,
-        ConnectionState.Connecting => null,
         ConnectionState.NotConnected => "Not connected.",
         ConnectionState.NeedsLogin => "The session has expired.",
         _ => Effective(connection).LastReason switch
         {
             ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
-            ConnectionReasons.BrowserFailed => "The browser of the container could not be started.",
+            ConnectionReasons.BrowserFailed => "The browser of the container could not be reached.",
             ConnectionReasons.RateLimited => "The assistant asked to slow down.",
             ConnectionReasons.Unreachable => "The assistant could not be reached.",
             _ => "The last pass failed.",
@@ -56,11 +55,11 @@ public static class HeartbeatContent
     }
 
     /// <summary>
-    /// What the connection is for Mnemarr: a person signing in, or a pause, does not change what is wrong (a heartbeat without the attention would end the episode that asked for the sign-in, and a mail could follow
+    /// What the connection is for Mnemarr: a pause does not change what is wrong (a heartbeat without the attention would end the episode that asked for the sign-in, and a mail could follow
     /// when it comes back), so the state it took over is the one that is told.
     /// </summary>
     private static ConnectionRecord Effective(ConnectionRecord connection) =>
-        connection is { State: ConnectionState.Connecting or ConnectionState.Paused, Before: { } before }
+        connection is { State: ConnectionState.Paused, Before: { } before }
             ? connection with { State = before.State, LastReason = before.Reason, ConsecutiveFailures = before.Failures }
             : connection;
 }

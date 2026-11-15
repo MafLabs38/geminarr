@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
@@ -15,18 +15,7 @@ import type { TranslationKey } from 'Utilities/String/en';
 import translate from 'Utilities/String/translate';
 
 import styles from './Connection.module.css';
-import LiveView from './LiveView';
-import {
-  type Connection as ConnectionState,
-  type LiveViewTicket,
-  useCloseLiveView,
-  useConnection,
-  useDisconnect,
-  usePause,
-  useRefreshConnection,
-  useResume,
-  useStartLiveView,
-} from './useConnection';
+import { type Connection as ConnectionState, useConnection, useDisconnect, usePause, useResume } from './useConnection';
 
 /** The hours of the quick pause. */
 export const PAUSE_HOURS = 6;
@@ -36,24 +25,36 @@ export const states: Readonly<Record<ConnectionState['state'], { kind: Kind; tex
   NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
   Degraded: { kind: kinds.WARNING, text: 'ConnectionDegraded' },
   NotConnected: { kind: kinds.INFO, text: 'ConnectionNotConnected' },
-  Connecting: { kind: kinds.INFO, text: 'ConnectionConnecting' },
   Paused: { kind: kinds.INFO, text: 'ConnectionPaused' },
 };
 
-function Actions({ connection, onSignIn }: Readonly<{ connection: ConnectionState; onSignIn: () => void }>) {
+/** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
+function SignIn({ pageUrl }: Readonly<{ pageUrl: string | null }>) {
+  return (
+    <div className={styles.block}>
+      <p>{translate('SignInInTheBrowser')}</p>
+      <p>{translate('SignInDedicated')}</p>
+      {pageUrl ? (
+        <a className={styles.open} href={pageUrl} rel="noopener noreferrer" target="_blank">
+          {translate('OpenTheBrowser')}
+        </a>
+      ) : (
+        <Alert>{translate('BrowserPageNotGiven')}</Alert>
+      )}
+    </div>
+  );
+}
+
+function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
   const pause = usePause();
   const resume = useResume();
   const disconnect = useDisconnect();
   const [sure, setSure] = useState(false);
   const paused = connection.state === 'Paused';
-  const connecting = connection.state === 'Connecting';
   const failure = pause.error ?? resume.error ?? disconnect.error;
 
   return (
     <div className={styles.actions}>
-      <Button disabled={paused || connecting} onClick={onSignIn}>
-        {translate('SignInToAssistant')}
-      </Button>
       {paused ? (
         <Button variant="quiet" onClick={() => resume.mutate()}>
           {translate('ResumePasses')}
@@ -88,32 +89,11 @@ function Actions({ connection, onSignIn }: Readonly<{ connection: ConnectionStat
   );
 }
 
-/** The session of the assistant: its state, the live view where the operator signs in to the dedicated account, pause and resume, and the way to destroy the profile (SPEC §7). */
+/** The session of the assistant: its state, where a person signs in (the browser container's own page), pause and resume, and the way to clear the session (SPEC §7, ADR 0016). */
 export default function Connection() {
   const { data, error, isPending } = useConnection();
-  const start = useStartLiveView();
-  const close = useCloseLiveView();
-  const [ticket, setTicket] = useState<LiveViewTicket | null>(null);
-  const { mutate: closeLiveView } = close;
   const reason = reasonKeyOf(data?.reason ?? null);
   const state = data ? states[data.state] : undefined;
-
-  const refresh = useRefreshConnection();
-  const [notice, setNotice] = useState<TranslationKey | null>(null);
-  const ended = useCallback(
-    (signedIn: boolean, failed: boolean) => {
-      setTicket(null);
-      if (signedIn) {
-        setNotice(null);
-        // The server has settled the state before it said so: it is only read again.
-        refresh().catch(() => undefined);
-      } else {
-        setNotice(failed ? 'LiveViewError' : 'LiveViewClosed');
-        closeLiveView();
-      }
-    },
-    [refresh, closeLiveView],
-  );
 
   return (
     <PageContent title={translate('Connection')}>
@@ -156,29 +136,11 @@ export default function Connection() {
                 <p className={styles.reason}>{translate(reason)}</p>
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
-              {data.hasBrowser && (
-                <Actions
-                  connection={data}
-                  onSignIn={() =>
-                    start.mutate(undefined, {
-                      onSuccess: (created) => {
-                        setNotice(null);
-                        setTicket(created);
-                      },
-                    })
-                  }
-                />
-              )}
-              {start.error && <Alert>{start.error.message}</Alert>}
-              {notice && !ticket && <Alert>{translate(notice)}</Alert>}
+              {data.hasBrowser && data.state !== 'Connected' && <SignIn pageUrl={data.browserPageUrl} />}
+              {data.hasBrowser && <Actions connection={data} />}
             </>
           )}
         </Card>
-        {ticket && (
-          <Card title={translate('LiveViewTitle')}>
-            <LiveView onEnded={ended} ticket={ticket} />
-          </Card>
-        )}
       </PageContentBody>
     </PageContent>
   );

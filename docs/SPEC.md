@@ -25,7 +25,7 @@ Identifiers: `D-xx` decision · `F-XXX-nn` feature · `Q-xx` question · `M-n` c
 4. [Data model](#4-data-model)
 5. [The contract with Mnemarr](#5-the-contract-with-mnemarr)
 6. [The reader](#6-the-reader)
-7. [The session and the live view](#7-the-session-and-the-live-view)
+7. [The session and the browser container](#7-the-session-and-the-browser-container)
 8. [The Takeout import](#8-the-takeout-import)
 9. [Feature catalog](#9-feature-catalog)
 10. [API, settings and health](#10-api-settings-and-health)
@@ -71,7 +71,7 @@ How it fits the constellation:
 | ✅ D-05 | **No consolidation of these conversations.** Mnemarr gains a per-machine switch (M-2); the search by meaning already covers them. | The maintainer uses Gemini to think out loud, not to build. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
 | ✅ D-06 | **No second copy.** Geminarr stores metadata, positions and an outbox of unacknowledged batches; the text of a turn is deleted from the outbox when Mnemarr acknowledges it. | One copy is easier to protect and to delete. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
 | ✅ D-07 | **Reading is by position and idempotent**: a turn is identified by its index in its conversation; nothing is sent twice, nothing is skipped, a restart loses nothing. | Mnemarr's contract (ADR 0024); same guarantees as a collector. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
-| ✅ D-08 | **Read-only, on the assistant's own pages.** The browser visits only the assistant's origin (and the sign-in pages of its account provider during the live view); it never submits a prompt. | Limits what a bug or a compromise can do on the account, and the footprint on the provider. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
+| ✅ D-08 | **Read-only, on the assistant's own pages.** Geminarr navigates to the assistant's origin only (a redirect to the sign-in pages of its account provider is what says the session is gone); it never submits a prompt, and never types a credential. | Limits what a bug or a compromise can do on the account, and the footprint on the provider. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-09 | **A dedicated Google account, never the main one**, sharing the maintainer's Google AI plan through the family group. A one-time import of the past may use the main account only by the ladder of D-10. | A Google session is valid across all of the account's services: a leak of this container must reach nothing but Gemini conversations. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-10 | **The past is imported by the least exposed way that is complete enough**: (1) Google Takeout, no session; (2) extraction from the maintainer's own browser, text only; (3) last resort, an ephemeral sign-in of the container to the main account under the conditions of §11.4. | Same reason. | [0004](adr/0004-a-dedicated-google-account-never-the-main-one.md) |
 | ✅ D-11 | **A session that stops working is a state, not a silence**: Geminarr reports `needs-login` to Mnemarr in its heartbeat, and Mnemarr mails the maintainer (D-20). Geminarr holds no mail credential, and nothing it wrote is in the mail. | One place sends mail (M-3); fewer secrets in the most sensitive container. | [0003](adr/0003-geminarr-is-a-satellite-that-sends-turns-to-mnemarr-as-a-machine.md) |
@@ -79,13 +79,14 @@ How it fits the constellation:
 | ✅ D-13 | **Releases by semantic-release from `main`, consumed by pulling** (image on GHCR; a GitOps tool in the cluster follows the versions). Nothing in the CI can reach a host. | Same as Mnemarr's ADR 0013. | [0006](adr/0006-releases-with-semantic-release-consumed-by-pulling.md) |
 | ✅ D-14 | **Everything is described as code**: the repository (Terraform, `github-template`), the image (this repo), the deployment (the private GitOps repository). The container is configurable by environment variables and files only. | The maintainer deploys Geminarr like Mnemarr, on the Kubernetes cluster, by GitOps. | [0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md) |
 | 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
-| 🟡 D-16 | **One browser, started per pass and closed after it** (resident only during a live view). | A resident Chromium costs memory for nothing between two passes that are 20 minutes apart. | *after the spike* |
+| 🟡 D-16 | **A pass attaches to the browser container, opens a page of its own and closes it** (the browser itself is resident, in its own container). | The browser holds the session and is used by hand to sign in, so it stays up; Geminarr only borrows it for a pass. | [0016](adr/0016-the-browser-is-a-container-of-its-own.md) |
 | ✅ D-17 | **Default port 8282** (Portarr has 8484, Mnemarr 8383). | No collision on a default install. | [0009](adr/0009-default-port.md) |
 | ✅ D-19 | **One operator, a session in memory.** Geminarr has a single operator (a name, and a password in a mounted file read at each sign-in, at least twelve characters), signed in by a cookie (`HttpOnly`, `SameSite=Strict`, `Secure` unless told otherwise, `__Host-` prefixed), whose session lives in memory with an absolute lifetime (12 hours by default): a restart signs everybody out, and signing out kills a copied cookie. Five wrong passwords lock a name for fifteen minutes, counted per name whether it exists or not. Every call but the probes needs the session; every write carries `X-Geminarr-Request`; a request for a `Host` that is not allowed is refused (the probes excepted). No accounts to manage, no database. | The container holds a signed-in session of an account: the page that reaches it must be closed by default, simple enough to audit, and leave nothing at rest to steal. | [0011](adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) |
 | ✅ D-20 | **The mail is Mnemarr's, and points to Mnemarr.** On an `attention` signal Mnemarr (0.4.0, its ADR 0041 and 0042) shows its own sentence and the satellite's link on its Machines page and sends **one mail** per episode (a reminder at most once a day, a few at most) from its own mailbox to its own recipient, by SMTP. The mail holds Mnemarr's sentence and the address of **Mnemarr's** Machines page, **never the link or any text the satellite wrote**: a leaked ingest key must not be able to make Mnemarr send a convincing "sign in here". The link of Geminarr's sign-in page is shown there, with its host visible. | The consequence of an ingest-only key being low-trust. This replaces the "link to Geminarr's page in the mail" of ADR 0003 §6. | [0012](adr/0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) |
 | ✅ D-21 | **The menu says which environment it is**: a name, a picture and the version at the bottom of the menu, the same as Mnemarr's and Portarr's. The deployment gives the name, the colors and a mounted image file (checked by its content); the product's own drawing is the default. The personal picture lives in the GitOps folder, not in this repository. | One design for the family, and the laboratory's face stays out of a public repository. | [0013](adr/0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md) |
 | ✅ D-22 | **One pass is the unit of work; the outbox holds the only copy of a turn until Mnemarr acknowledges it; Mnemarr's positions win; the key is a file; a demonstration reader (a sandbox setting) proves the chain before the real reader exists.** | The reader is the unknown; the chain after it is the same whatever reads. | [0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md) |
-| ✅ D-23 | **One Chromium on a profile of its own, a route filter, and a live view on a canvas behind two checks and a single-use token.** Every decision is in Core; signed in is the page the browser is on; the reader `Web` knows the session and nothing else until the first spike has said how the page is read. | The session is the crown jewel: the place where it is made, and what the browser may reach, are the security model. | [0015](adr/0015-the-browser-the-live-view-and-the-profile.md) |
+| ✅ D-23 | *Withdrawn.* One Chromium that Geminarr launches and drives, a route filter and a live view: Google refuses a browser that a program drives at sign-in (Q-14). | — | [0015](adr/0015-the-browser-the-live-view-and-the-profile.md) (superseded) |
+| ✅ D-24 | **The browser is a container of its own that a person signs in to by hand; Geminarr only attaches to it, through a debugging address on the loopback of a network namespace that the two share.** Every decision stays in Core; the container is in the infrastructure as code and every deployment file in the same pull request. | Google accepts a manual sign-in in an ordinary browser and refuses one that a program drives; the debugging port is the key to the session, so it is never on a network. | [0016](adr/0016-the-browser-is-a-container-of-its-own.md) |
 | ✅ D-18 | **Review findings are answered in a register** (`docs/review-decisions/`) that the four agents read; a blocker, critical, high or major finding that is not fixed is accepted by the maintainer in a comment, checked by the `review-decisions` job. | The agents always find something and forget between rounds; the maintainer keeps control of what is serious without chasing the rest. | [0010](adr/0010-review-findings-are-answered-in-a-register-the-agents-read.md) |
 
 ---
@@ -101,15 +102,15 @@ How it fits the constellation:
    single sign-on, and   │                           │                 ├─ PassScheduler  (every N minutes)     │
    Geminarr's own login) │                           │                 ├─ ConversationPipeline ──▶ Outbox      │
                          │                           │                 └─ MnemarrSink (HTTP client)            │
-                         │   live view (WebSocket) ◀─┘                        ▲                                │
-                         │        │                                          │ reads                          │
+                         │                           ◀─┘                        ▲                                │
+                         │        │ debugging address (loopback of a shared namespace)│ reads                          │
                          │        ▼                                          │                                │
-                         │   Browser adapter (Playwright, one Chromium, profile on its own volume)            │
+                         │   Browser adapter (Playwright, attached to the browser container)                  │
                          └───────────┬───────────────────────────────────────────────────────┬────────────────┘
                                      │ HTTPS out (D-08)                                      │ HTTPS out
                                      ▼                                                       ▼
                            gemini.google.com                                      Mnemarr  /api/v1/ingest/*
-                           accounts.google.com (live view only)
+                           accounts.google.com            (the browser container, where a person signs in by hand)
 ```
 
 ### 3.2 Projects (same layers as Mnemarr)
@@ -117,7 +118,7 @@ How it fits the constellation:
 | Project | Role | Rules |
 |---|---|---|
 | `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
-| `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: the web reader, the live view, the profile | Behind the ports of Core; selectors and calls of the web product in one place (D-15). |
+| `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: it attaches to the browser container, checks the session, clears it | Behind the ports of Core; selectors and calls of the web product stay here |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
 | `frontend/` | React page: overview, connection, conversations, runs, settings | Server data only through the data hooks (DESIGN.md). |
@@ -128,7 +129,7 @@ How it fits the constellation:
 ```text
 scheduler (every ~20 min ± 20 %, or "run now")
   1. ConnectionStateMachine: may we run?  (paused / needs-login / not-connected  →  skip, heartbeat only)
-  2. start the browser on the profile; check the session ("am I signed in?")
+  2. attach to the browser container; open a page of its own on the assistant's address; check the session ("am I signed in?"); close the page
         not signed in ×N  →  state needs-login, stop
   3. list the recent conversations (bounded), compare with `conversations`  →  the ones that are new or moved up
   4. for each, at most MaxOpenPerPass:  open it, extract the turns, compare with turns_sent
@@ -150,7 +151,7 @@ SQLite in the data folder (`geminarr.db`), a schema in **numbered steps** as in 
 | Table | Columns (type) | Notes |
 |---|---|---|
 | *(the version)* | `PRAGMA user_version` | The migration ledger: a number, not a table (ADR 0014). |
-| `connection` | `id` (=1), `state` (text), `since` (ts), `last_ok_at` (ts?), `consecutive_failures` (int), `last_reason` (text?) | A single row. `state` is one of §7.2 (`connecting` and `paused` come with the live view). |
+| `connection` | `id` (=1), `state` (text), `since` (ts), `last_ok_at` (ts?), `consecutive_failures` (int), `last_reason` (text?) | A single row. `state` is one of §7.2; a pause keeps the state it took over in three more columns. |
 | `destination` | `id` (=1), `url` (text), `machine` (text?), `linked_at` (ts?), `last_heartbeat_at` (ts?), `last_problem` (text?) | The Mnemarr this Geminarr sends to, when the page gave the address. The **key is never in the database**: it is a file only the container's user can read. |
 | `conversations` | `id` (text, PK: the assistant's own id), `title_hash` (text?: a short hash, to see a rename; **never the title**, which is what the person asked), `first_seen_at`, `last_seen_at`, `last_opened_at` (ts?), `list_rank` (int?), `turns_known` (int), `turns_sent` (int), `last_turn_hash` (text?), `rewritten_turns` (int), `source` (`web`/`takeout`), `state` (`new`/`synced`/`gone`/`error`), `last_error` (text?) | **No text of a turn.** `turns_sent` is Geminarr's position; Mnemarr's (`GET /api/v1/ingest/positions`) is the truth and wins when they differ (§5.4). |
 | `outbox` | `id`, `conversation_id`, `from_position` (int), `line_count` (int), `lines` (blob, compressed JSON lines), `created_at`, `attempts` (int), `last_error` | Batches not yet acknowledged. The only place a turn's text is held, and only until acknowledged. |
@@ -270,52 +271,42 @@ The text is extracted as the assistant wrote it (Markdown when the product expos
 
 ---
 
-## 7. The session and the live view
+## 7. The session and the browser container
 
-### 7.1 The profile
+### 7.1 The browser container
 
-The browser profile (cookies, local storage) of the dedicated account is the **session**. It lives in `GEMINARR__PROFILEFOLDER` (default `/profile`, **a volume of its own**, mode `0700`, owner the container's user), not in the data folder: it is excluded from every clear backup and from every snapshot of the database. It holds no extension, no synced data and no saved password (the browser is started with sync, autofill and password saving off).
+The session (cookies, local storage) of the dedicated account is held by **a browser container of its own** (ADR 0016): an ordinary Chromium with a web desktop, a third party's image pinned by digest (Q-18), with **a volume of its own** for its profile, excluded from every backup in the clear. It is not in Geminarr's image or data folder. **A person signs in to it by hand**, in its web desktop; Geminarr never launches it, never types a credential, never hides that a program attaches to it. The debugging address of the browser (`GEMINARR__BROWSER__CDPURL`) is the key to the session: it is the loopback of the network namespace that the two containers share (a pod; `network_mode: service:browser`), in no Service and no published port.
 
 ### 7.2 The states of the connection
 
 ```text
-                  start live view                  signed in detected
- not-connected ───────────────────▶ connecting ──────────────────────▶ connected ◀───────────┐
-      ▲                                  │ timeout / closed                │  │ │              │ success
-      │ disconnect (destroys profile)    ▼                                 │  │ └─ failure ──▶ degraded(unreachable | rate-limited | reader-broken)
-      └──────────────────────────────── (back)                             │  │
-                                         session invalid ×N (default 3)    │  └─ pause ──▶ paused ── resume ──▶ connected
-                                                  ▼                        │
-                                            needs-login ◀──────────────────┘
-                                                  │ start live view
-                                                  └──▶ connecting
+ not-connected ──(a pass finds a sign-in page)──▶ needs-login ◀──(session invalid ×N, default 3)── connected ◀──────┐
+      ▲                                                │                                              │  │ │            │ success
+      │ disconnect (clears the cookies)                │ a person signs in by hand,                   │  │ └─ failure ──▶ degraded(unreachable | rate-limited | reader-broken | browser-failed)
+      └────────────────────────────────────────────────┴─ the next pass finds the session ────────────┘  │
+                                                                                            pause ──▶ paused ── resume ──▶ (what it was)
 ```
 
 | State | Meaning | Passes | Signal to Mnemarr |
 |---|---|---|---|
-| `not-connected` | No profile | none | `error: "Not connected."` |
-| `connecting` | A live view is open | none | — |
+| `not-connected` | No browser configured, or nobody has signed in yet | none | `error: "Not connected."` |
 | `connected` | Signed in and reading | yes | healthy |
-| `degraded` | Signed in but the last pass failed: reason `unreachable`, `rate-limited` or `reader-broken` | backoff (§6.4) | `error` (+ `attention` for `reader-broken`) |
+| `degraded` | Signed in but the last pass failed: reason `unreachable`, `rate-limited`, `reader-broken` or `browser-failed` (the browser container could not be reached) | backoff (§6.4) | `error` (+ `attention` for `reader-broken`) |
 | `needs-login` | The session is gone (N consecutive "not signed in") | none | `error` + `attention: needs-login` |
 | `paused` | The operator asked for quiet (until a time or until resumed) | none | `paused: true` |
 
-A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`.
+A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`. A browser that cannot be reached is `browser-failed`, which asks nobody to sign in.
 
-A live view and a pause **take a state over and give it back**: the record keeps the state, its reason and its count before `connecting` or `paused`, and goes back to them when the live view ends without a sign-in or the pause ends (a sign-in that was made is a new good session). While they last, **Mnemarr is told the state they took over** (the error and the attention of `needs-login`, `reader-broken`), with `paused: true` for a pause: a heartbeat without the attention would end the episode that asked for the sign-in, and a mail could follow. The moves that a pass makes are ignored while a person signs in and while the passes are paused.
+A pause **takes a state over and gives it back**: the record keeps the state, its reason and its count before `paused`, and goes back to them when the pause ends (what Mnemarr is told meanwhile is that state, with `paused: true`: a heartbeat without the attention would end the episode that asked for the sign-in). The moves that a pass makes are ignored while the passes are paused, and a pass that began before a *Disconnect* says nothing after it.
 
-### 7.3 The live view (F-LGN)
+### 7.3 Signing in (F-LGN)
 
-The operator signs in once, **through Geminarr's page**, to a browser running in the container:
+1. The page *Connection* says that nobody has signed in and gives a link to **the page of the browser container** (`GEMINARR__BROWSER__PAGEURL`), behind the single sign-on and the browser's own login, opened in a tab of its own.
+2. The person signs in **by hand** to the dedicated account in that page (approving on their phone), once, and again whenever the provider asks.
+3. The next pass attaches to the browser, opens a page of its own on the assistant's address and looks at where it ends: the assistant's page means signed in (`connected`), a redirect to a sign-in page means signed out. What "signed in" looks like on the real page (a guest mode shows the assistant's page to a visitor) is measured by spike S1.
+4. *Disconnect* clears the cookies of the browser (and forgets the connection); the state is `not-connected`, and a person signs in again by hand.
 
-1. The operator opens **Connection** and presses *Sign in*; Geminarr starts the browser on the profile, on the assistant's address, and opens a **live-view session** (one at a time; ten minutes at most; it ends when the page is closed).
-2. The page shows the browser's screen (a canvas fed by the browser's screencast) and relays keyboard, mouse and paste to it. The operator types the dedicated account's address and password and approves the sign-in on their phone.
-3. When the operator sees the assistant's page, signed in, they press *I am signed in*; the server accepts it when the browser is on the assistant's own page (not a sign-in page), the state becomes `connected`, the live view closes, the browser closes, the profile stays. (`BROWSER__SIGNINDETECTION=Page` decides from the page alone: for the tests and for an assistant that never shows its page to somebody who is not signed in.)
-4. *Disconnect* closes the browser and **deletes the profile folder's content**; the state is `not-connected`.
-
-Transport: a WebSocket on Geminarr's own origin (`/api/v1/connection/live-views/{id}`), opened with a **single-use token** minted by an authenticated POST; the server checks the `Origin`, the token and the operator's session, and refuses a second viewer. The streamed frames never reach a log or a disk. The Content-Security-Policy stays `default-src 'self'`: the canvas needs no exception (Q-08).
-
-The sign-in pages of the account provider are the **only** pages other than the assistant's that the browser may load, and only during a live view (D-08): the network policy of the browser (a route filter) refuses every other origin.
+Geminarr never touches a page that it did not open, never changes the settings of the browser, and lets go of the browser after each attachment. What Chromium itself may reach is the network policy of the pod's (D-08, [network.md](network.md)).
 
 ---
 
@@ -354,7 +345,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-LNK-04 | Show the destination, its state and its last error; unlink | S | 2 ✅ |
 | **F-CON** | **The connection to the assistant** | | |
 | F-CON-01 | The connection state machine (§7.2) and its page | M | 3 ✅ |
-| F-CON-02 | The live view to sign in (§7.3); disconnect destroys the profile | M | 3 built; awaiting the real target (spike S1: the first sign-in of the dedicated account) |
+| F-CON-02 | Sign in by hand in the browser container's page (§7.3); disconnect clears its session | M | 3 built; awaiting the real target (spike S1) |
 | F-CON-03 | Pause and resume | S | 3 ✅ |
 | F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 built; awaiting the real target; for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode the expiry is seen with the reader (spike S1, ADR 0015 Consequences) |
 | **F-RDR** | **The reader** | | |
@@ -394,10 +385,8 @@ Every call but the probes needs the operator's session (D-19: an unknown path is
 | `/mnemarr/pairing` | POST, GET, DELETE | Start pairing (returns the code and the approval address), the pairing that waits, give it up | 2 ✅ |
 | `/mnemarr/pairing/check` | POST | Ask Mnemarr what became of the pairing; the key is kept when it was approved | 2 ✅ |
 | `/connection` | GET | State, since, last ok, reason, which reader, whether a browser reads, until when it is paused | 2 ✅ / 3 ✅ |
-| `/connection/live-views` | POST, DELETE | Open (returns a single-use token and the path), close | 3 ✅ |
-| `/connection/live-views/{id}` | WebSocket | The screen of the browser (pictures) and the input (checked), with the token, the operator's session and the `Origin` | 3 ✅ |
 | `/connection/pause`, `/connection/resume` | POST | Pause (a number of hours, or until resumed) and resume | 3 ✅ |
-| `/connection/disconnect` | POST | Destroy the content of the profile | 3 ✅ |
+| `/connection/disconnect` | POST | Clear the session of the browser and forget the connection (502 if the browser cannot be reached: the connection is forgotten all the same) | 3 |
 | `/runs` | GET, POST | List runs; start one now | 2 ✅ |
 | `/conversations` | GET | List with state and counts (no text) | 4 |
 | `/imports` | POST, GET | Upload an archive; list/show imports | 5 |
@@ -412,14 +401,13 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | Setting | Default | Purpose |
 |---|---|---|
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
-| `BROWSER__PROFILEFOLDER` | **`/profile`** | The browser profile: a volume of its own, mode `0700` |
+| `BROWSER__CDPURL`, `BROWSER__PAGEURL` | none, none | The debugging address of the browser container (the loopback of a shared namespace: the key to the session) and the page where a person signs in |
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
-| `BROWSER__SIGNINHOSTS`, `BROWSER__ALLOWEDHOSTS` | **`accounts.google.com`**, **`*.gstatic.com;lh3…lh6.googleusercontent.com;fonts.googleapis.com;www.googleapis.com;apis.google.com`** | The sign-in pages (live view only) and the hosts the assistant's page loads its files from; the first spike writes the exact list |
-| `BROWSER__LIVEVIEWMINUTES`, `BROWSER__SCREENCASTQUALITY`, `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **10**, **60**, **30** | How long a live view lasts, the quality (1 to 100) of its pictures, and how long the assistant's page may take to load |
+| `BROWSER__ASSISTANTURL`, `BROWSER__SIGNINHOSTS` | **`https://gemini.google.com/app`**, **`accounts.google.com`** | The page of the assistant that a pass opens, and the sign-in pages whose redirect says the session is gone |
+| `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **30** | How long the attachment and the assistant's page may take |
 | `BROWSER__VIEWPORTWIDTH`, `BROWSER__VIEWPORTHEIGHT` | **1280**, **800** | The size of the browser's screen |
 | `BROWSER__SIGNINDETECTION` | **`Confirm`** | How the end of a sign-in is known: `Confirm` (the operator says so, and the browser must be on the assistant's page), or `Page` (the page alone) |
-| `BROWSER__CHROMIUMSANDBOX` | **`false`** | Chromium's own sandbox: off in a hardened container (it cannot start there), on where the platform allows it (ADR 0015 §8) |
-| `BROWSER__ALLOWINSECUREASSISTANT`, `BROWSER__EXECUTABLEPATH` | **`false`**, none | A sandbox or a test only: plain http for the assistant and the sign-in pages; the path of a Chromium to use instead of the installed one |
+| `BROWSER__ALLOWINSECUREASSISTANT` | **`false`** | A sandbox or a test only: plain http for the assistant and the sign-in pages |
 | `PUBLICURL` | none | The address of Geminarr's page as the operator reaches it (http or https, a host, no credentials); its host is allowed, and it is the address that goes in the `attention` signal |
 | `ALLOWEDHOSTNAMES` | **`localhost;127.0.0.1;[::1]`** | The names the page may be reached by (commas, semicolons or spaces; ports ignored; `*` for every name): any other `Host` is refused, the probes excepted. **Not** the `AllowedHosts` key of ASP.NET, which stays `*` |
 | `AUTH__ADMINUSER`, `AUTH__ADMINPASSWORDFILE` | none, none | The operator: a name that is not obvious, and a file with a password of twelve characters or more (read at each sign-in; set together or not at all; without them nobody can sign in) |
@@ -429,7 +417,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `MNEMARR__MACHINE` | **`gemini`** | The machine name (1 to 40 lower-case letters, digits, hyphens); a pairing lets the person who approves it name the machine |
 | `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` | `<data>/mnemarr/key`, none | See §5.1 |
 | `MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only |
-| `READER__KIND` | **`None`** | `None`; `Web` (the browser: the session is checked and the live view is available; the conversations are read by the next vertical); or `Demo` (a sandbox only: invented conversations that grow, ADR 0014) |
+| `READER__KIND` | **`None`** | `None`; `Web` (the browser container: the session is checked; the conversations are read by the next vertical); or `Demo` (a sandbox only: invented conversations that grow, ADR 0014) |
 | `READER__DEMOGROWSECONDS` | **60** | The demonstration reader only: seconds between two new turns of the conversation that is active |
 | `READER__POLLMINUTES` | **20** | Interval between passes (±20 % jitter) |
 | `READER__MAXLISTED`, `READER__MAXOPENPERPASS` | **40**, **5** | §6.2 |
@@ -450,8 +438,8 @@ Every limit and interval above comes from configuration with that default; none 
 |---|---|
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
-| `profile` | `profile-missing`, `profile-not-private`, `profile-unreadable`, `profile-read-only` (only with a browser) |
-| `connection` | `not-connected`, `needs-login`, `reader-broken`, `browser-failed`, `rate-limited`, `unreachable`, `paused`, and `connecting` while a person signs in |
+| `browser` | `browser-failed` (the browser container could not be reached), `not-connected` (the reader is `Web` and no `BROWSER__CDPURL`) (only with the reader `Web`) |
+| `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable`, `paused` |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
 
@@ -472,8 +460,8 @@ A degraded check never makes `ready` fail (the container is still useful to look
 
 - **The dedicated account** holds only Gemini conversations: no mailbox in use, no saved passwords, no link to the main account (never its recovery address; strong password kept outside Google's password manager; 2-step verification on the phone). A Brand Account does not isolate (it is reached from the main one).
 - **The profile** is on its own volume, readable by the container's user only; never in logs, an API response, a health page, a crash dump, a command line or an environment dump; excluded from clear backups; the browser has no extension, sync or password manager. *Disconnect* deletes it.
-- **The page and the live view** are behind the proxy's single sign-on and Geminarr's own login; the live view's WebSocket checks origin, token and operator; one viewer at a time.
-- **Network egress is a list** ([network.md](network.md)): the assistant's origin, the account provider's sign-in origin (live view only), the configured Mnemarr. The browser's route filter refuses the rest; the container's network policy repeats it.
+- **The page of Geminarr and the page of the browser container** are behind the proxy's single sign-on and Geminarr's own login (and the browser's own login on its page); the debugging address of the browser is on the loopback of a shared namespace and nowhere else.
+- **Network egress is a list** ([network.md](network.md)): the assistant's origin, the account provider's sign-in origin, the configured Mnemarr. The browser container's network policy holds the list (a policy knows addresses, not names).
 - **The container** runs non-root, with a read-only root file system, no capabilities, no service-account token. The browser's sandbox needs are stated and minimal (Q-10).
 - **Nothing of a conversation is ever logged**; the logs carry ids, counts, durations and reason codes.
 
@@ -482,7 +470,7 @@ A degraded check never makes `ready` fail (the container is still useful to look
 | Threat | Control |
 |---|---|
 | Theft of the profile (volume read, container escape) | Dedicated account (impact limited to Gemini history); volume permissions; no clear backup; disconnect; revocation from the account's device list |
-| Hijack of the live view (cross-site page, a second viewer, replay) | Authenticated POST mints a single-use token; origin check; one viewer; ten minutes; no frames on disk |
+| Takeover of the browser container (its page, or its debugging port) | The page behind the single sign-on and the browser's own login; the debugging port on the loopback of a shared namespace, in no Service and no policy; the dedicated account bounds the damage |
 | Malicious Takeout archive (zip slip, bomb, symlink) | §8 safety rules; bounds; no extraction by name |
 | Leak through a log or an error message | Reason codes only; tests that grep the logs of a run for the text of a turn and for cookie names |
 | Theft or misuse of the Mnemarr key | Ingest-only, machine-bound, file mode `0600`, revocable in Mnemarr; HTTPS only |
@@ -519,7 +507,7 @@ Reading a consumer product by automation is against the provider's terms of use.
 
 | Id | Question | Status |
 |---|---|---|
-| Q-01 | Can the web product be read headless from the container with a profile created by the live view (no immediate block, no repeated challenge from the container's IP)? | 🧪 spike S1 |
+| Q-01 | Can the web product be read by a program that attaches to the browser container, in a session that a person signed in to by hand (no immediate block, no repeated challenge from the container's IP)? | 🧪 spike S1 (= Q-17) |
 | Q-02 | Is the list ordered by last activity, and does it give anything usable to detect a change without opening (a count, a timestamp)? | 🧪 S1 |
 | Q-03 | Read the page (DOM) or the internal calls of the web application? Which is less fragile, and is it stable across a week? | 🧪 S1 |
 | Q-04 | How long does the session last, and does the provider bind cookies to the device in a way that breaks a profile kept in a container? | 🧪 S1 (needs days) |
@@ -533,8 +521,10 @@ Reading a consumer product by automation is against the provider's terms of use.
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |
 | Q-14 | Does the account provider accept a sign-in from the headless shell of Chromium? **Answered on 2026-11-15, no**: on the first real try the sign-in page said "Couldn't sign you in: this browser or app may not be secure" (the provider's refusal of a browser it reads as automated; not a certificate problem). What follows is a decision of the maintainer (the full browser in a virtual display, another way to sign in, or the Takeout import without a session), not something to get around silently | ✅ answered, ❓ the way forward |
-| Q-15 | Do the assistant's background requests to the sign-in host keep the cookies fresh, so that refusing them outside a live view lets the session expire? | ❓ (spike S1) |
-| Q-16 | Does the assistant's page, or the sign-in page, need a frame from a host other than its own that the policy now refuses (a navigation to a host of files)? | ❓ (spike S1) |
+| Q-15 | *Withdrawn with the live view* (the sign-in host is no longer filtered by Geminarr). | — |
+| Q-16 | *Withdrawn with the live view* (Geminarr no longer filters the frames of a page). | — |
+| Q-17 | Does the provider accept a read that a program drives (attached to the browser) in a browser where a person signed in by hand, and for how long? | ❓ (spike S1) |
+| Q-18 | Which image for the browser container, pinned by which digest (LinuxServer's `chromium` with its Selkies web desktop was the one tried on 2026-11-15, and it worked for a manual sign-in)? And how far can it be hardened (it starts as root)? | ❓ maintainer |
 
 ---
 
@@ -561,6 +551,7 @@ Reading a consumer product by automation is against the provider's terms of use.
 | 2026-11-11 | v0.1: first draft after the discussion of the day (questions only). |
 | 2026-11-11 | v0.2: import ladder (D-10), main-account exception. |
 | 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-18, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |
-| 2026-11-13 | v0.6: vertical 3 built: D-23 (the browser, the route filter, the live view, the connection states), the reader `Web`, the `BROWSER__*` settings, the `profile` check, `paused` and `connecting`. |
+| 2026-11-13 | v0.6: vertical 3 built as an embedded browser with a live view (D-23). *Withdrawn on 2026-11-15.* |
+| 2026-11-15 | v0.7: Google refuses a browser that a program drives at sign-in (Q-14, measured); D-24: the browser is a container of its own that a person signs in to by hand and Geminarr attaches to ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)); section 7 rewritten; the `BROWSER__*` settings, the `browser` check and the deployment files updated in the same change. |
 | 2026-11-13 | v0.5: vertical 2 built: D-22 (the pass, the outbox, Mnemarr's positions, the key is a file, the demonstration reader), the schema versioned by `PRAGMA user_version`, the API and settings of the link, `mnemarr-rejected`. |
 | 2026-11-13 | v0.4: Mnemarr's side delivered (0.4.0): the contract of §5 aligned with what it does (a title of the sender, 20 000-character turns, the attention rules, the mail that points to Mnemarr, the consolidate switch, `positions?machine=`); D-19 (one operator, a session in memory), D-20 (the mail is Mnemarr's); the verticals renumbered (access, link, session, reader, import, production); vertical 1 built. |

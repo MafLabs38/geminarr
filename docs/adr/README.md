@@ -19,7 +19,8 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0012](0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) | The attention mail points to Mnemarr, not to the satellite | D-20 |
 | [0013](0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md) | The menu says which environment it is: a name, a logo and the version | D-21, F-SYS-04 |
 | [0014](0014-the-pass-the-outbox-and-mnemarrs-positions.md) | The pass, the outbox and Mnemarr's positions | D-22, F-LNK-01 to F-LNK-04 |
-| [0015](0015-the-browser-the-live-view-and-the-profile.md) | The browser, the live view and the profile | D-23, F-CON-01 to F-CON-04 |
+| [0015](0015-the-browser-the-live-view-and-the-profile.md) | The browser, the live view and the profile *(superseded by 0016)* | D-23 (withdrawn) |
+| [0016](0016-the-browser-is-a-container-of-its-own.md) | The browser is a container of its own, and a person signs in to it by hand | D-24, F-CON-01 to F-CON-04, F-LGN |
 
 ## Template
 

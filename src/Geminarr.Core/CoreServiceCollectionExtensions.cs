@@ -53,10 +53,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<LinkService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
-        services.AddSingleton<IValidateOptions<BrowserOptions>, ProfileFolderValidator>();
         services.AddOptions<BrowserOptions>().Bind(configuration.GetSection(BrowserOptions.SectionName)).ValidateOnStart();
         services.TryAddSingleton<IBrowserHost, NoBrowserHost>();
-        services.AddSingleton<LiveViewService>();
         services.AddSingleton<ConnectionTracker>();
         services.AddSingleton<ConnectionService>();
         // The kind is read when the reader is first needed, not when the services are registered: the configuration is final by then.

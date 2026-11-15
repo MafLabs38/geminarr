@@ -13,39 +13,15 @@ const base: ConnectionResource = {
   reader: 'Web',
   hasBrowser: true,
   pausedUntil: null,
-  liveViewMinutes: 10,
+  browserPageUrl: 'https://browser.homelab.example/',
 };
-
-const ticket = {
-  id: 'abc',
-  token: 't',
-  path: '/api/v1/connection/live-views/abc',
-  expiresAt: new Date(Date.now() + 600_000).toISOString(),
-  width: 1280,
-  height: 800,
-};
-
-class QuietSocket {
-  static readonly OPEN = 1;
-  readyState = 1;
-  onmessage = null;
-  onclose = null;
-  send() {}
-  close() {}
-}
 
 describe('Connection', () => {
-  beforeEach(() => {
-    vi.stubGlobal('WebSocket', QuietSocket);
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as never;
-  });
-
   it.each([
     ['NotConnected', 'Not connected'],
     ['Connected', 'Connected'],
     ['NeedsLogin', 'Sign in again'],
     ['Degraded', 'Degraded'],
-    ['Connecting', 'Signing in'],
     ['Paused', 'Paused'],
   ] as const)('says the state %s in words', async (state, words) => {
     serveApi({ 'GET /connection': () => ({ ...base, state }) });
@@ -61,50 +37,46 @@ describe('Connection', () => {
     expect(await screen.findByText('The session has expired: sign in again.')).toBeInTheDocument();
   });
 
-  it('says that no browser reads, and offers no sign-in', async () => {
+  it('says that no browser reads, and shows nothing to sign in to', async () => {
     serveApi({ 'GET /connection': () => ({ ...base, hasBrowser: false, reader: 'None' }) });
     renderAt(<Connection />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No browser reads this Geminarr');
-    expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
   });
 
-  it('opens the live view when the operator signs in, and closes it by the server when they close it', async () => {
-    const calls = serveApi({
-      'GET /connection': () => base,
-      'POST /connection/live-views': () => ticket,
-      'DELETE /connection/live-views': () => new Response(null, { status: 204 }),
-    });
-    renderAt(<Connection />);
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Sign in' }));
-
-    expect(await screen.findByText('You are controlling the browser of the Geminarr container.')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(calls.some((call) => call.key === 'DELETE /connection/live-views')).toBe(true));
-    expect(screen.queryByText('You are controlling the browser of the Geminarr container.')).not.toBeInTheDocument();
-    expect(await screen.findByRole('alert')).toHaveTextContent('The live view is closed.');
-  });
-
-  it('says why the live view could not be opened', async () => {
-    serveApi({
-      'GET /connection': () => base,
-      'POST /connection/live-views': () => Response.json({ title: 'A live view is already open.' }, { status: 409 }),
-    });
+  it('sends the person to the page of the browser, in a tab of its own, to sign in by hand', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
     renderAt(<Connection />);
 
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Sign in' }));
+    const link = await screen.findByRole('link', { name: 'Open the browser' });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('A live view is already open.');
+    expect(link).toHaveAttribute('href', 'https://browser.homelab.example/');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
   });
 
-  it('does not offer to sign in while the passes are paused or a person is signing in', async () => {
+  it('says when the address of the page of the browser is not given', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, browserPageUrl: null }) });
+    renderAt(<Connection />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('GEMINARR__BROWSER__PAGEURL');
+  });
+
+  it('does not ask to sign in when the session is good', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'Connected' }) });
+    renderAt(<Connection />);
+
+    await screen.findByText('Connected', { selector: 'span' });
+    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
+  });
+
+  it('shows the pause and the way to resume while the passes are paused', async () => {
     serveApi({ 'GET /connection': () => ({ ...base, state: 'Paused', pausedUntil: '2026-11-13T15:00:00Z' }) });
     renderAt(<Connection />);
 
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
     expect(screen.getByText('Paused until')).toBeInTheDocument();
   });
 

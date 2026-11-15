@@ -37,12 +37,12 @@ public sealed class EffectiveSettingsFixture
     }
 
     [Fact]
-    public void should_show_the_browser_settings_but_not_the_path_of_the_profile()
+    public void should_show_the_browser_settings_but_not_the_debugging_address_of_the_browser()
     {
         var settings = Subject(new AuthOptions()).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
 
-        settings.Should().Contain("GEMINARR__BROWSER__PROFILEFOLDER", "set").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__ALLOWEDHOSTS");
-        settings.Values.Should().NotContain("/profile");
+        settings.Should().ContainKey("GEMINARR__BROWSER__CDPURL").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__SIGNINHOSTS");
+        settings["GEMINARR__BROWSER__CDPURL"].Should().Be("not set");
     }
 
     [Fact]

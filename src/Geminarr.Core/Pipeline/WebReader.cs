@@ -18,17 +18,8 @@ public sealed class WebReader : IConversationReader
 
     public string Source => ConversationSources.Web;
 
-    public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
-    {
-        var profile = _browser.Profile();
-        if (profile is { Exists: true, Readable: false })
-        {
-            // A folder that cannot be read is not a folder without a session: the deployment is wrong (an owner, a mode after a change of volume), and nobody is asked to sign in for it.
-            throw new ReaderException(ConnectionReasons.BrowserFailed, "The folder of the browser profile cannot be read.");
-        }
-
-        return profile.HasSession ? _browser.CheckSessionAsync(cancellationToken) : Task.FromResult(SessionCheck.NoProfile);
-    }
+    public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
+        _browser.State().Configured ? _browser.CheckSessionAsync(cancellationToken) : Task.FromResult(SessionCheck.NoProfile);
 
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
 

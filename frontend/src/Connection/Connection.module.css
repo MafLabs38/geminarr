@@ -10,3 +10,13 @@
   margin: 12px 0 0;
   color: var(--inkSoft);
 }
+
+.block {
+  margin-top: 12px;
+}
+
+.open {
+  display: inline-block;
+  margin-top: 4px;
+  font-weight: 600;
+}

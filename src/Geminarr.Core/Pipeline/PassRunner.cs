@@ -173,11 +173,10 @@ public sealed class PassRunner
             return;
         }
 
-        // A person signing in, or asked for quiet: nothing is read (the browser is the live view's, or is not wanted).
-        var current = _connection.Current();
-        if (current.State is ConnectionState.Connecting or ConnectionState.Paused)
+        // Asked for quiet: nothing is read.
+        if (_connection.Current().State == ConnectionState.Paused)
         {
-            state.Fail(RunOutcomes.Skipped, current.State == ConnectionState.Paused ? ConnectionReasons.Paused : ConnectionReasons.Connecting);
+            state.Fail(RunOutcomes.Skipped, ConnectionReasons.Paused);
             return;
         }
 
@@ -186,8 +185,8 @@ public sealed class PassRunner
             var session = await FromReader(() => _settings.Reader.CheckSessionAsync(cancellationToken), cancellationToken);
             if (session == SessionCheck.NoProfile)
             {
-                var record = _connection.ProfileGone();
-                state.Fail(RunOutcomes.Skipped, record.State == ConnectionState.NeedsLogin ? ConnectionReasons.NeedsLogin : ConnectionReasons.NotConnected);
+                _connection.NotConnected();
+                state.Fail(RunOutcomes.Skipped, ConnectionReasons.NotConnected);
                 return;
             }
 

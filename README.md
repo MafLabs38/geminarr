@@ -15,7 +15,7 @@ Gemini keeps your conversations to itself: no API gives access to the history, a
 | Document | Content |
 |---|---|
 | [docs/VISION.md](docs/VISION.md) | Why, what it must and must not do |
-| [docs/SPEC.md](docs/SPEC.md) | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and live view, the Takeout import, features, API, settings, health, security, questions |
+| [docs/SPEC.md](docs/SPEC.md) | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and the browser container, the Takeout import, features, API, settings, health, security, questions |
 | [docs/adr/](docs/adr/README.md) | Architecture decision records |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | The spikes and the verticals, built and to come |
 | [docs/mnemarr-changes.md](docs/mnemarr-changes.md) | What Mnemarr must gain for Geminarr (four small changes) |

@@ -21,7 +21,7 @@ Geminarr's page tells the operator whether it works and lets them act on the con
 |---|---|---|
 | Overview | Is Geminarr up (the API answers), and the **health**: each check with its state and, when something is wrong, the sentence of its reason code. Later: the session, Mnemarr, the last runs | built (API state, health) |
 | Settings | The settings the container runs with, read only, a secret as *set* or *not set* | built |
-| Connection | The state of the session, *Sign in* (the live view), *Pause*, *Disconnect* | soon (vertical 3) |
+| Connection | The state of the session, a link to the browser container's page (where a person signs in by hand), *Pause*, *Disconnect* | soon (vertical 3) |
 | Conversations | Metadata only: title, turns known and sent, rewritten turns, state | soon (vertical 4) |
 | Runs | Outcome, counts, reason of each pass | soon (vertical 4) |
 | Import | Upload a Takeout archive, see the result | soon (vertical 5) |
@@ -38,11 +38,11 @@ Nothing of the application is shown, and nothing is asked of the API, until some
 
 The connection and the health use the `StatusLabel` component (icon, text and color). The states and reason codes of SPEC §7.2 and §10.3 each have a sentence in `Utilities/String/en.ts`; the page maps codes, it does not parse English.
 
-### 2.3 The live view
+### 2.3 Signing in to the browser container
 
-- It is a **canvas** inside a page of the application, not an iframe, with a visible *Close* and a countdown of the ten minutes. The canvas is focusable and labelled; while it has the focus the keyboard goes to the remote browser, and a documented key combination gives the focus back to the page (an accessibility requirement: a keyboard user must be able to leave it).
-- It says in words what it is ("You are controlling the browser of the Geminarr container") and which account it expects ("Sign in with the dedicated account, not your main one").
-- Frames are never stored; nothing in the DOM contains what is typed.
+- The page *Connection* says in words what to do ("Sign in by hand, in the page of the browser container: Geminarr never types a credential") and which account to use ("Use the dedicated account, never your main one"), and gives **a link to the browser's page, opened in a tab of its own** (`target="_blank"`, `rel="noopener noreferrer"`): the web desktop is a page of its own behind its own login, not a frame of this one.
+- The link is not shown when the session is good, and a missing address is said (`GEMINARR__BROWSER__PAGEURL`).
+- Nothing in the DOM holds a credential: Geminarr's page never sees what is typed in the browser's page.
 
 ### 2.4 The brand and the identity of the environment
 

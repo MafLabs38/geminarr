@@ -18,8 +18,8 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | Reason | Meaning | Do |
 |---|---|---|
 | `data-folder-missing` / `data-folder-read-only` | The volume is not mounted or not writable by uid 1654 | Fix the mount or the volume's ownership; the readiness probe recovers within 15 seconds plus one probe period (its result is reused for 15 s) |
-| `needs-login` | The session expired (or the provider asked for a new verification) | Open the link of the mail, press *Sign in*, sign in to the **dedicated** account on the live view, approve on the phone |
-| `browser-failed` | The browser of the container could not be started: not enough memory (the limit is below 1 GB), `CHROMIUMSANDBOX=true` on a platform that refuses it, a wrong `EXECUTABLEPATH`, or a profile folder that cannot be used | Look at the log (the kind of error is named); fix the limit, the setting or the volume. Nobody is asked to sign in, and Mnemarr is not asked for attention |
+| `needs-login` | The session expired (or the provider asked for a new verification) | Open the link of the mail, or the page *Connection* and *Open the browser*, and **sign in by hand** to the **dedicated** account in the browser's page (approve on the phone if asked); the next pass finds it |
+| `browser-failed` | The browser container could not be reached: not started, the debugging address wrong (`GEMINARR__BROWSER__CDPURL`), the two containers not sharing a network namespace, or a limit killed it | Look at the log of the browser container and of Geminarr (the kind of failure is named, never an address); start it, fix the address or the limit. Nobody is asked to sign in, and Mnemarr is not asked for attention |
 | `reader-broken` | The assistant's page no longer looks like what the reader knows | Nothing is lost (the outbox is kept, the position stays). Update Geminarr to a version of the reader that knows the new page; until then it only signals |
 | `rate-limited` | The provider limited or challenged the session | Geminarr pauses by itself (six hours by default); look at the account's security page; do not shorten the pause |
 | `unreachable` | The provider or the network is down | Wait: it backs off by itself |
@@ -38,20 +38,17 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `mnemarr-rejected` | Mnemarr said no to a batch (a limit, an unknown format) | The batch is kept with its reason; update Geminarr or Mnemarr to versions that agree (Mnemarr 0.4.0 or later) |
 | `mnemarr-insecure-address` | The address is plain http to a host that is not the loopback | Use https, or, in a sandbox only, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP=true` |
 | `outbox-growing` | Something has waited for Mnemarr for more than an hour | Look at the `mnemarr` check: it says why |
-| `profile-read-only` | The profile folder cannot be written: no volume is mounted on it (the image's own folder is not a volume, and a read-only root file system keeps it closed), or the volume is read-only | Mount a volume of its own at `/profile`, writable by uid 1654: without it the session would be lost at each restart (or kept in an anonymous volume outside your backup rules) |
-| `profile-missing` / `profile-unreadable` / `profile-not-private` | The profile volume is not mounted, cannot be read by uid 1654, or can be read by other users (it holds a signed-in session: the group of the container is the only other that may have access) | Mount the volume at `/profile`, owned by 1654, mode `0700`; fix it before anything else |
-| `connecting` | A person is signing in through the live view | Nothing: it ends by itself (ten minutes at most) |
 | `paused` | The operator asked for quiet | *Resume* on the page *Connection* |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 
 ## Recover
 
-- **The live view stays black, or says the browser could not be started**: look at the log of the container (the error is named, never the content), at the `profile` check and at the memory limit (Chromium needs about 300 MB); a profile folder that cannot be written is the usual cause.
-- **A lost profile** (volume lost, *Disconnect*, a restore): the state is `needs-login` for a connection that had worked (`not-connected` after *Disconnect*, which forgets it); sign in again through the live view. Nothing else is lost: positions come from Mnemarr.
+- **The page of the browser does not open, or Geminarr says `browser-failed`**: the browser container is not started or not reachable. Look at its log and at the `browser` check of the health (the page *Overview*); in Compose Geminarr must run with `network_mode: service:browser`, in Kubernetes in the same pod. Chromium needs about 1 GB of shared memory (`shm_size`) and memory above 1 GB.
+- **A lost browser volume** (volume lost, a restore): the state turns `needs-login` (the session is gone); sign in again in the browser's page. *Disconnect* on the page *Connection* clears the cookies of the browser and forgets the connection (`not-connected`).
 - **A restored Mnemarr** (fewer lines than Geminarr believes it sent): Geminarr goes back to Mnemarr's positions by itself and sends again what is missing.
-- **A suspected leak of the profile**: *Disconnect* in Geminarr, then in the dedicated Google account's security page sign out of all sessions and remove the device, change its password; only then sign in again. Revoke the machine in Mnemarr if the key may have leaked too.
+- **A suspected leak of the session**: *Disconnect* in Geminarr (it clears the cookies of the browser), then in the dedicated Google account's security page sign out of all sessions and remove the device, change the password, and sign in again by hand. The browser's volume is the session: nobody else may read it, and its page and its debugging port must never be reachable without a login.
 - **A stuck pass**: it stops at `PassTimeoutMinutes` by itself; "Run now" while one runs is refused.
-- **Upgrade of the browser** (a new image version): the profile is the browser's own format; if the state turns `needs-login` after an upgrade, sign in again and write the version here.
+- **Upgrade of the browser** (a new image version, pinned by digest): its profile is its own format; if the state turns `needs-login` after an upgrade, sign in again and write the version here.
 
 ## Spike hygiene (while a spike is going on)
 
