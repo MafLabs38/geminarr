@@ -93,6 +93,6 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
         }
     }
 
-    [GeneratedRegex(@":(\d+)/?$")]
+    [GeneratedRegex(@":(\d+)/?$", RegexOptions.None, matchTimeoutMilliseconds: 200)]
     private static partial Regex PortOf();
 }

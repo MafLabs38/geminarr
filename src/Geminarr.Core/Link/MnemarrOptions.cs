@@ -31,7 +31,7 @@ public sealed partial class MnemarrOptionsValidator : IValidateOptions<MnemarrOp
     /// <summary>Whether a machine name is one this version accepts: 1 to 40 lower-case letters, digits or hyphens, starting and ending with a letter or a digit. One rule, for the setting and for what Mnemarr gives back.</summary>
     public static bool IsValidMachine(string? machine) => machine is not null && MachinePattern().IsMatch(machine);
 
-    [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")]
+    [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$", RegexOptions.None, matchTimeoutMilliseconds: 200)]
     private static partial Regex MachinePattern();
 
     public ValidateOptionsResult Validate(string? name, MnemarrOptions options)
