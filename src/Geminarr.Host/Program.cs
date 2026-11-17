@@ -9,6 +9,8 @@ using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using BrowserOptions = Geminarr.Core.Browser.BrowserOptions;
+using GeminarrOptions = Geminarr.Core.Configuration.GeminarrOptions;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -64,10 +66,10 @@ if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLe
 }
 
 // A desktop that a proxy publishes on a host of its own says so (DESKTOPPUBLICURL); without it, its address is the page's on the desktop's port, which a proxy that serves 443 only does not answer.
-if (app.Services.GetRequiredService<IOptions<Geminarr.Core.Browser.BrowserOptions>>().Value is { DesktopUrl: { Length: > 0 }, DesktopPublicUrl: null or "" }
-    && Uri.TryCreate(app.Services.GetRequiredService<IOptions<Geminarr.Core.Configuration.GeminarrOptions>>().Value.PublicUrl, UriKind.Absolute, out var publicPage) && publicPage.IsDefaultPort)
+if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { DesktopUrl: { Length: > 0 }, DesktopPublicUrl: null or "" }
+    && Uri.TryCreate(app.Services.GetRequiredService<IOptions<GeminarrOptions>>().Value.PublicUrl, UriKind.Absolute, out var publicPage) && publicPage.IsDefaultPort)
 {
-    app.Logger.LogWarning("The desktop of the browser has no public address (GEMINARR__BROWSER__DESKTOPPUBLICURL): it is reached on port {Port} of the page's host, which a proxy that serves the default port only does not answer.", app.Services.GetRequiredService<IOptions<Geminarr.Core.Browser.BrowserOptions>>().Value.DesktopPort);
+    app.Logger.LogWarning("The desktop of the browser has no public address (GEMINARR__BROWSER__DESKTOPPUBLICURL): it is reached on port {Port} of the page's host, which a proxy that serves the default port only does not answer.", app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPort);
 }
 
 app.UseExceptionHandler();

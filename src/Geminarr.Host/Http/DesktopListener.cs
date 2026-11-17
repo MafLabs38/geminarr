@@ -43,7 +43,7 @@ public static class DesktopListener
     {
         if (string.IsNullOrWhiteSpace(setting))
         {
-            return new BrowserOptions().DesktopPort;
+            return BrowserOptions.DefaultDesktopPort;
         }
 
         return int.TryParse(setting, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var port) && port is >= 1 and <= 65_535

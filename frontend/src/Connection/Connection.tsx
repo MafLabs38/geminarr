@@ -71,7 +71,9 @@ function SignIn({
   // The window is opened by the click itself (a browser lets a window open only then), empty; the desktop has an origin of its own (ADR 0019), so its address comes with a ticket, and the window goes there. The server opens
   // the sign-in page in the browser it shows. This page keeps the window and closes it when the sign-in is done.
   const start = () => {
-    const popup = window.open('about:blank', 'geminarr-browser');
+    // A second click does not leave the first window behind, and a window of a name that is already taken (and may be on the desktop's origin by now) is never reused: the one opened here is blank and ours.
+    windowRef.current?.close();
+    const popup = window.open('about:blank', '_blank');
     if (popup) {
       // The desktop is another program's: the window it ends up in must not be able to steer this page (reverse tabnabbing). It is cut while the window is still blank and ours; this page keeps its handle, and closes it.
       popup.opener = null;

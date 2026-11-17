@@ -58,6 +58,18 @@ public sealed class EffectiveSettingsFixture
     }
 
     [Fact]
+    public void should_show_where_the_desktop_has_its_own_origin()
+    {
+        var plain = Subject(new AuthOptions(), browser: new BrowserOptions()).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+        var proxied = Subject(new AuthOptions(), browser: new BrowserOptions { DesktopPort = 9000, DesktopPublicUrl = "https://desktop.homelab.example" }).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+
+        plain["GEMINARR__BROWSER__DESKTOPPORT"].Should().Be("8283");
+        plain["GEMINARR__BROWSER__DESKTOPPUBLICURL"].Should().Be("not set");
+        proxied["GEMINARR__BROWSER__DESKTOPPORT"].Should().Be("9000");
+        proxied["GEMINARR__BROWSER__DESKTOPPUBLICURL"].Should().Be("https://desktop.homelab.example");
+    }
+
+    [Fact]
     public void should_say_not_set_for_a_secret_that_is_not()
     {
         var settings = Subject(new AuthOptions(), name: null).Read();

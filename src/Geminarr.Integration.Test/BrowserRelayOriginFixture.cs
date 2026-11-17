@@ -71,4 +71,16 @@ public sealed class BrowserRelayOriginFixture
         FromAnother("https://other.example", "geminarr.internal:8282", allowed: "*").Should().BeTrue("with every name allowed, a name proves nothing");
         FromAnother("http://geminarr.internal:8282", "geminarr.internal:8282", allowed: "*").Should().BeFalse("the page's own host and port still do");
     }
+
+    [Theory]
+    [InlineData("https://desktop.homelab.example", false)]
+    [InlineData("https://geminarr.example", true)]
+    [InlineData("https://evil.example", true)]
+    public void should_judge_a_websocket_of_the_desktops_origin_by_the_desktops_address_and_not_the_pages_names(string origin, bool foreign)
+    {
+        // A proxy sends the Host of the desktop's address; the page's own names are allowed too, and are another origin.
+        var hosts = new AllowedHostList(Options.Create(new GeminarrOptions { AllowedHostNames = "geminarr.example", PublicUrl = "https://geminarr.example" }));
+
+        BrowserRelay.IsFromAnotherOrigin(origin, new HostString("desktop.homelab.example"), hosts, "https://desktop.homelab.example", pageNamesAllowed: false).Should().Be(foreign);
+    }
 }

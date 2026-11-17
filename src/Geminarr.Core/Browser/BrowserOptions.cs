@@ -26,7 +26,10 @@ public sealed class BrowserOptions
     /// The port that the desktop is served on, an origin of its own (ADR 0019): the desktop is another program's, so its pages never run on the origin of Geminarr's own page, where the operator's session cookie is
     /// sent. Geminarr listens on this port too, for the desktop and nothing else. Without <see cref="DesktopUrl"/> nothing listens on it.
     /// </summary>
-    public int DesktopPort { get; set; } = 8283;
+    public int DesktopPort { get; set; } = DefaultDesktopPort;
+
+    /// <summary>The port of the desktop's own origin unless a setting says another.</summary>
+    public const int DefaultDesktopPort = 8283;
 
     /// <summary>
     /// The address that the person reaches the desktop by (for example <c>https://desktop.homelab.example</c>), when a proxy gives it one: scheme, host and port, no path. By default it is the address of the page on

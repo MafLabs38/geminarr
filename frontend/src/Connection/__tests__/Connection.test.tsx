@@ -148,7 +148,7 @@ describe('Connection', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
 
     // The window is opened by the click, empty, and goes to the desktop's own origin with the ticket once the server has given it.
-    expect(open).toHaveBeenCalledWith('about:blank', 'geminarr-browser');
+    expect(open).toHaveBeenCalledWith('about:blank', '_blank');
     await waitFor(() => expect(opened.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
     expect(opened.opener, "the desktop's window cannot steer this page").toBeNull();
     expect(await screen.findByText('Signing in…')).toBeInTheDocument();
@@ -160,6 +160,37 @@ describe('Connection', () => {
     expect(await screen.findByText('Signed in as Jane Doe', {}, { timeout: 5000 })).toBeInTheDocument();
     await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
   }, 15_000);
+
+  it('does not leave the first window behind on a second click, and opens a new one each time', async () => {
+    const first = {
+      closed: false,
+      close: vi.fn(),
+      location: { href: 'about:blank' },
+      opener: globalThis,
+    } as unknown as Window;
+    const second = {
+      closed: false,
+      close: vi.fn(),
+      location: { href: 'about:blank' },
+      opener: globalThis,
+    } as unknown as Window;
+    const open = vi.spyOn(globalThis, 'open').mockReturnValueOnce(first).mockReturnValueOnce(second);
+    serveApi({
+      'GET /connection': () => base,
+      'GET /runs': () => ({ runs: [], running: false }),
+      'POST /connection/sign-in': () => base,
+      'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
+    await waitFor(() => expect(first.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
+
+    expect(first.close).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenNthCalledWith(2, 'about:blank', '_blank');
+    expect(second.opener).toBeNull();
+  });
 
   it('says why the sign-in page could not be opened', async () => {
     vi.spyOn(globalThis, 'open').mockReturnValue(null);

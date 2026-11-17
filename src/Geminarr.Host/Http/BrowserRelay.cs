@@ -141,7 +141,7 @@ public static partial class BrowserRelay
             return;
         }
 
-        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<AllowedHostList>(), services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl))
+        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<AllowedHostList>(), services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl, pageNamesAllowed: false))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
@@ -182,8 +182,8 @@ public static partial class BrowserRelay
 
     /// <summary>
     /// What the relay forwards (ADR 0017), by a list of what the client of the pinned image asks for, and nothing else: its page, its scripts, styles, fonts and pictures under <c>assets/</c>, a few files at the root, its
-    /// WebSocket and its status. Not a write, and not what else the image's web server may offer (a listing of files, other services, a development route): a page of the desktop is served on Geminarr's own origin,
-    /// so a route that nobody listed is not relayed, whatever a later version of the image adds (the desktop then shows a blank page, which is visible; a route relayed by default would be silent).
+    /// WebSocket and its status. Not a write, and not what else the image's web server may offer (a listing of files, other services, a development route): the desktop's pages run on an origin of their own (ADR 0019), but it is still another program's
+    /// web server behind them: a route that nobody listed is not relayed, whatever a later version of the image adds (the desktop then shows a blank page, which is visible; a route relayed by default would be silent).
     /// The path is matched as it came, in its plain form, because the desktop's web server merges slashes, decodes and resolves dots before it picks a route.
     /// </summary>
     public static bool IsRelayed(HttpRequest request)
@@ -208,9 +208,9 @@ public static partial class BrowserRelay
     /// Whether the origin that a WebSocket handshake names is another than the page's: a handshake is not bound by the same-origin policy, and the cookie of the session is only <c>SameSite</c>, which another port
     /// of the same host (a hostile page) would not stop. A request that names no origin is not from a page. The origin is the page's when it is the public address (<paramref name="publicUrl"/>: a proxy on a port of its
     /// own, or one that sends no port in its Host header), or the host and the port of the request (a direct access: the scheme cannot be told behind a proxy that ends TLS); or, when a proxy sends a Host of its own,
-    /// one of the names the page may be reached by, on a default port, and then only if the list of names says something (not <c>*</c>).
+    /// one of the names the page may be reached by, on a default port, and then only if the list of names says something (not <c>*</c>); <paramref name="pageNamesAllowed"/> is false on the desktop's own origin, which is its address and not the page's.
     /// </summary>
-    public static bool IsFromAnotherOrigin(string? origin, HostString host, AllowedHostList hosts, string? publicUrl)
+    public static bool IsFromAnotherOrigin(string? origin, HostString host, AllowedHostList hosts, string? publicUrl, bool pageNamesAllowed = true)
     {
         if (string.IsNullOrEmpty(origin))
         {
@@ -232,7 +232,8 @@ public static partial class BrowserRelay
             return host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort;
         }
 
-        return hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
+        // The desktop's own origin is its address and nothing else: the page's names do not open its WebSocket (they are not it, and the page is another origin).
+        return !pageNamesAllowed || hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
     }
 
     private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, IBrowserExposure exposure, TimeProvider clock, string? sessionId, CancellationToken stop)
