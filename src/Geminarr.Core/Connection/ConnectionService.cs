@@ -39,8 +39,8 @@ public sealed class ConnectionService
     public Task OpenSignInAsync(CancellationToken cancellationToken) =>
         HasBrowser ? _browser.OpenSignInPageAsync(cancellationToken) : throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to sign in to.");
 
-    /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged).</summary>
-    public AccountIdentity? Account => _browser.State().Account;
+    /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged); nobody while the connection is not one.</summary>
+    public AccountIdentity? Account => Current().State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _browser.State().Account;
 
     /// <summary>Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. A browser that cannot be reached is said, and the connection is forgotten all the same.</summary>
     public async Task DisconnectAsync(CancellationToken cancellationToken)

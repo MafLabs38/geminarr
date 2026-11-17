@@ -11,6 +11,18 @@ public sealed class SignInWatcherFixture
 
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(10);
 
+    /// <summary>Waits until the watcher has looked at the tabs a few more times, so that "nothing was asked" is said of a watcher that ran.</summary>
+    private static async Task AfterTicksAsync(FakeBrowserHost browser, int more = 3)
+    {
+        var until = browser.Ticks + more;
+        for (var waited = 0; browser.Ticks < until && waited < 500; waited++)
+        {
+            await Task.Delay(10, Token);
+        }
+
+        browser.Ticks.Should().BeGreaterThanOrEqualTo(until, "the watcher ran");
+    }
+
     [Fact]
     public async Task should_ask_for_a_pass_when_the_sign_in_page_that_was_open_is_gone()
     {
@@ -19,7 +31,7 @@ public sealed class SignInWatcherFixture
         var observer = new SignInObserver();
         using var subject = new SignInWatcher(browser, trigger, observer, Tick);
         await subject.StartAsync(Token);
-        await Task.Delay(100, Token);
+        await AfterTicksAsync(browser);
         (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse("somebody is typing: nothing is asked while the page is open");
         observer.SigningIn.Should().BeTrue("the page says that a sign-in is under way");
 
@@ -38,7 +50,7 @@ public sealed class SignInWatcherFixture
         using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), Tick);
 
         await subject.StartAsync(Token);
-        await Task.Delay(150, Token);
+        await AfterTicksAsync(browser);
         await subject.StopAsync(CancellationToken.None);
 
         (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse();
@@ -51,7 +63,7 @@ public sealed class SignInWatcherFixture
         using var trigger = new PassTrigger();
         using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), Tick);
         await subject.StartAsync(Token);
-        await Task.Delay(100, Token);
+        await AfterTicksAsync(browser);
         (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse("the browser is still gone");
 
         browser.Unreachable = false;

@@ -112,6 +112,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
+            // The value is deliberately not escaped: the browser takes the whole query as the address to open, and the settings validator has checked it (an https address on a sign-in host).
             // The browser's own way to open a tab, over its plain HTTP address: nothing is attached, so the page of the account provider is a page that a person opened, with nothing of a driver in it.
             using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(new Uri(Options.CdpUrl!), "/json/new?" + Options.SignInUrl));
             using var response = await Tabs.SendAsync(request, timeout.Token);
@@ -146,10 +147,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
                 await browser.Context.ClearCookiesAsync();
                 return true;
             });
-            _account = null;
         }
         finally
         {
+            // Whatever happened, the connection is forgotten: nobody is shown as signed in.
+            _account = null;
             _attached.Release();
         }
     }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Geminarr.Api.V1.Connection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Geminarr.Integration.Test;
 
@@ -63,6 +64,9 @@ public sealed class ConnectionApiFixture
         (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().BeNull();
 
         factory.Browser.Account = new Geminarr.Core.Browser.AccountIdentity("Jane Doe", "jane@example.org");
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().BeNull("nobody is connected yet");
+
+        factory.Services.GetRequiredService<Geminarr.Core.Connection.ConnectionTracker>().Connected();
 
         (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().Be(new AccountResource("Jane Doe", "jane@example.org"));
     }
@@ -101,6 +105,20 @@ public sealed class ConnectionApiFixture
         var body = await client.GetStringAsync("/api/v1/connection", Token);
 
         body.Should().NotContain("127.0.0.1").And.NotContain("9222").And.NotContain("__Secure-1PSID").And.NotContain("SessionCookies");
+    }
+
+    [Theory]
+    [InlineData(720, true)]
+    [InlineData(720.01, false)]
+    [InlineData(-1, false)]
+    public async Task should_accept_a_pause_up_to_thirty_days_and_refuse_a_longer_one_or_a_negative_one(double hours, bool accepted)
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/v1/connection/pause", new { hours }, Token);
+
+        response.IsSuccessStatusCode.Should().Be(accepted);
     }
 
     [Fact]

@@ -7,6 +7,7 @@ using Geminarr.Host.Health;
 using Geminarr.Host.Http;
 using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -51,6 +52,12 @@ _ = app.Services.GetRequiredService<ISystemStatusService>();
 if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operatorStatus and not OperatorStatus.Ready)
 {
     app.Logger.LogWarning("Nobody can sign in ({Status}); everything but the probes stays closed. The reason codes are in docs/runbook.md.", operatorStatus);
+}
+
+// A lightened guard is said at each start (ADR 0018): a deployment copied from a sandbox must not run like it without a trace.
+if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLength < OperatorCredentials.DefaultMinPasswordLength)
+{
+    app.Logger.LogWarning("The minimum length of the operator's password is lowered (GEMINARR__AUTH__MINPASSWORDLENGTH): this is for a sandbox that nobody else reaches. The operator's password is also the key to the browser's session.");
 }
 
 app.UseExceptionHandler();

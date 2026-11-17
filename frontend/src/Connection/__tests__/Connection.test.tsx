@@ -23,6 +23,10 @@ describe('Connection', () => {
     Object.defineProperty(globalThis, 'isSecureContext', { configurable: true, value: true });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it.each([
     ['NotConnected', 'Not connected'],
     ['Connected', 'Connected'],
@@ -151,11 +155,10 @@ describe('Connection', () => {
 
     expect(await screen.findByText('Signed in as Jane Doe', {}, { timeout: 5000 })).toBeInTheDocument();
     await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
-    open.mockRestore();
-  });
+  }, 15_000);
 
   it('says why the sign-in page could not be opened', async () => {
-    const open = vi.spyOn(globalThis, 'open').mockReturnValue(null);
+    vi.spyOn(globalThis, 'open').mockReturnValue(null);
     serveApi({
       'GET /connection': () => base,
       'GET /runs': () => ({ runs: [], running: false }),
@@ -167,7 +170,6 @@ describe('Connection', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be reached');
-    open.mockRestore();
   });
 
   it('says that the desktop needs HTTPS, and points to the https address, instead of opening a window that shows an error', async () => {
@@ -181,7 +183,6 @@ describe('Connection', () => {
       expect.stringMatching(/^https:\/\//),
     );
     expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
-    Object.defineProperty(globalThis, 'isSecureContext', { configurable: true, value: true });
   });
 
   it('says when no desktop is given to relay', async () => {

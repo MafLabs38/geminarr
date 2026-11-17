@@ -27,6 +27,12 @@ public sealed class AccountLabelFixture
         AccountLabel.Parse(["Google Account (jane@example.org)"]).Should().Be(new AccountIdentity(null, "jane@example.org"));
     }
 
+    [Fact]
+    public void should_take_the_address_and_keep_parentheses_that_belong_to_the_name()
+    {
+        AccountLabel.Parse(["Google Account: Jane (Doe) (jane@example.org)"]).Should().Be(new AccountIdentity("Jane (Doe)", "jane@example.org"));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

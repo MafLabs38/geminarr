@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
 using Geminarr.Core.Test.Access;
@@ -36,13 +37,29 @@ public sealed class ConnectionServiceFixture : IDisposable
         _observer.Set(false);
         subject.SigningIn.Should().BeTrue("the session is being looked at");
 
-        _clock.Advance(TimeSpan.FromSeconds(16));
+        _clock.Advance(TimeSpan.FromSeconds(14));
+        subject.SigningIn.Should().BeTrue("still within the moment");
+
+        _clock.Advance(TimeSpan.FromSeconds(2));
         subject.SigningIn.Should().BeFalse("the sign-in was abandoned: nothing is waited for any longer");
 
         _observer.Set(true);
         _observer.Set(false);
         _tracker.Connected();
         subject.SigningIn.Should().BeFalse("the check found the session good");
+    }
+
+    [Fact]
+    public void should_show_nobody_as_signed_in_while_the_connection_is_not_one()
+    {
+        _browser.Account = new AccountIdentity("Jane Doe", "jane@example.org");
+        var subject = Subject();
+        _tracker.Connected();
+        subject.Account.Should().NotBeNull();
+
+        _tracker.Disconnected();
+
+        subject.Account.Should().BeNull("a disconnect that did not reach the browser leaves the account in it, and the page must not say signed in beside not connected");
     }
 
     [Fact]

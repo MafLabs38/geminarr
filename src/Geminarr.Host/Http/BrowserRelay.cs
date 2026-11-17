@@ -21,7 +21,7 @@ public static partial class BrowserRelay
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(30);
 
     /// <summary>How often an open WebSocket looks at whether the session that opened it is still there.</summary>
-    private static readonly TimeSpan SessionCheck = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan SessionWatchInterval = TimeSpan.FromSeconds(5);
 
     /// <summary>Whether the path is the relay's: its pages draw the screen of another program and need other headers than Geminarr's own (see <see cref="SecurityHeaders"/>).</summary>
     public static bool IsRelayPath(PathString path) => path.StartsWithSegments(BrowserOptions.RelayPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
@@ -166,7 +166,7 @@ public static partial class BrowserRelay
 
     private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, TimeProvider clock, string? sessionId, CancellationToken stop)
     {
-        using var timer = new PeriodicTimer(SessionCheck, clock);
+        using var timer = new PeriodicTimer(SessionWatchInterval, clock);
         try
         {
             while (await timer.WaitForNextTickAsync(stop))
