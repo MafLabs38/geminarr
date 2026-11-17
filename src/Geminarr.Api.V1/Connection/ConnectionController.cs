@@ -40,7 +40,7 @@ public sealed class ConnectionController : ControllerBase
     public ConnectionResource Get()
     {
         var record = _connection.Current();
-        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? null : BrowserOptions.RelayPath, _connection.Account is { } account ? new AccountResource(account.Name, account.Email) : null, _connection.SigningIn);
+        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? null : BrowserOptions.RelayPath, _connection.AccountAt(record) is { } account ? new AccountResource(account.Name, account.Email) : null, _connection.SigningInAt(record));
     }
 
     /// <summary>Opens the sign-in page of the account provider in the browser container: the person signs in there by hand (any way the provider offers), and the connection notices when it is done.</summary>

@@ -34,11 +34,10 @@ const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConne
 /** Who the browser is signed in as, or that nobody is: the first thing the page says, in words and not only in a color. */
 function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
   const { account } = connection;
-  const signedIn = account !== null || connection.state === 'Connected';
   let headline = translate('NotSignedIn');
   if (account) {
     headline = translate('SignedInAs', { who: account.name ?? account.email });
-  } else if (signedIn) {
+  } else if (connection.state === 'Connected') {
     headline = translate('SignedInUnknownAccount');
   } else if (connection.signingIn) {
     headline = translate('SigningInNow');
@@ -85,22 +84,21 @@ function SignIn({
           </a>
         </>
       )}
-      {pagePath && secure ? (
-        <div className={styles.actions}>
+      {!pagePath && <Alert>{translate('BrowserPageNotGiven')}</Alert>}
+      <div className={styles.actions}>
+        {pagePath && secure && (
           <Button disabled={signIn.isPending} onClick={() => start(pagePath)}>
             {translate('SignInToAssistant')}
           </Button>
-          <Button
-            disabled={runs.data?.running === true || runNow.isPending}
-            variant="quiet"
-            onClick={() => runNow.mutate()}
-          >
-            {translate('CheckAgain')}
-          </Button>
-        </div>
-      ) : (
-        !pagePath && <Alert>{translate('BrowserPageNotGiven')}</Alert>
-      )}
+        )}
+        <Button
+          disabled={runs.data?.running === true || runNow.isPending}
+          variant="quiet"
+          onClick={() => runNow.mutate()}
+        >
+          {translate('CheckAgain')}
+        </Button>
+      </div>
       {failure && <Alert>{failure.message}</Alert>}
     </div>
   );

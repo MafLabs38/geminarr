@@ -183,6 +183,7 @@ describe('Connection', () => {
       expect.stringMatching(/^https:\/\//),
     );
     expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
   });
 
   it('says when no desktop is given to relay', async () => {

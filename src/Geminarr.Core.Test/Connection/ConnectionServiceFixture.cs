@@ -70,6 +70,10 @@ public sealed class ConnectionServiceFixture : IDisposable
         _browser.SignInPagesOpened.Should().Be(1);
         var act = () => Subject(ReaderKind.Demo).OpenSignInAsync(TestContext.Current.CancellationToken);
         await act.Should().ThrowAsync<ConnectionRefusedException>();
+
+        _browser.Configured = false;
+        var noAddress = () => Subject().OpenSignInAsync(TestContext.Current.CancellationToken);
+        await noAddress.Should().ThrowAsync<ConnectionRefusedException>("a reader that is Web but has no debugging address has nothing to open");
     }
 
     [Theory]

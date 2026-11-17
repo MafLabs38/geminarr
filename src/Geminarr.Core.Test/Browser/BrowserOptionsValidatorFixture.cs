@@ -20,9 +20,19 @@ public sealed class BrowserOptionsValidatorFixture
     [InlineData("https://elsewhere.example/signin", false)]
     [InlineData("not an address", false)]
     [InlineData("", false)]
+    [InlineData("https://user:secret@accounts.google.com/x", false)]
     public void should_accept_a_sign_in_page_only_on_a_sign_in_host_and_over_https(string address, bool valid)
     {
         new BrowserOptionsValidator().Validate(null, new BrowserOptions { SignInUrl = address }).Failed.Should().Be(!valid);
+    }
+
+    [Theory]
+    [InlineData("javascript://accounts.google.com/%0Aalert(1)")]
+    [InlineData("file://accounts.google.com/etc/passwd")]
+    [InlineData("chrome://accounts.google.com/")]
+    public void should_refuse_a_sign_in_page_that_is_not_http_or_https_even_with_the_sandbox_switch(string address)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { SignInUrl = address, AllowInsecureAssistant = true }).Failed.Should().BeTrue();
     }
 
     [Fact]

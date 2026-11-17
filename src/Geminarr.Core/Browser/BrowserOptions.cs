@@ -88,9 +88,12 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
 
     /// <summary>A wildcard covers the names under a domain of its own (<c>*.example.org</c>): never a whole public suffix (<c>*.org</c>), and a list is not empty.</summary>
     private static string? SignInUrl(BrowserOptions options) =>
-        OriginPolicy.Classify(options.SignInUrl, options) == PageKind.SignIn && (options.SignInUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || options.AllowInsecureAssistant)
+        Uri.TryCreate(options.SignInUrl, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttps || (options.AllowInsecureAssistant && uri.Scheme == Uri.UriSchemeHttp))
+        && uri.UserInfo.Length == 0
+        && OriginPolicy.Classify(options.SignInUrl, options) == PageKind.SignIn
             ? null
-            : "Browser:SignInUrl (GEMINARR__BROWSER__SIGNINURL) must be an https address on one of the SignInHosts (http only when the sandbox switch allows it).";
+            : "Browser:SignInUrl (GEMINARR__BROWSER__SIGNINURL) must be an https address on one of the SignInHosts, without a user name (http only when the sandbox switch allows it).";
 
     private static string? Hosts(string setting, string list)
     {

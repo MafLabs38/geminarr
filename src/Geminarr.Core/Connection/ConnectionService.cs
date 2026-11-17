@@ -33,14 +33,20 @@ public sealed class ConnectionService
     public ConnectionRecord Current() => _tracker.Current();
 
     /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at.</summary>
-    public bool SigningIn => _signIn.SigningIn || (_signIn.EndedWithin(Settling) && Current().State != ConnectionState.Connected);
+    public bool SigningIn => SigningInAt(Current());
+
+    /// <summary>The same, for a record that the caller has read (so that a response says one state, not two reads of it).</summary>
+    public bool SigningInAt(ConnectionRecord record) => _signIn.SigningIn || (_signIn.EndedWithin(Settling) && record.State != ConnectionState.Connected);
 
     /// <summary>Opens the sign-in page of the account provider in the browser, where the person signs in by hand. Nothing here types a credential.</summary>
     public Task OpenSignInAsync(CancellationToken cancellationToken) =>
-        HasBrowser ? _browser.OpenSignInPageAsync(cancellationToken) : throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to sign in to.");
+        HasBrowser && _browser.State().Configured ? _browser.OpenSignInPageAsync(cancellationToken) : throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to sign in to.");
 
     /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged); nobody while the connection is not one.</summary>
-    public AccountIdentity? Account => Current().State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _browser.State().Account;
+    public AccountIdentity? Account => AccountAt(Current());
+
+    /// <summary>The same, for a record that the caller has read.</summary>
+    public AccountIdentity? AccountAt(ConnectionRecord record) => record.State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _browser.State().Account;
 
     /// <summary>Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. A browser that cannot be reached is said, and the connection is forgotten all the same.</summary>
     public async Task DisconnectAsync(CancellationToken cancellationToken)

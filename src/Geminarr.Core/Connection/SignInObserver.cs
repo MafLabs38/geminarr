@@ -7,7 +7,7 @@ namespace Geminarr.Core.Connection;
 public sealed class SignInObserver
 {
     private readonly TimeProvider _clock;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private bool _signingIn;
     private DateTimeOffset? _endedAt;
 

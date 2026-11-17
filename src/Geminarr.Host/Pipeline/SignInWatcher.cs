@@ -37,14 +37,26 @@ public sealed class SignInWatcher : BackgroundService
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(_interval, stoppingToken);
+                // No browser, nothing to look at.
+                if (!_browser.State().Configured)
+                {
+                    continue;
+                }
+
+                string? failure = null;
                 try
                 {
                     (signingIn, reachable) = await LookAsync(signingIn, reachable, stoppingToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    // What a watcher meets (a bad address, a browser that is being disposed) must not end it, and a hosted service that fails stops the whole host: it is logged and it looks again.
-                    _logger.LogWarning(ex, "The tabs of the browser could not be looked at.");
+                    // What a watcher meets (a bad address, a browser that is being disposed) must not end it, and a hosted service that fails stops the whole host: it is said, by its kind only (the message of a browser's error holds its address), and it looks again.
+                    failure = ex.GetType().Name;
+                }
+
+                if (failure is not null)
+                {
+                    _logger.LogWarning("The tabs of the browser could not be looked at ({Failure}).", failure);
                 }
             }
         }
