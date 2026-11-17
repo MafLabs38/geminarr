@@ -297,9 +297,12 @@ public sealed class RelayFactory : GeminarrFactoryBase
     private readonly string? _allowedHostNames;
     private readonly string? _desktopPublicUrl;
 
-    public RelayFactory(string desktopUrl, string? allowedHostNames = null, bool movableClock = false, string? desktopPublicUrl = null)
+    private readonly bool _secureCookie;
+
+    public RelayFactory(string desktopUrl, string? allowedHostNames = null, bool movableClock = false, string? desktopPublicUrl = null, bool secureCookie = false)
         : base(createFolder: true)
     {
+        _secureCookie = secureCookie;
         _desktopUrl = desktopUrl;
         _allowedHostNames = allowedHostNames;
         _desktopPublicUrl = desktopPublicUrl;
@@ -309,6 +312,8 @@ public sealed class RelayFactory : GeminarrFactoryBase
             Clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
         }
     }
+
+    protected override CookieSecurityMode CookieSecurity => _secureCookie ? CookieSecurityMode.Always : CookieSecurityMode.SameAsRequest;
 
     /// <summary>The port of the desktop's origin.</summary>
     public int DesktopPort { get; }

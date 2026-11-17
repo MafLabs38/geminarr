@@ -129,7 +129,7 @@ describe('Connection', () => {
     let signedIn = false;
     let posted = 0;
     const close = vi.fn();
-    const opened = { closed: false, close, location: { href: 'about:blank' } } as unknown as Window;
+    const opened = { closed: false, close, location: { href: 'about:blank' }, opener: globalThis } as unknown as Window;
     const open = vi.spyOn(globalThis, 'open').mockReturnValue(opened);
     serveApi({
       'GET /connection': () =>
@@ -150,6 +150,7 @@ describe('Connection', () => {
     // The window is opened by the click, empty, and goes to the desktop's own origin with the ticket once the server has given it.
     expect(open).toHaveBeenCalledWith('about:blank', 'geminarr-browser');
     await waitFor(() => expect(opened.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
+    expect(opened.opener, "the desktop's window cannot steer this page").toBeNull();
     expect(await screen.findByText('Signing in…')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
 

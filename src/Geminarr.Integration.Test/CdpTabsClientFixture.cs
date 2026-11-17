@@ -122,4 +122,15 @@ public sealed class CdpTabsClientFixture
 
         (await subject.OpenAsync(Cdp, "https://accounts.example/", 1, Token)).Should().NotBeNull();
     }
+
+    [Fact]
+    public async Task should_not_let_an_address_with_line_breaks_split_the_request()
+    {
+        var handler = new Handler((_, _) => Task.FromResult(Json("{}")));
+        var subject = new CdpTabsClient(new HttpClient(handler));
+
+        await subject.OpenAsync(Cdp, "https://accounts.example/x\r\nHost: evil.example", 5, Token);
+
+        handler.Requests.Should().ContainSingle().Which.PathAndQuery.Should().NotContainAny("\r", "\n");
+    }
 }

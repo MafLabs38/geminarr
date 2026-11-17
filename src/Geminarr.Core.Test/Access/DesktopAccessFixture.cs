@@ -47,7 +47,7 @@ public sealed class DesktopAccessFixture
     }
 
     [Fact]
-    public void should_not_exchange_a_ticket_after_a_minute_and_use_it_up_all_the_same()
+    public void should_not_exchange_a_ticket_after_a_minute()
     {
         var ticket = _subject.IssueTicket(_sessions.Start());
 
@@ -100,5 +100,34 @@ public sealed class DesktopAccessFixture
 
         _subject.SessionOf(tokens[0]).Should().BeNull("the oldest cookie made room for the newest");
         _subject.SessionOf(tokens[^1]).Should().Be(session);
+    }
+
+    [Fact]
+    public void should_not_let_tickets_that_expired_take_the_room_of_one_that_is_valid()
+    {
+        var session = _sessions.Start();
+        for (var i = 0; i < DesktopAccess.MaxEntries; i++)
+        {
+            _subject.IssueTicket(session);
+        }
+
+        _clock.Advance(DesktopAccess.TicketLifetime + TimeSpan.FromSeconds(1));
+        var valid = _subject.IssueTicket(session);
+
+        _subject.Redeem(valid).Should().NotBeNull("the stale tickets were swept, they do not count against the limit");
+    }
+
+    [Fact]
+    public void should_sweep_the_cookies_of_the_sessions_that_ended_when_a_new_one_is_given()
+    {
+        var gone = _sessions.Start();
+        var token = _subject.Redeem(_subject.IssueTicket(gone));
+        _sessions.End(gone);
+        var open = _sessions.Start();
+
+        var fresh = _subject.Redeem(_subject.IssueTicket(open));
+
+        _subject.SessionOf(token).Should().BeNull();
+        _subject.SessionOf(fresh).Should().Be(open);
     }
 }

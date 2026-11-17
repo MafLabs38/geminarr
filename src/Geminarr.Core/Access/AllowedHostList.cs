@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -8,9 +9,11 @@ public sealed class AllowedHostList
 {
     private readonly HashSet<string> _hosts;
     private readonly bool _any;
+    private readonly string? _desktopHost;
 
-    public AllowedHostList(IOptions<GeminarrOptions> options)
+    public AllowedHostList(IOptions<GeminarrOptions> options, IOptions<BrowserOptions>? browser = null)
     {
+        _desktopHost = HostOfPublicUrl(browser?.Value.DesktopPublicUrl);
         var configured = Split(options.Value.AllowedHostNames);
         _any = configured.Contains("*");
         _hosts = new HashSet<string>(configured, StringComparer.OrdinalIgnoreCase);
@@ -34,6 +37,10 @@ public sealed class AllowedHostList
         var host = HostOf(hostHeader);
         return host is not null && _hosts.Contains(host);
     }
+
+    /// <summary>Whether a <c>Host</c> header names a host that the desktop's own origin answers to: the page's names, and the host that a proxy gives the desktop (<see cref="BrowserOptions.DesktopPublicUrl"/>), which the page's origin does not answer to.</summary>
+    public bool IsAllowedOnDesktopOrigin(string? hostHeader) =>
+        IsAllowed(hostHeader) || (_desktopHost is not null && string.Equals(HostOf(hostHeader), _desktopHost, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The names of a setting: separated by commas, semicolons or spaces, each as a host with no port.</summary>
     public static IReadOnlyList<string> Split(string? setting) =>

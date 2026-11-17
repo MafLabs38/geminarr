@@ -20,23 +20,8 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // Settings come from appsettings.json, then environment variables prefixed with GEMINARR__.
 builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
-// The desktop of the browser has a port of its own (ADR 0019): it is open when a desktop is configured, and the interface's port is never the desktop's.
-if (!string.IsNullOrWhiteSpace(builder.Configuration["Browser:DesktopUrl"]))
-{
-    var desktopPort = builder.Configuration.GetValue("Browser:DesktopPort", new Geminarr.Core.Browser.BrowserOptions().DesktopPort);
-    var urls = (builder.Configuration["Urls"] ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    if (urls.Length > 0 && urls[0].EndsWith($":{desktopPort}", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException("Browser:DesktopPort (GEMINARR__BROWSER__DESKTOPPORT) is the port of the interface: the desktop needs a port of its own.");
-    }
-
-    if (urls.Length > 0 && !urls.Any(url => url.EndsWith($":{desktopPort}", StringComparison.Ordinal)))
-    {
-        // Same scheme as the interface's address: the desktop's origin is open the way the interface is, and TLS is the proxy's.
-        var scheme = urls[0][..urls[0].IndexOf("://", StringComparison.Ordinal)];
-        builder.Configuration["Urls"] = string.Join(';', [.. urls, $"{scheme}://+:{desktopPort}"]);
-    }
-}
+// The desktop of the browser has a port of its own (ADR 0019): it is open when a desktop is configured, on the interface's own address, and never on the interface's port.
+builder.Configuration["Urls"] = DesktopListener.Plan(builder.Configuration["Urls"], builder.Configuration["Browser:DesktopUrl"], builder.Configuration["Browser:DesktopPort"]);
 
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrBrowser();
@@ -78,6 +63,13 @@ if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLe
     app.Logger.LogWarning("The minimum length of the operator's password is lowered (GEMINARR__AUTH__MINPASSWORDLENGTH): this is for a sandbox that nobody else reaches. The operator's password is also the key to the browser's session.");
 }
 
+// A desktop that a proxy publishes on a host of its own says so (DESKTOPPUBLICURL); without it, its address is the page's on the desktop's port, which a proxy that serves 443 only does not answer.
+if (app.Services.GetRequiredService<IOptions<Geminarr.Core.Browser.BrowserOptions>>().Value is { DesktopUrl: { Length: > 0 }, DesktopPublicUrl: null or "" }
+    && Uri.TryCreate(app.Services.GetRequiredService<IOptions<Geminarr.Core.Configuration.GeminarrOptions>>().Value.PublicUrl, UriKind.Absolute, out var publicPage) && publicPage.IsDefaultPort)
+{
+    app.Logger.LogWarning("The desktop of the browser has no public address (GEMINARR__BROWSER__DESKTOPPUBLICURL): it is reached on port {Port} of the page's host, which a proxy that serves the default port only does not answer.", app.Services.GetRequiredService<IOptions<Geminarr.Core.Browser.BrowserOptions>>().Value.DesktopPort);
+}
+
 app.UseExceptionHandler();
 // The desktop of the browser is another program's: it has an origin of its own, a port that answers for it and for nothing else (ADR 0019).
 app.UseGeminarrDesktopOrigin();
@@ -85,7 +77,6 @@ app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
-app.UseWebSockets();
 app.UseRouting();
 app.UseGeminarrSecurity();
 app.MapControllers();

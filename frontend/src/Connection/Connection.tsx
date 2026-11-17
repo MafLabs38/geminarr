@@ -72,6 +72,11 @@ function SignIn({
   // the sign-in page in the browser it shows. This page keeps the window and closes it when the sign-in is done.
   const start = () => {
     const popup = window.open('about:blank', 'geminarr-browser');
+    if (popup) {
+      // The desktop is another program's: the window it ends up in must not be able to steer this page (reverse tabnabbing). It is cut while the window is still blank and ours; this page keeps its handle, and closes it.
+      popup.opener = null;
+    }
+
     windowRef.current = popup;
     desktop.mutate(undefined, {
       onSuccess: ({ url }) => {

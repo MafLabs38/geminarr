@@ -70,7 +70,7 @@ public static partial class BrowserRelay
                 return next(context);
             });
             branch.UseGeminarrSecurityHeaders();
-            branch.UseMiddleware<AllowedHostsMiddleware>();
+            branch.UseMiddleware<AllowedHostsMiddleware>(true);
             branch.UseWebSockets();
             branch.Run(context => ServeAsync(context, forwarder, destination, client, request));
         });

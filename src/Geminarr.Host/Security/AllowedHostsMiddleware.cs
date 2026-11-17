@@ -12,16 +12,21 @@ public sealed class AllowedHostsMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly AllowedHostList _hosts;
+    private readonly bool _desktopOrigin;
 
-    public AllowedHostsMiddleware(RequestDelegate next, AllowedHostList hosts)
+    /// <param name="next">The next middleware.</param>
+    /// <param name="hosts">The names the page may be reached by.</param>
+    /// <param name="desktopOrigin">True on the desktop's own origin, which also answers to the host that a proxy gives it.</param>
+    public AllowedHostsMiddleware(RequestDelegate next, AllowedHostList hosts, bool desktopOrigin = false)
     {
         _next = next;
         _hosts = hosts;
+        _desktopOrigin = desktopOrigin;
     }
 
     public Task InvokeAsync(HttpContext context)
     {
-        if (HealthExtensions.IsProbe(context.Request.Path) || _hosts.IsAllowed(context.Request.Host.Value))
+        if (HealthExtensions.IsProbe(context.Request.Path) || (_desktopOrigin ? _hosts.IsAllowedOnDesktopOrigin(context.Request.Host.Value) : _hosts.IsAllowed(context.Request.Host.Value)))
         {
             return _next(context);
         }

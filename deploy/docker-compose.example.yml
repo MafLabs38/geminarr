@@ -68,6 +68,8 @@ services:
       GEMINARR__AUTH__ADMINPASSWORDFILE: /run/secrets/geminarr_operator_password
       # The name you reach the page by (the host of this address is allowed; a request for any other name is refused). Behind TLS leave the cookie secure.
       GEMINARR__PUBLICURL: https://geminarr.homelab.example
+      # The address that your proxy publishes the browser's desktop by (its own origin, ADR 0019). Without it: port 8283 of the page's host.
+      GEMINARR__BROWSER__DESKTOPPUBLICURL: https://desktop.homelab.example
       # The Mnemarr to send to (https). Leave it out to give the address on the page *Mnemarr* and pair there; a one-time code can be given as a file instead.
       # GEMINARR__MNEMARR__URL: https://mnemarr.homelab.example
       # GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/secrets/geminarr_mnemarr_code   # a one-time code, exchanged at start

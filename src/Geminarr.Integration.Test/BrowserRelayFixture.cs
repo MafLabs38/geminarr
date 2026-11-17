@@ -158,6 +158,89 @@ public sealed class BrowserRelayFixture
         relayed.Headers.GetValues("X-Frame-Options").Single().Should().Be("DENY");
     }
 
+    [Theory]
+    [InlineData(false, "geminarr.desktop=", false)]
+    [InlineData(true, "__Host-geminarr.desktop=", true)]
+    public async Task should_set_the_desktops_cookie_as_secure_as_the_operators_and_with_the_prefix_that_needs_it(bool secure, string name, bool hasSecure)
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, secureCookie: secure);
+        var scheme = secure ? "https" : "http";
+        using var operatorClient = factory.CreateClient(new() { BaseAddress = new Uri($"{scheme}://localhost") });
+        using var login = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = JsonContent.Create(new { name = GeminarrFactoryBase.OperatorName, password = GeminarrFactoryBase.OperatorPassword }) };
+        login.Headers.Add("X-Geminarr-Request", "1");
+        (await operatorClient.SendAsync(login, Token)).EnsureSuccessStatusCode();
+        operatorClient.DefaultRequestHeaders.Add("X-Geminarr-Request", "1");
+        var ticket = await RelayFactory.TicketAsync(operatorClient);
+        using var anonymous = factory.CreateClient(new() { AllowAutoRedirect = false, BaseAddress = new Uri($"{scheme}://localhost") });
+        anonymous.DefaultRequestHeaders.Add(RelayFactory.LocalPortHeader, factory.DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        var entered = await anonymous.GetAsync($"/enter?ticket={ticket}", Token);
+
+        var cookie = entered.Headers.GetValues("Set-Cookie").Single();
+        cookie.Should().StartWith(name);
+        cookie.Contains("secure", StringComparison.OrdinalIgnoreCase).Should().Be(hasSecure);
+        cookie.Should().Contain("path=/").And.NotContain("domain=", "a __Host- cookie has no Domain");
+    }
+
+    [Fact]
+    public async Task should_not_exchange_a_ticket_by_any_method_but_get()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var operatorClient = await factory.SignedInClientAsync();
+        var ticket = await RelayFactory.TicketAsync(operatorClient);
+        using var anonymous = factory.Anonymous();
+        anonymous.DefaultRequestHeaders.Add("X-Geminarr-Request", "1");
+
+        var posted = await anonymous.PostAsync($"/enter?ticket={ticket}", content: null, Token);
+
+        posted.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        posted.Headers.Contains("Set-Cookie").Should().BeFalse();
+        (await anonymous.GetAsync($"/enter?ticket={ticket}", Token)).StatusCode.Should().Be(HttpStatusCode.Redirect, "the ticket was not used up by the other method");
+    }
+
+    [Fact]
+    public async Task should_keep_the_apis_writes_and_its_answers_closed_to_a_page_of_the_desktops_origin()
+    {
+        // The operator's cookie goes to every port of the same host: what keeps the desktop's pages out of the API is that no write goes without its header and that no answer is ever readable by another origin.
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var operatorClient = await factory.SignedInClientAsync(sendsTheHeader: false);
+        var desktopOrigin = $"http://localhost:{factory.DesktopPort}";
+        using var write = new HttpRequestMessage(HttpMethod.Post, "/api/v1/connection/pause") { Content = JsonContent.Create(new { hours = 1 }) };
+        write.Headers.Add("Origin", desktopOrigin);
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/v1/connection/pause");
+        preflight.Headers.Add("Origin", desktopOrigin);
+        preflight.Headers.Add("Access-Control-Request-Method", "POST");
+        preflight.Headers.Add("Access-Control-Request-Headers", "x-geminarr-request");
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/api/v1/connection");
+        read.Headers.Add("Origin", desktopOrigin);
+
+        var refused = await operatorClient.SendAsync(write, Token);
+        var preflighted = await operatorClient.SendAsync(preflight, Token);
+        var answered = await operatorClient.SendAsync(read, Token);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden, "a write needs the header, which another origin cannot send without a preflight");
+        new[] { refused, preflighted, answered }.SelectMany(response => response.Headers.Select(header => header.Key)).Should().NotContain(name => name.StartsWith("Access-Control-", StringComparison.OrdinalIgnoreCase), "no answer is ever readable by another origin");
+    }
+
+    [Fact]
+    public async Task should_answer_to_the_host_that_a_proxy_gives_the_desktop_on_the_desktops_origin_and_not_on_the_pages()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, desktopPublicUrl: "https://desktop.homelab.example");
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var desktopClient = await factory.DesktopClientAsync(operatorClient);
+        using var onTheDesktop = new HttpRequestMessage(HttpMethod.Get, "/browser/");
+        onTheDesktop.Headers.Host = "desktop.homelab.example";
+        using var onThePage = new HttpRequestMessage(HttpMethod.Get, "/api/v1/connection");
+        onThePage.Headers.Host = "desktop.homelab.example";
+
+        (await desktopClient.SendAsync(onTheDesktop, Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await operatorClient.SendAsync(onThePage, Token)).StatusCode.Should().Be(HttpStatusCode.BadRequest, "the page's origin answers to the page's names");
+    }
+
     [Fact]
     public async Task should_relay_a_websocket_of_the_same_origin_and_refuse_one_of_another()
     {
