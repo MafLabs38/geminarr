@@ -393,7 +393,7 @@ Every call but the probes needs the operator's session (D-19: an unknown path is
 | `/connection/pause`, `/connection/resume` | POST | Pause (a number of hours, or until resumed) and resume | 3 ✅ |
 | `/connection/desktop` | POST | The address of the browser's desktop, on its own origin, with a single-use ticket (400 when no desktop is configured or the session is not open) | 3 ✅ |
 | `/connection/sign-in` | POST | Open the provider's sign-in page in the browser (400 when no browser reads, 502 when it cannot be reached) | 3 ✅ |
-| `/connection/disconnect` | POST | Clear the session of the browser and forget the connection (502 if the browser cannot be reached: the connection is forgotten all the same) | 3 |
+| `/connection/disconnect` | POST | Clear the session of the browser and forget the connection; all or nothing (502 if the browser cannot be reached: nothing changed, the session is still in it) | 3 |
 | `/runs` | GET, POST | List runs; start one now | 2 ✅ |
 | `/conversations` | GET | List with state and counts (no text) | 4 |
 | `/imports` | POST, GET | Upload an archive; list/show imports | 5 |
