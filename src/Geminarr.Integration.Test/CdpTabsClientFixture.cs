@@ -133,4 +133,16 @@ public sealed class CdpTabsClientFixture
 
         handler.Requests.Should().ContainSingle().Which.PathAndQuery.Should().NotContainAny("\r", "\n");
     }
+
+    [Fact]
+    public async Task should_not_read_a_list_of_tabs_that_weighs_more_than_the_limit()
+    {
+        var huge = "[{\"type\":\"page\",\"url\":\"https://example.org/" + new string('a', CdpTabsClient.MaxListBytes) + "\"}]";
+        var subject = new CdpTabsClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json(huge)))));
+
+        var result = await subject.ListAsync(Cdp, 5, Token);
+
+        result.Tabs.Should().BeNull();
+        result.Failure.Should().Be("TooLarge", "a page can make its address as long as it likes: the list is read up to a limit and no more");
+    }
 }

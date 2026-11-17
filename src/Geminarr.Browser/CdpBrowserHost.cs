@@ -278,7 +278,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             await page.WaitForSelectorAsync(selector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = AccountWaitMilliseconds });
-            var labels = await page.Locator(selector).EvaluateAllAsync<string[]>("elements => elements.slice(0, 4).map(element => element.getAttribute('aria-label') || '')");
+            var labels = await page.Locator(selector).EvaluateAllAsync<string[]>("elements => elements.slice(0, 4).map(element => (element.getAttribute('aria-label') || '').slice(0, 512))");
             return AccountLabel.Parse(labels);
         }
         catch (Exception ex) when (ex is TimeoutException or PlaywrightException)

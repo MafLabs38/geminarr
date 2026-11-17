@@ -3,7 +3,7 @@ namespace Geminarr.Core.Connection;
 /// <summary>The states of the connection to the assistant (SPEC §7.2). <c>connecting</c> and <c>paused</c> come with the live view (vertical 3).</summary>
 public enum ConnectionState
 {
-    /// <summary>No reader is configured, or no profile: nothing is read.</summary>
+    /// <summary>No reader is configured, or no browser: nothing is read.</summary>
     NotConnected,
 
     /// <summary>Signed in and reading.</summary>

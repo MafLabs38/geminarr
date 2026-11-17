@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Geminarr.Core.Browser;
@@ -14,6 +13,9 @@ public sealed record TabsResult(IReadOnlyList<BrowserTab>? Tabs, string? Failure
 /// </summary>
 public sealed class CdpTabsClient
 {
+    /// <summary>The most that the list of the tabs may weigh: each tab's address is its page's, and a page can make it as long as it likes.</summary>
+    public const int MaxListBytes = 1024 * 1024;
+
     private readonly HttpClient _http;
 
     public CdpTabsClient()
@@ -30,7 +32,24 @@ public sealed class CdpTabsClient
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
-            var tabs = await _http.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(cdpUrl), "/json/list"), timeout.Token);
+            using var response = await _http.GetAsync(new Uri(new Uri(cdpUrl), "/json/list"), HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            response.EnsureSuccessStatusCode();
+            await using var body = await response.Content.ReadAsStreamAsync(timeout.Token);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[8192];
+            int read;
+            while ((read = await body.ReadAsync(chunk, timeout.Token)) > 0)
+            {
+                if (buffer.Length + read > MaxListBytes)
+                {
+                    return new TabsResult(null, "TooLarge");
+                }
+
+                await buffer.WriteAsync(chunk.AsMemory(0, read), timeout.Token);
+            }
+
+            buffer.Position = 0;
+            var tabs = await JsonSerializer.DeserializeAsync<List<TabInfo>>(buffer, JsonSerializerOptions.Web, timeout.Token);
             return new TabsResult((tabs ?? []).Select(tab => new BrowserTab(tab.Type, tab.Url)).ToList(), null);
         }
         catch (Exception ex) when (IsAFailureOfTheBrowser(ex, cancellationToken))

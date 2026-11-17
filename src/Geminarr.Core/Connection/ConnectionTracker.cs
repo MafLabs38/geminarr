@@ -62,7 +62,7 @@ public sealed class ConnectionTracker
         public void Dispose() => _epoch.Value = null;
     }
 
-    /// <summary>No reader is configured, or the pass found no profile: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
+    /// <summary>No reader is configured, or the pass found no browser configured: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
     public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
     /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
