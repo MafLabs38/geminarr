@@ -97,8 +97,8 @@ public static partial class BrowserRelay
             return;
         }
 
-        var sessionId = access.SessionOf(context.Request.Cookies[cookieName]);
-        if (sessionId is null)
+        var desktopToken = context.Request.Cookies[cookieName];
+        if (access.SessionOf(desktopToken) is null)
         {
             await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "Open the desktop from the Connection page of Geminarr.");
             return;
@@ -134,7 +134,7 @@ public static partial class BrowserRelay
         // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
         using var stop = new CancellationTokenSource();
         var watching = context.WebSockets.IsWebSocketRequest
-            ? EndWithTheSessionAsync(context, services.GetRequiredService<SessionRegistry>(), services.GetRequiredService<IBrowserExposure>(), services.GetRequiredService<TimeProvider>(), sessionId, stop.Token)
+            ? EndWithTheSessionAsync(context, access, services.GetRequiredService<IBrowserExposure>(), services.GetRequiredService<TimeProvider>(), desktopToken, stop.Token)
             : Task.CompletedTask;
         try
         {
@@ -235,15 +235,15 @@ public static partial class BrowserRelay
         return !string.Equals(uri.Host, host.Host, StringComparison.OrdinalIgnoreCase) || (host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort);
     }
 
-    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, IBrowserExposure exposure, TimeProvider clock, string? sessionId, CancellationToken stop)
+    private static async Task EndWithTheSessionAsync(HttpContext context, DesktopAccess access, IBrowserExposure exposure, TimeProvider clock, string? desktopToken, CancellationToken stop)
     {
         using var timer = new PeriodicTimer(SessionWatchInterval, clock);
         try
         {
             while (await timer.WaitForNextTickAsync(stop))
             {
-                // An open socket ends with the session that opened it, and with the desktop being closed: a namespace that became exposed after the socket was opened.
-                if (!sessions.IsActive(sessionId) || exposure.Check().IsExposed)
+                // An open socket ends with the desktop's cookie that opened it (which ends with the operator's session), and with the desktop being closed: a namespace that became exposed after the socket was opened.
+                if (access.SessionOf(desktopToken) is null || exposure.Check().IsExposed)
                 {
                     context.Abort();
                     return;

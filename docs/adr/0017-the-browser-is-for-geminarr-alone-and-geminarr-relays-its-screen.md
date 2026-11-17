@@ -1,6 +1,6 @@
-# 0017 — The browser is for Geminarr alone, and Geminarr relays its screen behind it
+# 0017 — The browser is for Geminarr alone, and Geminarr relays its screen behind its own sign-in
 
-> **Amended by [ADR 0019](0019-the-desktop-has-an-origin-of-its-own-opened-by-a-ticket.md) (2026-11-17)**: the relay is no longer under `/browser/` of Geminarr's own origin but on an origin of its own, opened by a ticket of the operator's session. What the relay forwards, and what it keeps apart, stands.s own sign-in
+> **Amended by [ADR 0019](0019-the-desktop-has-an-origin-of-its-own-opened-by-a-ticket.md) (2026-11-17)**: the relay is no longer under `/browser/` of Geminarr's own origin but on an origin of its own, opened by a ticket of the operator's session. What the relay forwards, and what it keeps apart, stands.
 
 - **Status**: accepted by the maintainer in the conversation of 2026-11-15
 - **Date**: 2026-11-15

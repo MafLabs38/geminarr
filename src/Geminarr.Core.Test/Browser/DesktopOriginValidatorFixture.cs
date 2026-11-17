@@ -24,6 +24,14 @@ public sealed class DesktopOriginValidatorFixture
         }
     }
 
+    [Fact]
+    public void should_refuse_a_desktop_port_that_would_put_the_desktop_on_the_pages_own_origin()
+    {
+        var result = With("https://geminarr.homelab.example:8283").Validate(null, new BrowserOptions());
+
+        result.Failed.Should().BeTrue("the address that people are given would be the page's: the desktop's port is the page's");
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("https://desktop.homelab.example", null)]
