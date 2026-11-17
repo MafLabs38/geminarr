@@ -181,7 +181,7 @@ public sealed class ConnectionTracker
         return new ConnectionRecord(state, state == current.State ? current.Since : now, ok ? now : current.LastOkAt, failures, reason, pausedUntil, before);
     }
 
-    /// <summary>Writes the record when it differs from <paramref name="current"/>, which the caller has just read under the same lock: the store is read once per move.</summary>
+    /// <summary>Writes the record when it differs from <paramref name="current"/>, which the caller has just read under the same lock: a move reads the record once and hands it here.</summary>
     private ConnectionRecord Save(ConnectionRecord next, ConnectionRecord current)
     {
         if (next != current)
