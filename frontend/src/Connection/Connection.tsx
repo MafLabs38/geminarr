@@ -74,11 +74,8 @@ function SignIn({
     // A second click does not leave the first window behind, and a window of a name that is already taken (and may be on the desktop's origin by now) is never reused: the one opened here is blank and ours.
     windowRef.current?.close();
     const popup = window.open('about:blank', '_blank');
-    if (popup) {
-      // The desktop is another program's: the window it ends up in must not be able to steer this page (reverse tabnabbing). It is cut while the window is still blank and ours; this page keeps its handle, and closes it.
-      popup.opener = null;
-    }
-
+    // The link between the two windows is kept on purpose: a window whose opener is cut cannot be closed by this page (measured in Chromium: `close()` does nothing), and closing it when the sign-in is done is what the person
+    // asked for. The desktop is the pinned image that already holds the screen of the session, so what it could do to this page adds little (ADR 0019, R-24-163).
     windowRef.current = popup;
     desktop.mutate(undefined, {
       onSuccess: ({ url }) => {

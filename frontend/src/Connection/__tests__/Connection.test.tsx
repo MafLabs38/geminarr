@@ -150,7 +150,7 @@ describe('Connection', () => {
     // The window is opened by the click, empty, and goes to the desktop's own origin with the ticket once the server has given it.
     expect(open).toHaveBeenCalledWith('about:blank', '_blank');
     await waitFor(() => expect(opened.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
-    expect(opened.opener, "the desktop's window cannot steer this page").toBeNull();
+    expect(opened.opener, 'the window keeps its link to this page, so that this page can close it').toBe(globalThis);
     expect(await screen.findByText('Signing in…')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
 
@@ -189,7 +189,6 @@ describe('Connection', () => {
 
     expect(first.close).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenNthCalledWith(2, 'about:blank', '_blank');
-    expect(second.opener).toBeNull();
   });
 
   it('says why the sign-in page could not be opened', async () => {
