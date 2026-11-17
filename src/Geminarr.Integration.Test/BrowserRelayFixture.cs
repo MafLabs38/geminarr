@@ -220,6 +220,21 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
+    public async Task should_speak_to_the_desktop_by_its_own_address_whatever_the_name_the_person_reached_geminarr_by()
+    {
+        // The desktop's web server refuses every Host that is not the loopback (the init script of the image): the name of the person's address must not go through, or the desktop is closed to everyone but a person on localhost.
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, allowedHostNames: "localhost;geminarr.homelab.example");
+        using var client = await factory.SignedInClientAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/browser/");
+        request.Headers.Host = "geminarr.homelab.example";
+
+        (await client.SendAsync(request, Token)).EnsureSuccessStatusCode();
+
+        desktop.Hosts.Should().OnlyContain(host => host == new Uri(desktop.Url).Authority, "the desktop is reached by the address that Geminarr gives it");
+    }
+
+    [Fact]
     public async Task should_say_bad_gateway_when_the_desktop_is_not_there_yet()
     {
         await using var desktop = await FakeDesktop.StartAsync();

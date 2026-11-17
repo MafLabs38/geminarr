@@ -201,6 +201,8 @@ public static partial class BrowserRelay
             // loopback, and must not be taken for the person's.
             proxyRequest.Headers.Remove("Origin");
             proxyRequest.Headers.TryAddWithoutValidation("Origin", BrowserOptions.RelayOrigin);
+            // The desktop's web server accepts the loopback name only (the init script of the image): the name that the person reached Geminarr by is not given to it, it is reached by its own address.
+            proxyRequest.Headers.Host = null;
         }
 
         public override async ValueTask<bool> TransformResponseAsync(HttpContext httpContext, HttpResponseMessage? proxyResponse, CancellationToken cancellationToken)
