@@ -1,0 +1,9 @@
+# Geminarr's own process (the uid of its image, 1654) may answer what comes in and talk on the loopback (the browser's debugging address, and the name server of the
+# container network, which is on it): nothing else. The browser's own processes are not named here and keep the pod's egress. See deploy/egress/ and ADR 0020.
+*filter
+:OUTPUT ACCEPT [0:0]
+-A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+-A OUTPUT -m owner --uid-owner 1654 -o lo -j ACCEPT
+-A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
+-A OUTPUT -m owner --uid-owner 1654 -j REJECT
+COMMIT

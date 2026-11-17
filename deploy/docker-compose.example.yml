@@ -51,13 +51,49 @@ services:
         limits:
           memory: 2G   # Chromium with a page open
 
+  # The egress guard (ADR 0020). Geminarr and the browser share one network namespace, so a network policy cannot tell them apart: these two one-shot containers set, in that namespace, rules that name
+  # Geminarr's own process by its user (uid 1654) and let it reach Mnemarr and nothing else. The browser keeps whatever your network allows. Copy egress/rules.v4.example and rules.v6.example to
+  # rules.v4 and rules.v6 and fill them in. They run once with the one capability that they need and exit; Geminarr has none and cannot change them. A third party's image (the Kubernetes
+  # project's, with iptables and no shell), pinned by digest.
+  egress-guard:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: "no"
+    volumes:
+      - ./egress/rules.v4:/rules/rules.v4:ro
+    depends_on:
+      - browser
+  egress-guard-v6:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: "no"
+    volumes:
+      - ./egress/rules.v6:/rules/rules.v6:ro
+    depends_on:
+      - browser
+
   geminarr:
     image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
     restart: unless-stopped
     # The network of the browser: the debugging address is its loopback, never a network.
     network_mode: service:browser
     depends_on:
-      - browser
+      browser:
+        condition: service_started
+      egress-guard:
+        condition: service_completed_successfully
+      egress-guard-v6:
+        condition: service_completed_successfully
     volumes:
       # - ./geminarr-logo.png:/run/identity/logo.png:ro   # the picture of the menu (see GEMINARR__IDENTITY__LOGOFILE below); not in git
       - geminarr-data:/config               # database and settings: back this up.

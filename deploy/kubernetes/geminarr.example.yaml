@@ -36,6 +36,33 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: geminarr-egress
+  namespace: geminarr
+data:
+  # The same files as deploy/egress/rules.v4.example and rules.v6.example, filled in. Mnemarr's address changing is a change here and a restart of the pod.
+  rules.v4: |
+    *filter
+    :OUTPUT ACCEPT [0:0]
+    -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p udp --dport 53 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p tcp --dport 53 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <mnemarr-ip>/32 -p tcp --dport <mnemarr-port> -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
+    -A OUTPUT -m owner --uid-owner 1654 -j REJECT
+    COMMIT
+  rules.v6: |
+    *filter
+    :OUTPUT ACCEPT [0:0]
+    -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
+    -A OUTPUT -m owner --uid-owner 1654 -j REJECT
+    COMMIT
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: geminarr-browser-init
   namespace: geminarr
 data:
@@ -92,6 +119,43 @@ spec:
         fsGroup: 1654
         seccompProfile:
           type: RuntimeDefault
+      # The egress guard (ADR 0020): Geminarr and the browser share the pod's network namespace, so a network policy cannot tell them apart. These two init containers run once, with the one capability
+      # that they need, and set rules in that namespace that name Geminarr's own process by its user (uid 1654) and let it reach Mnemarr and nothing else. The browser keeps what the network
+      # policy allows. Geminarr has no capability and cannot change them. The namespace must allow NET_ADMIN for these two (Pod Security `privileged`, or an exemption for them); where it cannot, the
+      # same rules belong to the node's or the network plugin's policy. A third party's image (the Kubernetes project's, with iptables and no shell), pinned by digest.
+      initContainers:
+        - name: egress-guard
+          image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+          command: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          volumeMounts:
+            - name: egress
+              mountPath: /rules
+              readOnly: true
+            - name: run
+              mountPath: /run
+        - name: egress-guard-v6
+          image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+          command: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          volumeMounts:
+            - name: egress
+              mountPath: /rules
+              readOnly: true
+            - name: run
+              mountPath: /run
       containers:
         - name: geminarr
           image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
@@ -225,6 +289,13 @@ spec:
               mountPath: /custom-cont-init.d
               readOnly: true
       volumes:
+        - name: egress
+          configMap:
+            name: geminarr-egress
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
         - name: browser-init
           configMap:
             name: geminarr-browser-init

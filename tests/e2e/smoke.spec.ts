@@ -416,6 +416,25 @@ test.describe('smoke @smoke', () => {
     await desktop.dispose();
   });
 
+  test("Geminarr's own process reaches nothing off the loopback, whatever the pod's policy allows for the browser (ADR 0020) @browserless", async ({
+    request,
+  }) => {
+    const probe = async (port: number, host: string, target: number) =>
+      (await (await request.get(`http://localhost:${port}/try?host=${host}&port=${target}`)).json()) as {
+        open: boolean;
+        uid: number;
+      };
+    const asGeminarr = await probe(9224, 'assistant', 8081);
+    const asBrowser = await probe(9225, 'assistant', 8081);
+
+    expect(asGeminarr.uid, "the probe is Geminarr's user").toBe(1654);
+    expect(asBrowser.uid, "the control is the browser's user").toBe(1000);
+    expect(asBrowser.open, 'the control: the browser reaches the assistant, as the pod allows').toBe(true);
+    expect(asGeminarr.open, "Geminarr's process does not, in the same namespace").toBe(false);
+    expect((await probe(9224, '127.0.0.1', 9222)).open, 'it still reaches the browser, on the loopback').toBe(true);
+    expect((await probe(9224, 'debug-relay-is-not-a-host', 80)).open).toBe(false);
+  });
+
   test('the system status page shows the version of the running build', async ({ page }) => {
     await signIn(page, '/system/status');
 

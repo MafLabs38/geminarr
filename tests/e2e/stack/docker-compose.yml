@@ -49,6 +49,9 @@ services:
       - '8283:8283'
       # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
       - '127.0.0.1:9223:9223'
+      # Test only: what each user of the namespace can reach (the probes below), to show the egress guard.
+      - '127.0.0.1:9224:9224'
+      - '127.0.0.1:9225:9225'
     networks:
       default:
         aliases:
@@ -59,6 +62,63 @@ services:
     network_mode: service:browser
     depends_on:
       - browser
+  # The egress guard (ADR 0020): in the namespace that the two containers share, Geminarr's own process (uid 1654) may reach nothing but the loopback, whatever the network policy of the pod allows
+  # for the browser. It runs once, with the one capability that it needs, and exits; Geminarr has no capability and cannot change what it set. One for IPv4, one for IPv6.
+  egress-guard:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ['/usr/sbin/iptables-nft-restore', '/rules/rules.v4']
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: 'no'
+    volumes:
+      - ./egress/rules.v4:/rules/rules.v4:ro
+    depends_on:
+      - browser
+  egress-guard-v6:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ['/usr/sbin/ip6tables-nft-restore', '/rules/rules.v6']
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: 'no'
+    volumes:
+      - ./egress/rules.v6:/rules/rules.v6:ro
+    depends_on:
+      - browser
+  # Test only: two probes in the namespace, one as Geminarr's user and one as the browser's, each says whether it can open a connection to an address.
+  egress-probe-geminarr:
+    image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+    user: '1654:1654'
+    command: ['node', '/probe.js']
+    environment:
+      PORT: '9224'
+    network_mode: service:browser
+    volumes:
+      - ./egress/probe.js:/probe.js:ro
+    depends_on:
+      egress-guard:
+        condition: service_completed_successfully
+      egress-guard-v6:
+        condition: service_completed_successfully
+  egress-probe-browser:
+    image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+    user: '1000:1000'
+    command: ['node', '/probe.js']
+    environment:
+      PORT: '9225'
+    network_mode: service:browser
+    volumes:
+      - ./egress/probe.js:/probe.js:ro
+    depends_on:
+      egress-guard:
+        condition: service_completed_successfully
+      egress-guard-v6:
+        condition: service_completed_successfully
   geminarr:
     build:
       context: ../../..
@@ -68,8 +128,14 @@ services:
     tmpfs:
       - /config:uid=1654,gid=1654
     depends_on:
-      - assistant
-      - browser
+      assistant:
+        condition: service_started
+      browser:
+        condition: service_started
+      egress-guard:
+        condition: service_completed_successfully
+      egress-guard-v6:
+        condition: service_completed_successfully
     # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
     environment:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
@@ -87,8 +153,8 @@ services:
       # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
       GEMINARR__BROWSER__SESSIONCOOKIES: assistant
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
-      # Test only: the relay of the debugging port below listens off the loopback so that a script can play the person who signs in by hand.
-      GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9223'
+      # Test only: the relay of the debugging port and the two probes listen off the loopback (a script plays the person who signs in by hand; the probes show the egress guard).
+      GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9223;9224;9225'
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg
