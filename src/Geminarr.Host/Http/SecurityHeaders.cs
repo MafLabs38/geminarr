@@ -37,7 +37,7 @@ public static class SecurityHeaders
                     && headers.ContainsKey("Content-Security-Policy");
                 if (!keepsOwnHeaders)
                 {
-                    headers["Content-Security-Policy"] = context.Items.ContainsKey(BrowserRelay.OriginItemKey) && BrowserRelay.IsRelayPath(context.Request.Path) ? RelayContentSecurityPolicy : ContentSecurityPolicy;
+                    headers["Content-Security-Policy"] = context.Items.ContainsKey(BrowserRelay.OriginItemKey) && RelayRules.IsRelayPath(context.Request.Path) ? RelayContentSecurityPolicy : ContentSecurityPolicy;
                 }
 
                 if (ApiPaths.IsApi(context.Request.Path) && !keepsOwnHeaders)

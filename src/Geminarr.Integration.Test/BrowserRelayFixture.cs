@@ -469,7 +469,7 @@ public sealed class BrowserRelayFixture
     [InlineData("/", false)]
     public void should_give_the_loose_policy_to_the_path_of_the_relay_and_to_no_other(string path, bool relay)
     {
-        Geminarr.Host.Http.BrowserRelay.IsRelayPath(new PathString(path)).Should().Be(relay);
+        Geminarr.Host.Http.RelayRules.IsRelayPath(new PathString(path)).Should().Be(relay);
     }
 
     private static async Task<ClientWebSocket> ConnectAsync(Uri address, string origin, string? cookie)

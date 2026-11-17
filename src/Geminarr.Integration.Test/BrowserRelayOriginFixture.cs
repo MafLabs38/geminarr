@@ -7,7 +7,7 @@ namespace Geminarr.Integration.Test;
 public sealed class BrowserRelayOriginFixture
 {
     private static bool FromAnother(string? origin, string host, string? desktopPublicUrl = null) =>
-        BrowserRelay.IsFromAnotherOrigin(origin, new HostString(host), desktopPublicUrl);
+        RelayRules.IsFromAnotherOrigin(origin, new HostString(host), desktopPublicUrl);
 
     [Theory]
     [InlineData(null)]

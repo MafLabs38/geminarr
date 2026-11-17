@@ -15,15 +15,12 @@ namespace Geminarr.Host.Http;
 /// the two containers share, and the only way to it is this relay, behind a cookie that the operator's session gave this origin by a ticket. The person opens it to sign in to the account by hand;
 /// Geminarr neither types nor clicks in it. What the relay sends on is the request of the person, without any cookie of Geminarr's, and what comes back has no cookie either.
 /// </summary>
-public static partial class BrowserRelay
+public static class BrowserRelay
 {
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(30);
 
     /// <summary>How often an open WebSocket looks at whether the session that opened it is still there.</summary>
     private static readonly TimeSpan SessionWatchInterval = TimeSpan.FromSeconds(5);
-
-    /// <summary>Whether the path is the relay's: its pages draw the screen of another program and need other headers than Geminarr's own (see <see cref="SecurityHeaders"/>).</summary>
-    public static bool IsRelayPath(PathString path) => path.StartsWithSegments(BrowserOptions.RelayPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 
     public static IServiceCollection AddGeminarrBrowserRelay(this IServiceCollection services)
     {
@@ -91,7 +88,7 @@ public static partial class BrowserRelay
             return;
         }
 
-        if (!IsRelayPath(context.Request.Path))
+        if (!RelayRules.IsRelayPath(context.Request.Path))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -119,13 +116,13 @@ public static partial class BrowserRelay
         }
 
         // The desktop's client reads its pages and opens one WebSocket: no write goes over HTTP, and what else the image's web server offers (files, other services) is not relayed.
-        if (!IsRelayed(context.Request))
+        if (!RelayRules.IsRelayed(context.Request))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
-        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl))
+        if (context.WebSockets.IsWebSocketRequest && RelayRules.IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
@@ -185,56 +182,6 @@ public static partial class BrowserRelay
             cancellationToken: context.RequestAborted);
     }
 
-    /// <summary>
-    /// What the relay forwards (ADR 0017), by a list of what the client of the pinned image asks for, and nothing else: its page, its scripts, styles, fonts and pictures under <c>assets/</c>, a few files at the root, its
-    /// WebSocket and its status. Not a write, and not what else the image's web server may offer (a listing of files, other services, a development route): the desktop's pages run on an origin of their own (ADR 0019), but it is still another program's
-    /// web server behind them: a route that nobody listed is not relayed, whatever a later version of the image adds (the desktop then shows a blank page, which is visible; a route relayed by default would be silent).
-    /// The path is matched as it came, in its plain form, because the desktop's web server merges slashes, decodes and resolves dots before it picks a route.
-    /// </summary>
-    public static bool IsRelayed(HttpRequest request)
-    {
-        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method))
-        {
-            return false;
-        }
-
-        var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
-        var target = string.IsNullOrEmpty(raw) ? request.Path.Value ?? string.Empty : raw;
-        var query = target.IndexOf('?', StringComparison.Ordinal);
-        return RelayedPaths().IsMatch(query < 0 ? target : target[..query]);
-    }
-
-    private const string RelayedPattern = "^" + BrowserOptions.RelayPath + @"(|api/websockets|api/status|manifest\.json|selkies-core\.js|icon(-[0-9]+)?\.png|assets/[A-Za-z0-9._-]+\.(js|css|woff2?|png|svg|wasm|json))$";
-
-    [GeneratedRegex(RelayedPattern, RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 200)]
-    private static partial Regex RelayedPaths();
-
-    /// <summary>
-    /// Whether the origin that a WebSocket handshake names is another than the desktop's own: a handshake is not bound by the same-origin policy, and the desktop's cookie is only <c>SameSite</c>, which another port of the
-    /// same host (a hostile page) would not stop. A request that names no origin is not from a page. The origin is the desktop's when it is its public address (<paramref name="desktopPublicUrl"/>: a proxy that gives it an address
-    /// of its own, with or without a port in its Host header, and the same scheme), or the host and the port of the request (a direct access: the scheme cannot be told behind a proxy that ends TLS). Nothing else is:
-    /// not the operator's page, which is another origin (ADR 0019).
-    /// </summary>
-    public static bool IsFromAnotherOrigin(string? origin, HostString host, string? desktopPublicUrl)
-    {
-        if (string.IsNullOrEmpty(origin))
-        {
-            return false;
-        }
-
-        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
-        {
-            return true;
-        }
-
-        if (Uri.TryCreate(desktopPublicUrl, UriKind.Absolute, out var own) && own.Scheme == uri.Scheme && string.Equals(own.Host, uri.Host, StringComparison.OrdinalIgnoreCase) && own.Port == uri.Port)
-        {
-            return false;
-        }
-
-        return !string.Equals(uri.Host, host.Host, StringComparison.OrdinalIgnoreCase) || (host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort);
-    }
-
     private static async Task EndWithTheSessionAsync(HttpContext context, DesktopAccess access, IBrowserExposure exposure, TimeProvider clock, string? desktopToken, CancellationToken stop)
     {
         using var timer = new PeriodicTimer(SessionWatchInterval, clock);
@@ -263,43 +210,4 @@ public static partial class BrowserRelay
 
     /// <summary>The one client of the relay, in a type of its own so that no other service takes it for theirs.</summary>
     public sealed record RelayClient(HttpMessageInvoker Invoker);
-
-    private static readonly HashSet<string> ForwardedHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control", "Connection", "Pragma", "Range", "If-Match", "If-None-Match", "If-Modified-Since", "If-Unmodified-Since", "If-Range", "User-Agent", "Upgrade", "Referer", "Origin",
-    };
-
-    /// <summary>Whether a header of the person's request goes on to the desktop: the ones above, and the <c>Sec-</c> ones (the WebSocket handshake, what a browser says of how a request was made).</summary>
-    private static bool IsForwardedHeader(string name) => ForwardedHeaders.Contains(name) || name.StartsWith("Sec-", StringComparison.OrdinalIgnoreCase);
-
-    private sealed class RelayTransformer : HttpTransformer
-    {
-        public static readonly RelayTransformer Instance = new();
-
-        public override async ValueTask TransformRequestAsync(HttpContext httpContext, HttpRequestMessage proxyRequest, string destinationPrefix, CancellationToken cancellationToken)
-        {
-            await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
-            // Geminarr's session is Geminarr's: the desktop never sees it. Nor does it see what a proxy in front of Geminarr adds about the operator (an identity, a token): the desktop is a third party's program, and
-            // gets the headers that its client needs (what a browser sends for a page, a file and a WebSocket) and nothing else.
-            foreach (var name in proxyRequest.Headers.Select(header => header.Key).Where(name => !IsForwardedHeader(name)).ToList())
-            {
-                proxyRequest.Headers.Remove(name);
-            }
-            // The desktop is told that it is Geminarr that speaks (its own list of allowed origins names this one and no web page can ever have it): a page that the browser itself loads can reach the desktop on the
-            // loopback, and must not be taken for the person's.
-            proxyRequest.Headers.Remove("Origin");
-            proxyRequest.Headers.TryAddWithoutValidation("Origin", BrowserOptions.RelayOrigin);
-            // The desktop's web server accepts the loopback name only (the init script of the image): the name that the person reached Geminarr by is not given to it, it is reached by its own address.
-            proxyRequest.Headers.Host = null;
-        }
-
-        public override async ValueTask<bool> TransformResponseAsync(HttpContext httpContext, HttpResponseMessage? proxyResponse, CancellationToken cancellationToken)
-        {
-            var proceed = await base.TransformResponseAsync(httpContext, proxyResponse, cancellationToken);
-            httpContext.Response.Headers.Remove("Set-Cookie");
-            // A service worker that the desktop registers must not reach beyond its own path, whatever the desktop says: Geminarr's own pages are not its to control.
-            httpContext.Response.Headers.Remove("Service-Worker-Allowed");
-            return proceed;
-        }
-    }
 }
