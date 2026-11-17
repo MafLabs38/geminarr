@@ -67,7 +67,7 @@ if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLe
 }
 
 // A browser without the egress guard is a choice that is said at each start (ADR 0020): the platform that cannot run it holds the rules by something else.
-if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { RequireEgressGuard: false, CdpUrl: { Length: > 0 } })
+if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { RequireEgressGuard: false } guardless && (!string.IsNullOrWhiteSpace(guardless.CdpUrl) || !string.IsNullOrWhiteSpace(guardless.DesktopUrl)))
 {
     app.Logger.LogWarning("The egress guard is not required (GEMINARR__BROWSER__REQUIREEGRESSGUARD): Geminarr's own process is limited only if something else holds the rules (ADR 0020).");
 }

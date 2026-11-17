@@ -181,9 +181,9 @@ public sealed class PassRunner
         }
 
         // A browser that something else than Geminarr could reach is not used (ADR 0017): the heartbeat says so, and the connection keeps what it knew.
-        if (_settings.Exposure.Check().IsExposed)
+        if (_settings.Exposure.Check() is { IsExposed: true } exposure)
         {
-            state.Fail(RunOutcomes.Skipped, ConnectionReasons.BrowserExposed);
+            state.Fail(RunOutcomes.Skipped, exposure.Reason);
             return;
         }
 

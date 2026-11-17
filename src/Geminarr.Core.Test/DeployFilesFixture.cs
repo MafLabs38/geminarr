@@ -83,4 +83,15 @@ public sealed class DeployFilesFixture
 
         images.Should().ContainSingle("the guard that is tested is the one that the examples give (a digest, never a tag)");
     }
+
+    [Theory]
+    [InlineData("deploy/docker-compose.example.yml")]
+    [InlineData("deploy/kubernetes/geminarr.example.yaml")]
+    public void should_publish_neither_the_debugging_port_nor_the_desktop_of_the_browser_in_the_examples(string file)
+    {
+        var lines = File.ReadAllLines(RepositoryFile(file)!).Where(line => !line.TrimStart().StartsWith('#'));
+        var published = lines.Where(line => System.Text.RegularExpressions.Regex.IsMatch(line, @"^\s*(-\s*)?(['""]?[\d.:]*\d['""]?:)?(9222|3000)['""]?\s*$|^\s*(containerPort|port|targetPort):\s*(9222|3000)\s*$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1))).ToList();
+
+        published.Should().BeEmpty("the browser's debugging port and desktop are for Geminarr alone: they are on the loopback of the shared namespace and in no port, no Service");
+    }
 }

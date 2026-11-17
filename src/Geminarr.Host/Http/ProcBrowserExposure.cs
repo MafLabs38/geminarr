@@ -24,6 +24,7 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
     private readonly Lock _gate = new();
     private DateTimeOffset _readAt = DateTimeOffset.MinValue;
     private ExposureReport _report = ExposureReport.None;
+    private bool _refreshing;
 
     public ProcBrowserExposure(IOptions<BrowserOptions> options, IServer server, TimeProvider clock, IEgressProbe egress)
         : this(options, server, clock, ProcFiles, egress)
@@ -48,17 +49,44 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
             return ExposureReport.None;
         }
 
+        bool refresh;
+        ExposureReport current;
         lock (_gate)
         {
+            // The answer is kept for a few seconds. One caller reads it again (the probe of the guard may wait up to a second when the guard is missing) and the others keep the last answer meanwhile, so that
+            // no request waits for a refresh that another one is making.
             var now = _clock.GetUtcNow();
-            if (now - _readAt >= KeepFor)
-            {
-                _report = Read(browser);
-                _readAt = now;
-            }
-
-            return _report;
+            // The very first answer is made by everybody who asks: nothing is known before it, and what is not known is not taken for good.
+            refresh = now - _readAt >= KeepFor && (!_refreshing || _readAt == DateTimeOffset.MinValue);
+            _refreshing |= refresh;
+            current = _report;
         }
+
+        if (!refresh)
+        {
+            return current;
+        }
+
+        ExposureReport report;
+        try
+        {
+            report = Read(browser);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _refreshing = false;
+            }
+        }
+
+        lock (_gate)
+        {
+            _report = report;
+            _readAt = _clock.GetUtcNow();
+        }
+
+        return report;
     }
 
     private ExposureReport Read(BrowserOptions browser)

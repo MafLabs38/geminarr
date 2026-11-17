@@ -32,7 +32,7 @@ spec:
     requests:
       storage: 1Gi
 ---
-# The init script of the browser container: the same file as deploy/browser/loopback-only.sh (keep the two identical; the Compose example mounts the file itself).
+# The rules of the egress guard (ADR 0020): the same as deploy/egress/rules.v4.example and rules.v6.example, filled in.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -60,6 +60,7 @@ data:
     -A OUTPUT -m owner --uid-owner 1654 -j REJECT
     COMMIT
 ---
+# The init script of the browser container: the same file as deploy/browser/loopback-only.sh (keep the two identical; the Compose example mounts the file itself).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -223,7 +224,7 @@ spec:
               ephemeral-storage: 64Mi
             limits:
               memory: 256Mi
-              ephemeral-storage: 64Mi
+              ephemeral-storage: 256Mi
           volumeMounts:
             - name: data
               mountPath: /config

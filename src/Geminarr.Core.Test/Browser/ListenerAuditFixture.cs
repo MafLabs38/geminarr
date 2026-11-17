@@ -48,4 +48,16 @@ public sealed class ListenerAuditFixture
     {
         ListenerAudit.OffTheLoopback([line], new HashSet<int>()).Should().BeEmpty();
     }
+
+    [Fact]
+    public void should_name_every_failure_that_there_is_and_give_the_guards_its_own_code_only_when_it_is_alone()
+    {
+        var guardOnly = new ExposureReport([], Unreadable: false, Unguarded: true);
+        var both = new ExposureReport([3000], Unreadable: false, Unguarded: true);
+
+        guardOnly.Reason.Should().Be("egress-unguarded");
+        both.Reason.Should().Be("browser-exposed", "a port that listens is the first thing to fix");
+        both.Describe().Should().Contain("3000").And.Contain("egress guard");
+        new ExposureReport([], Unreadable: false, Unguarded: false).IsExposed.Should().BeFalse();
+    }
 }

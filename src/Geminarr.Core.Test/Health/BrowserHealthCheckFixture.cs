@@ -82,4 +82,14 @@ public sealed class BrowserHealthCheckFixture
         Reason(result).Should().Be(ConnectionReasons.BrowserExposed);
         result.Description.Should().Contain("could not be read");
     }
+
+    [Fact]
+    public async Task should_say_egress_unguarded_with_a_code_of_its_own_when_the_guard_is_missing()
+    {
+        var result = await Check(new FakeBrowser { Reachable = true }, ReaderKind.Web, new ExposureReport([], Unreadable: false, Unguarded: true));
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+        Reason(result).Should().Be(ConnectionReasons.EgressUnguarded);
+        result.Description.Should().Contain("egress guard").And.Contain("closed");
+    }
 }

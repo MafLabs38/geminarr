@@ -1,4 +1,5 @@
 using System.Globalization;
+using Geminarr.Core.Connection;
 
 namespace Geminarr.Core.Browser;
 
@@ -23,19 +24,28 @@ public sealed record ExposureReport(IReadOnlyList<int> Ports, bool Unreadable, b
     public bool IsExposed => Unreadable || Ports.Count > 0 || Unguarded;
 
     /// <summary>One sentence, with no path: what is wrong and what is done about it.</summary>
+    /// <summary>The stable code of why the desktop is closed: a missing guard has a code of its own (the operator's fix is not the same as for a port that listens).</summary>
+    public string Reason => Unguarded && !Unreadable && Ports.Count == 0 ? ConnectionReasons.EgressUnguarded : ConnectionReasons.BrowserExposed;
+
     public string Describe()
     {
+        var sentences = new List<string>();
         if (Unreadable)
         {
-            return "The listening sockets of the container's network (the browser's) could not be read, so whether the browser is isolated cannot be known. The desktop of the browser is closed until it can.";
+            sentences.Add("The listening sockets of the container's network (the browser's) could not be read, so whether the browser is isolated cannot be known.");
         }
 
         if (Ports.Count > 0)
         {
-            return $"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", Ports)}. The desktop of the browser is closed until it is fixed.";
+            sentences.Add($"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", Ports)}.");
         }
 
-        return "Geminarr's own process is not limited by the egress guard (a connection to an address that is on no list was not refused at once): it would reach whatever the browser's network reaches. The desktop of the browser is closed until the guard is in place (ADR 0020).";
+        if (Unguarded)
+        {
+            sentences.Add("Geminarr's own process is not limited by the egress guard (a connection to an address that is on no list was not refused at once): it would reach whatever the browser's network reaches (ADR 0020).");
+        }
+
+        return string.Join(' ', sentences) + " The desktop of the browser is closed until it is fixed.";
     }
 }
 

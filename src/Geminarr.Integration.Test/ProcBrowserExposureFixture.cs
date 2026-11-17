@@ -127,6 +127,7 @@ public sealed class ProcBrowserExposureFixture : IDisposable
         var report = Subject(options: null, refused: false, "http://+:8282").Check();
 
         report.Unguarded.Should().BeTrue();
+        report.Reason.Should().Be("egress-unguarded");
         report.IsExposed.Should().BeTrue("a guard that is missing fails open, and nothing else would say so");
         report.Describe().Should().Contain("egress guard").And.Contain("closed");
     }

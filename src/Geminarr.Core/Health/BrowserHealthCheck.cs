@@ -28,7 +28,7 @@ public sealed class BrowserHealthCheck : IHealthCheck
         // Whatever the reader is: a browser container that something else could reach is the most serious state there is (it says nothing when no browser is configured).
         if (_exposure.Check() is { IsExposed: true } exposure)
         {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.BrowserExposed, exposure.Describe()));
+            return Task.FromResult(HealthReasons.Degraded(exposure.Reason, exposure.Describe()));
         }
 
         if (_reader.Value.Kind != ReaderKind.Web)

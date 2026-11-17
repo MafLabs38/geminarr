@@ -37,6 +37,9 @@ public static class ConnectionReasons
 
     /// <summary>A port of the namespace that Geminarr shares with the browser listens off the loopback: the web desktop or the debugging port could be reached by something else than Geminarr (ADR 0017), so the desktop stays closed.</summary>
     public const string BrowserExposed = "browser-exposed";
+
+    /// <summary>Geminarr's own process is not limited by the egress guard (ADR 0020).</summary>
+    public const string EgressUnguarded = "egress-unguarded";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>
