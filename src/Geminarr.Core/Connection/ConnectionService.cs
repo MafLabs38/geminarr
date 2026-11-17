@@ -29,8 +29,11 @@ public sealed class ConnectionService
 
     public ConnectionRecord Current() => _tracker.Current();
 
-    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page).</summary>
-    public bool SigningIn => _signIn.SigningIn;
+    /// <summary>How long "signing in" is still said after the sign-in page is gone, while the check that follows looks at the session (unless it already found it good).</summary>
+    private static readonly TimeSpan Settling = TimeSpan.FromSeconds(15);
+
+    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at.</summary>
+    public bool SigningIn => _signIn.SigningIn || (_signIn.EndedWithin(Settling) && Current().State != ConnectionState.Connected);
 
     /// <summary>Opens the sign-in page of the account provider in the browser, where the person signs in by hand. Nothing here types a credential.</summary>
     public Task OpenSignInAsync(CancellationToken cancellationToken) =>
