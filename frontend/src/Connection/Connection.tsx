@@ -63,6 +63,8 @@ function SignIn({
   const runNow = useRunNow();
   const runs = useRuns();
   const signIn = useOpenSignIn();
+  // The desktop of the browser is video that the page decodes itself: a page that is not a secure context (plain http on an address that is not the machine's own) shows an error of its own and nothing else.
+  const secure = globalThis.isSecureContext;
 
   // The window is opened by the click itself (a browser lets a window open only then), and the server opens the sign-in page in the browser it shows. It is the same origin as this page, which closes it when the sign-in is done.
   const start = (path: string) => {
@@ -74,7 +76,15 @@ function SignIn({
     <div className={styles.block}>
       <p>{translate(signingIn ? 'SigningInHint' : 'SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
-      {pagePath ? (
+      {pagePath && !secure && (
+        <>
+          <Alert>{translate('DesktopNeedsHttps')}</Alert>
+          <a className={styles.open} href={`https://${globalThis.location.host}${globalThis.location.pathname}`}>
+            {translate('OpenThisPageOverHttps')}
+          </a>
+        </>
+      )}
+      {pagePath && secure ? (
         <div className={styles.actions}>
           <Button disabled={signIn.isPending} onClick={() => start(pagePath)}>
             {translate('SignInToAssistant')}
@@ -91,7 +101,7 @@ function SignIn({
           </Button>
         </div>
       ) : (
-        <Alert>{translate('BrowserPageNotGiven')}</Alert>
+        !pagePath && <Alert>{translate('BrowserPageNotGiven')}</Alert>
       )}
       {(signIn.error ?? runNow.error) && <Alert>{(signIn.error ?? runNow.error)?.message}</Alert>}
     </div>

@@ -41,6 +41,9 @@ const en = {
   SessionEnded: 'The session has ended: sign in again',
   CheckAgain: 'Check again',
   SignInToAssistant: 'Sign in to the assistant',
+  DesktopNeedsHttps:
+    "The browser's desktop works over HTTPS only (its video needs a secure page), so it cannot be shown on this address.",
+  OpenThisPageOverHttps: 'Open this page over HTTPS',
   SigningInNow: 'Signing in…',
   SigningInHint:
     'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',

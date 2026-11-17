@@ -19,6 +19,10 @@ const base: ConnectionResource = {
 };
 
 describe('Connection', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'isSecureContext', { configurable: true, value: true });
+  });
+
   it.each([
     ['NotConnected', 'Not connected'],
     ['Connected', 'Connected'],
@@ -164,6 +168,20 @@ describe('Connection', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be reached');
     open.mockRestore();
+  });
+
+  it('says that the desktop needs HTTPS, and points to the https address, instead of opening a window that shows an error', async () => {
+    Object.defineProperty(globalThis, 'isSecureContext', { configurable: true, value: false });
+    serveApi({ 'GET /connection': () => base, 'GET /runs': () => ({ runs: [], running: false }) });
+    renderAt(<Connection />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('works over HTTPS only');
+    expect(screen.getByRole('link', { name: 'Open this page over HTTPS' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^https:\/\//),
+    );
+    expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
+    Object.defineProperty(globalThis, 'isSecureContext', { configurable: true, value: true });
   });
 
   it('says when no desktop is given to relay', async () => {
