@@ -183,6 +183,11 @@ public static partial class BrowserRelay
         {
             // The WebSocket ended by itself.
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A watch that cannot do its job does not leave the socket open, and does not replace the relay's own result with its failure: the socket ends.
+            context.Abort();
+        }
     }
 
     /// <summary>The one client of the relay, in a type of its own so that no other service takes it for theirs.</summary>

@@ -23,7 +23,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private const string Unreachable = "The browser container could not be reached.";
     private const int ListTimeoutSeconds = 5;
     private const int AccountWaitMilliseconds = 8_000;
-    private static readonly HttpClient Tabs = new() { Timeout = Timeout.InfiniteTimeSpan };
+    // The debugging address is the loopback: no proxy of the environment is asked, and no redirect is followed.
+    private static readonly HttpClient Tabs = new(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
@@ -186,9 +187,10 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
         // A browser that cannot even list its tabs cannot be attached to either, and a guard that failed open would attach in the middle of a sign-in: the pass says the browser failed.
         _tabsAnswer = 0;
-        _reachable = 0;
         if (!quiet)
         {
+            // The passes' own reachability is theirs: the watcher's failed look says it in `TabsAnswer` only.
+            _reachable = 0;
             _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
         }
 

@@ -32,6 +32,7 @@ public sealed class SignInWatcher : BackgroundService
     {
         var signingIn = false;
         var reachable = true;
+        var failing = false;
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -54,10 +55,13 @@ public sealed class SignInWatcher : BackgroundService
                     failure = ex.GetType().Name;
                 }
 
-                if (failure is not null)
+                // Said when it starts, not every two seconds while it lasts.
+                if (failure is not null && !failing)
                 {
                     _logger.LogWarning("The tabs of the browser could not be looked at ({Failure}).", failure);
                 }
+
+                failing = failure is not null;
             }
         }
         catch (OperationCanceledException)
