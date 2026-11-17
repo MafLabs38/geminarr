@@ -23,6 +23,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0016](0016-the-browser-is-a-container-of-its-own.md) | The browser is a container of its own, and a person signs in to it by hand | D-24, F-CON-01 to F-CON-04, F-LGN |
 | [0017](0017-the-browser-is-for-geminarr-alone-and-geminarr-relays-its-screen.md) | The browser is for Geminarr alone, and Geminarr relays its screen behind its own sign-in | D-25, F-CON-01, F-LGN |
 | [0018](0018-a-guard-may-be-lightened-in-a-sandbox-by-a-setting-and-is-strict-by-default.md) | A guard may be lightened in a sandbox by an explicit setting; strict by default | D-26 |
+| [0019](0019-the-desktop-has-an-origin-of-its-own-opened-by-a-ticket.md) | The desktop has an origin of its own, opened by a ticket of the operator's session | D-27 |
 
 ## Template
 

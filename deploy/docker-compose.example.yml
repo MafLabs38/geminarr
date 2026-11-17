@@ -1,7 +1,7 @@
 # Geminarr on a Docker host. Copy, adjust the values marked <...>, then `docker compose up -d`.
 # Two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
 # The browser is for Geminarr alone: it publishes nothing, has no sign-in of its own and no address of its own. Geminarr runs in its network namespace, reaches its debugging port and its
-# web desktop on the loopback of that namespace, and relays the desktop under /browser/ behind its own sign-in. The only port published is Geminarr's (on the `browser` service, which owns the namespace).
+# web desktop on the loopback of that namespace, and relays the desktop on a port of its own (8283) behind a ticket of the operator's session. The only ports published are Geminarr's two (on the `browser` service, which owns the namespace).
 services:
   browser:
     # A third party's image, pinned by digest, never `latest`: the choice of the image is the maintainer's (SPEC Q-18).
@@ -28,9 +28,11 @@ services:
       # Makes the web desktop listen on the loopback of the namespace and nowhere else: it has no sign-in, so nothing but Geminarr may reach it (ADR 0017). Executable, from this repository.
       - ./browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
     ports:
-      # Geminarr's own page, the one port: on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
-      # Never publish 3000 (the web desktop) or 9222 (the debugging port): they are for Geminarr alone.
+      # Geminarr's own page, on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
       - "127.0.0.1:8282:8282"
+      # The desktop's own origin (ADR 0019): a second port of Geminarr, for the same proxy (a second host or port, HTTPS). It answers 401 without the cookie that a ticket of the operator's session gives.
+      - "127.0.0.1:8283:8283"
+      # Never publish 3000 (the web desktop itself) or 9222 (the debugging port): they are for Geminarr alone.
     # Hardening, tried on 2026-11-15 with this image: its init needs these few capabilities to set the user and the files, and nothing else (Chromium runs as the user it sets).
     cap_drop:
       - ALL
@@ -74,7 +76,7 @@ services:
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
       # The browser container reads the session of the assistant: the reader Web (the default, None, reads nothing), the debugging address and the web desktop (both on the loopback of the
-      # shared namespace, nothing else is accepted). Geminarr relays the desktop under /browser/ behind its own sign-in and never types a credential.
+      # shared namespace, nothing else is accepted). Geminarr relays the desktop on its own origin (port 8283; GEMINARR__BROWSER__DESKTOPPUBLICURL gives the address that your proxy publishes it by) and never types a credential.
       GEMINARR__READER__KIND: Web
       GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000

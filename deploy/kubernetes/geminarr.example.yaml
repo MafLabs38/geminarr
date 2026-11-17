@@ -1,7 +1,7 @@
 # Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
 # One pod, two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
 # The browser is for Geminarr alone: no Service, no ingress, no login of its own. Its debugging port and its web desktop listen in the pod, which the two containers share,
-# and Geminarr relays the desktop under /browser/ behind its own sign-in: Geminarr's page is the only thing that is published (behind your single sign-on if you have one).
+# and Geminarr relays the desktop on a port of its own, behind a ticket of the operator's session: Geminarr's page and that origin are the only things that are published (behind your single sign-on if you have one).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -98,6 +98,9 @@ spec:
           ports:
             - name: http
               containerPort: 8282
+            # The desktop's own origin (ADR 0019): the same program, a second port, closed without the cookie that a ticket of the operator's session gives.
+            - name: desktop
+              containerPort: 8283
           env:
             - name: GEMINARR__DATAFOLDER
               value: /config
@@ -120,7 +123,7 @@ spec:
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
             # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the debugging address and the web desktop (both on
-            # the loopback of the pod, nothing else is accepted). The person signs in by hand, in the desktop that Geminarr relays; Geminarr never types a credential.
+            # the loopback of the pod, nothing else is accepted). The person signs in by hand, in the desktop that Geminarr relays on a port of its own (8283, set with GEMINARR__BROWSER__DESKTOPPORT; give its public address with GEMINARR__BROWSER__DESKTOPPUBLICURL when your ingress gives it one); Geminarr never types a credential.
             - name: GEMINARR__READER__KIND
               value: Web
             - name: GEMINARR__BROWSER__CDPURL
@@ -258,8 +261,12 @@ spec:
     - name: http
       port: 8282
       targetPort: http
+    # The desktop's own origin (ADR 0019): publish it like the page (a second host or port of your ingress, HTTPS); it answers 401 without the cookie that a ticket gives.
+    - name: desktop
+      port: 8283
+      targetPort: desktop
 ---
-# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's port: the web desktop of the browser (3000) and its debugging port (9222) have
+# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's ports (the page's, and the desktop's own origin): the web desktop of the browser (3000) and its debugging port (9222) have
 # no sign-in of their own, so no other pod may reach them, whatever listens in the pod. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -279,6 +286,9 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
+        # The desktop's own origin (ADR 0019). The desktop itself (3000) and the debugging port (9222) stay on the loopback and are in no policy.
+        - protocol: TCP
+          port: 8283
 ---
 # What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
 # of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
