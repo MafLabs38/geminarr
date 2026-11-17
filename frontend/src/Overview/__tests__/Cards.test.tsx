@@ -15,7 +15,7 @@ const connection: Connection = {
   reader: 'None',
   hasBrowser: false,
   pausedUntil: null,
-  browserPagePath: null,
+  hasDesktop: false,
   account: null,
   signingIn: false,
 };

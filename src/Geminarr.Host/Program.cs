@@ -20,6 +20,24 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // Settings come from appsettings.json, then environment variables prefixed with GEMINARR__.
 builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 
+// The desktop of the browser has a port of its own (ADR 0019): it is open when a desktop is configured, and the interface's port is never the desktop's.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Browser:DesktopUrl"]))
+{
+    var desktopPort = builder.Configuration.GetValue("Browser:DesktopPort", new Geminarr.Core.Browser.BrowserOptions().DesktopPort);
+    var urls = (builder.Configuration["Urls"] ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    if (urls.Length > 0 && urls[0].EndsWith($":{desktopPort}", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("Browser:DesktopPort (GEMINARR__BROWSER__DESKTOPPORT) is the port of the interface: the desktop needs a port of its own.");
+    }
+
+    if (urls.Length > 0 && !urls.Any(url => url.EndsWith($":{desktopPort}", StringComparison.Ordinal)))
+    {
+        // Same scheme as the interface's address: the desktop's origin is open the way the interface is, and TLS is the proxy's.
+        var scheme = urls[0][..urls[0].IndexOf("://", StringComparison.Ordinal)];
+        builder.Configuration["Urls"] = string.Join(';', [.. urls, $"{scheme}://+:{desktopPort}"]);
+    }
+}
+
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrBrowser();
 builder.Services.AddGeminarrBrowserRelay();
@@ -61,6 +79,8 @@ if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLe
 }
 
 app.UseExceptionHandler();
+// The desktop of the browser is another program's: it has an origin of its own, a port that answers for it and for nothing else (ADR 0019).
+app.UseGeminarrDesktopOrigin();
 app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
 app.UseStatusCodePages();
@@ -69,7 +89,6 @@ app.UseWebSockets();
 app.UseRouting();
 app.UseGeminarrSecurity();
 app.MapControllers();
-app.MapGeminarrBrowserRelay();
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();

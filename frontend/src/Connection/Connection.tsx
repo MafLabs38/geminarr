@@ -20,6 +20,7 @@ import {
   CONNECTION_WAITING_REFRESH_MS,
   useConnection,
   useDisconnect,
+  useOpenDesktop,
   useOpenSignIn,
   usePause,
   useResume,
@@ -55,20 +56,31 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
 
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
 function SignIn({
-  pagePath,
+  hasDesktop,
   signingIn,
   windowRef,
-}: Readonly<{ pagePath: string | null; signingIn: boolean; windowRef: MutableRefObject<Window | null> }>) {
+}: Readonly<{ hasDesktop: boolean; signingIn: boolean; windowRef: MutableRefObject<Window | null> }>) {
   const runNow = useRunNow();
   const runs = useRuns();
   const signIn = useOpenSignIn();
-  const failure = signIn.error ?? runNow.error;
+  const desktop = useOpenDesktop();
+  const failure = signIn.error ?? desktop.error ?? runNow.error;
   // The desktop of the browser is video that the page decodes itself: a page that is not a secure context (plain http on an address that is not the machine's own) shows an error of its own and nothing else.
   const secure = globalThis.isSecureContext;
 
-  // The window is opened by the click itself (a browser lets a window open only then), and the server opens the sign-in page in the browser it shows. It is the same origin as this page, which closes it when the sign-in is done.
-  const start = (path: string) => {
-    windowRef.current = window.open(path, 'geminarr-browser');
+  // The window is opened by the click itself (a browser lets a window open only then), empty; the desktop has an origin of its own (ADR 0019), so its address comes with a ticket, and the window goes there. The server opens
+  // the sign-in page in the browser it shows. This page keeps the window and closes it when the sign-in is done.
+  const start = () => {
+    const popup = window.open('about:blank', 'geminarr-browser');
+    windowRef.current = popup;
+    desktop.mutate(undefined, {
+      onSuccess: ({ url }) => {
+        if (popup && !popup.closed) {
+          popup.location.href = url;
+        }
+      },
+      onError: () => popup?.close(),
+    });
     signIn.mutate();
   };
 
@@ -76,7 +88,7 @@ function SignIn({
     <div className={styles.block}>
       <p>{translate(signingIn ? 'SigningInHint' : 'SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
-      {pagePath && !secure && (
+      {hasDesktop && !secure && (
         <>
           <Alert>{translate('DesktopNeedsHttps')}</Alert>
           <a className={styles.open} href={`https://${globalThis.location.host}${globalThis.location.pathname}`}>
@@ -84,10 +96,10 @@ function SignIn({
           </a>
         </>
       )}
-      {!pagePath && <Alert>{translate('BrowserPageNotGiven')}</Alert>}
+      {!hasDesktop && <Alert>{translate('BrowserPageNotGiven')}</Alert>}
       <div className={styles.actions}>
-        {pagePath && secure && (
-          <Button disabled={signIn.isPending} onClick={() => start(pagePath)}>
+        {hasDesktop && secure && (
+          <Button disabled={signIn.isPending || desktop.isPending} onClick={start}>
             {translate('SignInToAssistant')}
           </Button>
         )}
@@ -154,7 +166,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
   );
 }
 
-/** The session of the assistant: its state, where a person signs in (the browser container's desktop, relayed under /browser/), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
+/** The session of the assistant: its state, where a person signs in (the browser container's desktop, on an origin of its own), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
 export default function Connection() {
   const { data, error, isPending } = useConnection(CONNECTION_WAITING_REFRESH_MS);
   const reason = reasonKeyOf(data?.reason ?? null);
@@ -215,7 +227,7 @@ export default function Connection() {
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
               {data.hasBrowser && SIGN_IN_STATES.has(data.state) && (
-                <SignIn pagePath={data.browserPagePath} signingIn={data.signingIn} windowRef={browserWindow} />
+                <SignIn hasDesktop={data.hasDesktop} signingIn={data.signingIn} windowRef={browserWindow} />
               )}
               {data.hasBrowser && <Actions connection={data} />}
             </>

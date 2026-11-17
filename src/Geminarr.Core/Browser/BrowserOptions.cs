@@ -22,6 +22,18 @@ public sealed class BrowserOptions
     /// </summary>
     public string? DesktopUrl { get; set; }
 
+    /// <summary>
+    /// The port that the desktop is served on, an origin of its own (ADR 0019): the desktop is another program's, so its pages never run on the origin of Geminarr's own page, where the operator's session cookie is
+    /// sent. Geminarr listens on this port too, for the desktop and nothing else. Without <see cref="DesktopUrl"/> nothing listens on it.
+    /// </summary>
+    public int DesktopPort { get; set; } = 8283;
+
+    /// <summary>
+    /// The address that the person reaches the desktop by (for example <c>https://desktop.homelab.example</c>), when a proxy gives it one: scheme, host and port, no path. By default it is the address of the page on
+    /// <see cref="DesktopPort"/>.
+    /// </summary>
+    public string? DesktopPublicUrl { get; set; }
+
     /// <summary>Where Geminarr relays the web desktop of the browser; the desktop is told to serve itself under this path (<c>SUBFOLDER</c> of its image).</summary>
     public const string RelayPath = "/browser/";
 
@@ -78,6 +90,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             ?? Loopback("CdpUrl", options.CdpUrl)
             ?? Address("DesktopUrl", options.DesktopUrl)
             ?? Loopback("DesktopUrl", options.DesktopUrl)
+            ?? DesktopOrigin(options)
             ?? Hosts("SignInHosts", options.SignInHosts)
             ?? SignInUrl(options)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
@@ -104,6 +117,20 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
         }
 
         return null;
+    }
+
+    /// <summary>The desktop's own origin (ADR 0019): a port, and when a proxy gives it an address, an origin (scheme, host, port) and nothing after it.</summary>
+    private static string? DesktopOrigin(BrowserOptions options)
+    {
+        if (options.DesktopPort is < 1 or > 65_535)
+        {
+            return "Browser:DesktopPort (GEMINARR__BROWSER__DESKTOPPORT) must be a port number.";
+        }
+
+        return Address("DesktopPublicUrl", options.DesktopPublicUrl)
+            ?? (string.IsNullOrWhiteSpace(options.DesktopPublicUrl) || (Uri.TryCreate(options.DesktopPublicUrl, UriKind.Absolute, out var uri) && uri.AbsolutePath == "/" && uri.Query.Length == 0 && uri.Fragment.Length == 0)
+                ? null
+                : "Browser:DesktopPublicUrl (GEMINARR__BROWSER__DESKTOPPUBLICURL) must be an origin: a scheme, a host and a port, no path.");
     }
 
     /// <summary>The ports that are tolerated off the loopback are port numbers, and none is the browser's own: its desktop (and the TLS port that goes with it) and its debugging port have no sign-in.</summary>

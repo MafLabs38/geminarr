@@ -55,5 +55,5 @@ ENV ASPNETCORE_HTTP_PORTS=
 # The app user of the chiseled image, stated so that nothing reads this image as running as root.
 USER 1654:1654
 VOLUME /config
-EXPOSE 8282
+EXPOSE 8282 8283
 ENTRYPOINT ["dotnet", "Geminarr.dll"]

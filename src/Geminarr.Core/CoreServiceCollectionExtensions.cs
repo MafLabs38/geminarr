@@ -28,6 +28,7 @@ public static class CoreServiceCollectionExtensions
         services.AddOptions<AuthOptions>().Bind(configuration.GetSection("Auth")).ValidateOnStart();
         services.AddSingleton<IOperatorCredentials, OperatorCredentials>();
         services.AddSingleton<LoginThrottle>();
+        services.AddSingleton<DesktopAccess>();
         services.AddSingleton<SessionRegistry>();
         services.AddSingleton<SignInService>();
         services.AddSingleton<AllowedHostList>();

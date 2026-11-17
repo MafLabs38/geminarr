@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
+using Geminarr.Core.Access;
 using Geminarr.Integration.Test.Support;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -10,40 +11,119 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Geminarr.Integration.Test;
 
-/// <summary>The relay of the web desktop of the browser (ADR 0017): closed without a sign-in, the only way to the desktop, and it keeps Geminarr's session to itself.</summary>
+/// <summary>The relay of the web desktop of the browser, on an origin of its own (ADR 0017, 0019): closed without the cookie that a ticket of the operator's session gives, the only way to the desktop, and it keeps Geminarr's session to itself.</summary>
 public sealed class BrowserRelayFixture
 {
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task should_send_a_person_without_a_session_to_the_sign_in_page_and_reach_the_desktop_for_nobody()
+    public async Task should_reach_the_desktop_for_nobody_without_the_cookie_that_a_ticket_gives()
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var anonymous = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var anonymous = factory.Anonymous();
 
         var page = await anonymous.GetAsync("/browser/", Token);
         var asset = await anonymous.GetAsync("/browser/assets/app.js", Token);
+        var forged = await anonymous.GetAsync("/enter?ticket=not-a-ticket", Token);
+        var empty = await anonymous.GetAsync("/enter", Token);
 
-        page.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        page.Headers.Location!.OriginalString.Should().Be("/");
-        asset.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        new[] { page, asset, forged, empty }.Should().OnlyContain(response => response.StatusCode == HttpStatusCode.Unauthorized);
         desktop.Seen.Should().BeEmpty("nothing of an anonymous request goes on");
     }
 
     [Fact]
-    public async Task should_relay_the_desktop_to_the_operator_under_its_path_and_take_it_to_the_slash()
+    public async Task should_not_serve_the_desktop_on_the_origin_of_the_interface_nor_the_interface_on_the_desktops()
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var desktopClient = await factory.DesktopClientAsync(operatorClient);
+
+        var onTheInterface = await operatorClient.GetAsync("/browser/assets/app.js", Token);
+        var api = await desktopClient.GetAsync("/api/v1/connection", Token);
+        var page = await desktopClient.GetAsync("/", Token);
+        var login = await desktopClient.PostAsJsonAsync("/api/v1/auth/login", new { name = GeminarrFactoryBase.OperatorName, password = GeminarrFactoryBase.OperatorPassword }, Token);
+
+        (await onTheInterface.Content.ReadAsStringAsync(Token)).Should().NotContain("desktop:", "the desktop's pages never run on the origin where the operator's cookie is sent");
+        new[] { api, page, login }.Should().OnlyContain(response => response.StatusCode == HttpStatusCode.NotFound, "the desktop's origin answers for the desktop and nothing else");
+        desktop.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_relay_the_desktop_under_its_path_and_take_it_to_the_slash()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.DesktopClientAsync();
 
         var page = await client.GetAsync("/browser/assets/app.js", Token);
-        var bare = await factory.CreateClient(new() { AllowAutoRedirect = false }).GetAsync("/browser", Token);
+        var bare = await client.GetAsync("/browser", Token);
 
         page.StatusCode.Should().Be(HttpStatusCode.OK);
         (await page.Content.ReadAsStringAsync(Token)).Should().Be("desktop:/browser/assets/app.js");
         bare.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        bare.Headers.Location!.OriginalString.Should().Be("/browser/");
+    }
+
+    [Fact]
+    public async Task should_exchange_a_ticket_once_for_a_cookie_of_the_desktops_origin_and_leave_it_out_of_the_address_that_follows()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var operatorClient = await factory.SignedInClientAsync();
+        var ticket = await RelayFactory.TicketAsync(operatorClient);
+        using var first = factory.Anonymous();
+        using var second = factory.Anonymous();
+
+        var entered = await first.GetAsync($"/enter?ticket={ticket}", Token);
+        var again = await second.GetAsync($"/enter?ticket={ticket}", Token);
+
+        entered.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        entered.Headers.Location!.OriginalString.Should().Be("/browser/", "the ticket does not stay in the address bar");
+        var cookie = entered.Headers.GetValues("Set-Cookie").Single();
+        cookie.Should().Contain("httponly").And.Contain("samesite=strict").And.Contain("path=/");
+        cookie.Should().NotContain(ticket, "the cookie is a secret of its own");
+        again.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a ticket is worth one opening");
+        (await first.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task should_not_exchange_a_ticket_that_waited_too_long_or_whose_session_ended()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, movableClock: true);
+        using var operatorClient = await factory.SignedInClientAsync();
+        var late = await RelayFactory.TicketAsync(operatorClient);
+        var orphan = await RelayFactory.TicketAsync(operatorClient);
+        factory.Clock!.Advance(DesktopAccess.TicketLifetime + TimeSpan.FromSeconds(1));
+        var fresh = await RelayFactory.TicketAsync(operatorClient);
+
+        using var logout = await operatorClient.PostAsync("/api/v1/auth/logout", content: null, Token);
+
+        using var anonymous = factory.Anonymous();
+        (await anonymous.GetAsync($"/enter?ticket={late}", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a minute is all a ticket has");
+        (await anonymous.GetAsync($"/enter?ticket={orphan}", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await anonymous.GetAsync($"/enter?ticket={fresh}", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the session that asked for it is gone");
+    }
+
+    [Fact]
+    public async Task should_end_the_desktops_cookie_with_the_session_behind_it_and_not_take_it_for_the_operators()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var desktopClient = await factory.DesktopClientAsync(operatorClient);
+        (await desktopClient.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var desktopCookie = await DesktopCookieAsync(factory, operatorClient);
+        using var withTheDesktopsCookie = factory.CreateClient(new() { AllowAutoRedirect = false, HandleCookies = false });
+        using var asTheOperator = new HttpRequestMessage(HttpMethod.Get, "/api/v1/connection");
+        asTheOperator.Headers.Add("Cookie", desktopCookie);
+
+        (await withTheDesktopsCookie.SendAsync(asTheOperator, Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the desktop's cookie is worth nothing on the interface");
+
+        using var logout = await operatorClient.PostAsync("/api/v1/auth/logout", content: null, Token);
+        (await desktopClient.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "signing out of Geminarr ends the desktop too");
     }
 
     [Fact]
@@ -51,7 +131,7 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer something");
 
         var response = await client.GetAsync("/browser/", Token);
@@ -65,13 +145,16 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync(operatorClient);
 
         var relayed = await client.GetAsync("/browser/", Token);
-        var own = await client.GetAsync("/api/v1/connection", Token);
+        var own = await operatorClient.GetAsync("/api/v1/connection", Token);
+        var refused = await client.GetAsync("/enter?ticket=not-a-ticket", Token);
 
         relayed.Headers.GetValues("Content-Security-Policy").Single().Should().Contain("blob:").And.Contain("frame-ancestors 'none'");
         own.Headers.GetValues("Content-Security-Policy").Single().Should().Be("default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+        refused.Headers.GetValues("Content-Security-Policy").Single().Should().StartWith("default-src 'self'; img-src", "only the desktop's pages get the loose policy, not the page that takes a ticket");
         relayed.Headers.GetValues("X-Frame-Options").Single().Should().Be("DENY");
     }
 
@@ -81,20 +164,18 @@ public sealed class BrowserRelayFixture
         await using var desktop = await FakeDesktop.StartAsync();
         // A WebSocket is upgraded by a real server: the test host cannot carry it through the relay.
         using var factory = new RelayFactory(desktop.Url);
-        factory.UseKestrel(0);
-        factory.StartServer();
-        var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
-        var cookie = await SessionCookieAsync(factory, address);
+        var (address, cookies) = await OpenRealAsync(factory);
         var socketAddress = new Uri($"ws://{address.Authority}/browser/api/websockets");
 
-        using var socket = await ConnectAsync(socketAddress, origin: address.GetLeftPart(UriPartial.Authority), cookie);
+        using var socket = await ConnectAsync(socketAddress, origin: address.GetLeftPart(UriPartial.Authority), cookies.Desktop);
         await socket.SendAsync(Encoding.UTF8.GetBytes("hello"), WebSocketMessageType.Text, endOfMessage: true, Token);
         var buffer = new byte[64];
         var echo = await socket.ReceiveAsync(buffer, Token);
 
         Encoding.UTF8.GetString(buffer, 0, echo.Count).Should().Be("hello");
-        await FluentActions.Awaiting(() => ConnectAsync(socketAddress, "https://evil.example", cookie)).Should().ThrowAsync<WebSocketException>("a page of another origin does not open a WebSocket to the desktop");
-        await FluentActions.Awaiting(() => ConnectAsync(socketAddress, address.GetLeftPart(UriPartial.Authority), cookie: null)).Should().ThrowAsync<WebSocketException>("nor does anybody without a session");
+        await FluentActions.Awaiting(() => ConnectAsync(socketAddress, "https://evil.example", cookies.Desktop)).Should().ThrowAsync<WebSocketException>("a page of another origin does not open a WebSocket to the desktop");
+        await FluentActions.Awaiting(() => ConnectAsync(socketAddress, address.GetLeftPart(UriPartial.Authority), cookie: null)).Should().ThrowAsync<WebSocketException>("nor does anybody without the cookie of the desktop");
+        await FluentActions.Awaiting(() => ConnectAsync(socketAddress, address.GetLeftPart(UriPartial.Authority), cookies.Operator)).Should().ThrowAsync<WebSocketException>("nor does the operator's own cookie open it");
         desktop.Seen.Should().ContainSingle("only the first one reached the desktop");
     }
 
@@ -103,15 +184,12 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url, movableClock: true);
-        factory.UseKestrel(0);
-        factory.StartServer();
-        var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
-        var cookie = await SessionCookieAsync(factory, address);
-        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookie);
-        using var client = new HttpClient { BaseAddress = address };
+        var (address, cookies) = await OpenRealAsync(factory);
+        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookies.Desktop);
+        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{cookies.MainPort}") };
         using var logout = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         logout.Headers.Add("X-Geminarr-Request", "1");
-        logout.Headers.Add("Cookie", cookie);
+        logout.Headers.Add("Cookie", cookies.Operator);
 
         // It is open and relayed before the sign-out: what is sent comes back.
         await socket.SendAsync(Encoding.UTF8.GetBytes("hello"), WebSocketMessageType.Text, endOfMessage: true, Token);
@@ -148,7 +226,7 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
 
         (await client.GetAsync("/browser/", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.GetAsync("/browser/assets/index.js", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -183,11 +261,8 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url, movableClock: true);
-        factory.UseKestrel(0);
-        factory.StartServer();
-        var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
-        var cookie = await SessionCookieAsync(factory, address);
-        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookie);
+        var (address, cookies) = await OpenRealAsync(factory);
+        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookies.Desktop);
 
         factory.Exposure.Ports.Add(3000);
         using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
@@ -217,12 +292,13 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync(operatorClient);
         factory.Exposure.Ports.Add(3000);
 
         var closed = await client.GetAsync("/browser/", Token);
         (await client.GetAsync("/browser/api/websockets", Token)).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "the WebSocket is as closed as the page");
-        var health = await client.GetFromJsonAsync<Geminarr.Api.V1.Health.HealthResource>("/api/v1/health", Token);
+        var health = await operatorClient.GetFromJsonAsync<Geminarr.Api.V1.Health.HealthResource>("/api/v1/health", Token);
 
         closed.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         (await closed.Content.ReadAsStringAsync(Token)).Should().Contain("listens off the loopback: 3000");
@@ -243,7 +319,7 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
         using var withOrigin = new HttpRequestMessage(HttpMethod.Get, "/browser/assets/index.js");
         withOrigin.Headers.Add("Origin", "http://localhost");
 
@@ -259,7 +335,7 @@ public sealed class BrowserRelayFixture
         // The desktop's web server refuses every Host that is not the loopback (the init script of the image): the name of the person's address must not go through, or the desktop is closed to everyone but a person on localhost.
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url, allowedHostNames: "localhost;geminarr.homelab.example");
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/browser/");
         request.Headers.Host = "geminarr.homelab.example";
 
@@ -273,7 +349,7 @@ public sealed class BrowserRelayFixture
     {
         await using var desktop = await FakeDesktop.StartAsync();
         using var factory = new RelayFactory(desktop.Url);
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/browser/");
         request.Headers.Add("X-Forwarded-User", "operator");
         request.Headers.Add("Remote-User", "operator");
@@ -292,7 +368,7 @@ public sealed class BrowserRelayFixture
         var gone = desktop.Url;
         await desktop.DisposeAsync();
         using var factory = new RelayFactory(gone);
-        using var client = await factory.SignedInClientAsync();
+        using var client = await factory.DesktopClientAsync();
 
         var response = await client.GetAsync("/browser/", Token);
 
@@ -326,13 +402,44 @@ public sealed class BrowserRelayFixture
         return socket;
     }
 
-    /// <summary>The cookie of a session, as a browser would send it back (the client of the factory keeps it in a jar that a test cannot read).</summary>
-    private static async Task<string> SessionCookieAsync(RelayFactory factory, Uri address)
+    /// <summary>The two cookies of an operator who is signed in over a real connection, as a browser would send them back, and the port of the interface (the desktop's is the factory's).</summary>
+    private sealed record Cookies(string Operator, string Desktop, int MainPort);
+
+    /// <summary>Starts the host on real ports (the interface's, and the desktop's), signs the operator in on the first and exchanges a ticket on the second. The address returned is the desktop's.</summary>
+    private static async Task<(Uri Desktop, Cookies Cookies)> OpenRealAsync(RelayFactory factory)
     {
-        using var client = new HttpClient { BaseAddress = address };
+        factory.UseKestrel(options =>
+        {
+            options.Listen(System.Net.IPAddress.Loopback, 0);
+            options.Listen(System.Net.IPAddress.Loopback, factory.DesktopPort);
+        });
+        factory.StartServer();
+        var addresses = factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Select(address => new Uri(address)).ToList();
+        var main = addresses.Single(address => address.Port != factory.DesktopPort);
+        var desktop = addresses.Single(address => address.Port == factory.DesktopPort);
+
+        using var client = new HttpClient { BaseAddress = main };
         using var login = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = System.Net.Http.Json.JsonContent.Create(new { name = GeminarrFactoryBase.OperatorName, password = GeminarrFactoryBase.OperatorPassword }) };
         login.Headers.Add("X-Geminarr-Request", "1");
         using var response = await client.SendAsync(login, Token);
-        return response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+        var operatorCookie = response.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+
+        using var ask = new HttpRequestMessage(HttpMethod.Post, "/api/v1/connection/desktop");
+        ask.Headers.Add("X-Geminarr-Request", "1");
+        ask.Headers.Add("Cookie", operatorCookie);
+        using var asked = await client.SendAsync(ask, Token);
+        var url = (await asked.Content.ReadFromJsonAsync<Geminarr.Api.V1.Connection.DesktopResource>(Token))!.Url;
+        using var entering = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = desktop };
+        using var entered = await entering.GetAsync(new Uri(url).PathAndQuery, Token);
+        var desktopCookie = entered.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+        return (desktop, new Cookies(operatorCookie, desktopCookie, main.Port));
+    }
+
+    private static async Task<string> DesktopCookieAsync(RelayFactory factory, HttpClient operatorClient)
+    {
+        var ticket = await RelayFactory.TicketAsync(operatorClient);
+        using var anonymous = factory.Anonymous();
+        using var entered = await anonymous.GetAsync($"/enter?ticket={ticket}", Token);
+        return entered.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
     }
 }

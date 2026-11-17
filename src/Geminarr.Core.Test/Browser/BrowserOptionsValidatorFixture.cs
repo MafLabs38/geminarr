@@ -122,4 +122,24 @@ public sealed class BrowserOptionsValidatorFixture
 
         new BrowserOptionsValidator().Validate(null, options).Succeeded.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(65_536)]
+    public void should_refuse_a_desktop_port_that_is_not_a_port(int port)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { DesktopPort = port }).Failed.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("https://desktop.homelab.example", true)]
+    [InlineData("https://desktop.homelab.example:8443/", true)]
+    [InlineData("https://desktop.homelab.example/browser/", false)]
+    [InlineData("https://desktop.homelab.example/?x=1", false)]
+    [InlineData("https://user:pw@desktop.homelab.example", false)]
+    [InlineData("not an address", false)]
+    public void should_take_a_public_address_of_the_desktop_that_is_an_origin_and_nothing_else(string address, bool valid)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { DesktopPublicUrl = address }).Succeeded.Should().Be(valid);
+    }
 }

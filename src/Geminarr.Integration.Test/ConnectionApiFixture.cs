@@ -46,7 +46,7 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
-    public async Task should_give_the_path_of_the_relay_of_the_browser_where_a_person_signs_in()
+    public async Task should_say_that_a_desktop_of_the_browser_is_there_to_sign_in_to()
     {
         using var factory = new BrowserFactory();
         using var client = await factory.SignedInClientAsync();
@@ -54,7 +54,49 @@ public sealed class ConnectionApiFixture
         var connection = await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token);
 
         connection!.HasBrowser.Should().BeTrue();
-        connection.BrowserPagePath.Should().Be("/browser/");
+        connection.HasDesktop.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task should_give_the_address_of_the_desktops_own_origin_with_a_ticket_that_is_worth_one_opening()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        var response = await client.PostAsync("/api/v1/connection/desktop", content: null, Token);
+        var url = new Uri((await response.Content.ReadFromJsonAsync<DesktopResource>(Token))!.Url);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        url.Scheme.Should().Be("http");
+        url.Host.Should().Be("localhost", "the desktop is the page's host on another port");
+        url.Port.Should().Be(8283);
+        url.AbsolutePath.Should().Be("/enter");
+        System.Web.HttpUtility.ParseQueryString(url.Query)["ticket"].Should().NotBeNullOrEmpty();
+        response.Headers.CacheControl!.NoStore.Should().BeTrue("a ticket is not kept by any cache");
+    }
+
+    [Fact]
+    public async Task should_give_the_address_that_a_proxy_gives_the_desktop_when_one_is_set()
+    {
+        using var factory = new RelayFactory("http://127.0.0.1:3000", desktopPublicUrl: "https://desktop.homelab.example");
+        using var client = await factory.SignedInClientAsync();
+
+        var url = new Uri((await (await client.PostAsync("/api/v1/connection/desktop", content: null, Token)).Content.ReadFromJsonAsync<DesktopResource>(Token))!.Url);
+
+        url.GetLeftPart(UriPartial.Authority).Should().Be("https://desktop.homelab.example");
+    }
+
+    [Fact]
+    public async Task should_not_give_a_desktop_when_none_is_configured_and_not_to_a_person_who_is_not_signed_in()
+    {
+        using var factory = new GeminarrFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        (await client.PostAsync("/api/v1/connection/desktop", content: null, Token)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var withBrowser = new BrowserFactory();
+        using var anonymousOnBrowser = withBrowser.CreateClient();
+        anonymousOnBrowser.DefaultRequestHeaders.Add("X-Geminarr-Request", "1");
+        (await anonymousOnBrowser.PostAsync("/api/v1/connection/desktop", content: null, Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

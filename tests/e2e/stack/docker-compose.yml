@@ -36,7 +36,7 @@ services:
     environment:
       PUID: '1000'
       PGID: '1000'
-      # No login on the web desktop and nothing published for it: Geminarr relays it under /browser/, behind its own sign-in.
+      # No login on the web desktop and nothing published for it: Geminarr relays it on a port of its own (8283), behind a cookie that a ticket of the operator's session gives.
       SUBFOLDER: /browser/
       SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
       CHROME_CLI: --remote-debugging-port=9222
@@ -45,6 +45,8 @@ services:
       - ../../../deploy/browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
     ports:
       - '8282:8282'
+      # The desktop's origin (ADR 0019): open to the network, and closed without the cookie that a ticket of the operator's session gives.
+      - '8283:8283'
       # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
       - '127.0.0.1:9223:9223'
     networks:

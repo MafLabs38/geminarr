@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Geminarr.Api.V1.Access;
 using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
+using Geminarr.Host.Security;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Forwarder;
@@ -11,13 +11,12 @@ using Yarp.ReverseProxy.Forwarder;
 namespace Geminarr.Host.Http;
 
 /// <summary>
-/// Relays the web desktop of the browser container under <see cref="BrowserOptions.RelayPath"/> (ADR 0017). The desktop has no sign-in of its own and no address of its own: it is the loopback of the namespace that
-/// the two containers share, and the only way to it is this relay, behind the sign-in of the operator (the fallback policy closes every endpoint, this one included). The person opens it to sign in to the account by hand;
-/// Geminarr neither types nor clicks in it. What the relay sends on is the request of the person, without the cookie of Geminarr's session, and what comes back has no cookie either.
+/// Relays the web desktop of the browser container under <see cref="BrowserOptions.RelayPath"/>, on an origin of its own (ADR 0017, 0019). The desktop has no sign-in of its own and no address of its own: it is the loopback of the namespace that
+/// the two containers share, and the only way to it is this relay, behind a cookie that the operator's session gave this origin by a ticket. The person opens it to sign in to the account by hand;
+/// Geminarr neither types nor clicks in it. What the relay sends on is the request of the person, without any cookie of Geminarr's, and what comes back has no cookie either.
 /// </summary>
 public static partial class BrowserRelay
 {
-    private const string PathPattern = BrowserOptions.RelayPath + "{**path}";
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(30);
 
     /// <summary>How often an open WebSocket looks at whether the session that opened it is still there.</summary>
@@ -40,73 +39,145 @@ public static partial class BrowserRelay
         return services;
     }
 
-    /// <summary>Nothing is mapped without the address of the desktop: the path is then the interface's own and answers as any unknown route.</summary>
-    public static WebApplication MapGeminarrBrowserRelay(this WebApplication app)
+    /// <summary>The key, in <see cref="HttpContext.Items"/>, of a request that arrived on the desktop's origin.</summary>
+    public const string OriginItemKey = "geminarr.desktop-origin";
+
+    /// <summary>The path where a person arrives with a ticket: it sets the cookie of the desktop's origin and takes them to the desktop.</summary>
+    public const string EnterPath = "/enter";
+
+    /// <summary>
+    /// The desktop is served on an origin of its own (ADR 0019): a second port of Geminarr, that answers for the desktop and for nothing else. The desktop is another program's, so its scripts never run where the operator's
+    /// session cookie is sent. Nothing is served without the address of the desktop: the port is then not even open, and the path <see cref="BrowserOptions.RelayPath"/> is the interface's own on the operator's origin.
+    /// </summary>
+    public static WebApplication UseGeminarrDesktopOrigin(this WebApplication app)
     {
-        var desktop = app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopUrl;
-        if (string.IsNullOrWhiteSpace(desktop))
+        var browser = app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value;
+        if (string.IsNullOrWhiteSpace(browser.DesktopUrl))
         {
             return app;
         }
 
-        var destination = desktop.TrimEnd('/') + "/";
+        var destination = browser.DesktopUrl.TrimEnd('/') + "/";
         var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
         var client = app.Services.GetRequiredService<RelayClient>().Invoker;
         var request = new ForwarderRequestConfig { ActivityTimeout = IdleTimeout };
-        app.Map(PathPattern, async context =>
+        var port = browser.DesktopPort;
+        app.MapWhen(context => context.Connection.LocalPort == port, branch =>
         {
-            // The desktop is served under the path with its slash: without it, the person is sent there (routing matches both, so the endpoint tells them apart).
-            if (string.Equals(context.Request.Path.Value, BrowserOptions.RelayPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            branch.Use((context, next) =>
             {
-                context.Response.Redirect(BrowserOptions.RelayPath);
-                return;
-            }
-
-            // A desktop that could be reached by something else than Geminarr is not relayed: the person is told why, and the health says it (browser-exposed).
-            if (context.RequestServices.GetRequiredService<IBrowserExposure>().Check() is { IsExposed: true } exposure)
-            {
-                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-                await context.Response.WriteAsJsonAsync(
-                    new Microsoft.AspNetCore.Mvc.ProblemDetails { Status = StatusCodes.Status503ServiceUnavailable, Title = exposure.Describe() },
-                    options: null,
-                    contentType: "application/problem+json",
-                    cancellationToken: context.RequestAborted);
-                return;
-            }
-
-            // The desktop's client reads its pages and opens one WebSocket: no write goes over HTTP, and what else the image's web server offers (files, other services) is not relayed.
-            if (!IsRelayed(context.Request))
-            {
-                context.Response.StatusCode = StatusCodes.Status404NotFound;
-                return;
-            }
-
-            if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, context.RequestServices.GetRequiredService<AllowedHostList>(), context.RequestServices.GetRequiredService<IOptions<GeminarrOptions>>().Value.PublicUrl))
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                return;
-            }
-
-            // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
-            using var stop = new CancellationTokenSource();
-            var watching = context.WebSockets.IsWebSocketRequest
-                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.RequestServices.GetRequiredService<IBrowserExposure>(), context.RequestServices.GetRequiredService<TimeProvider>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
-                : Task.CompletedTask;
-            try
-            {
-                var error = await forwarder.SendAsync(context, destination, client, request, RelayTransformer.Instance);
-                if (error != ForwarderError.None && !context.Response.HasStarted)
-                {
-                    context.Response.StatusCode = StatusCodes.Status502BadGateway;
-                }
-            }
-            finally
-            {
-                await stop.CancelAsync();
-                await watching;
-            }
+                context.Items[OriginItemKey] = true;
+                return next(context);
+            });
+            branch.UseGeminarrSecurityHeaders();
+            branch.UseMiddleware<AllowedHostsMiddleware>();
+            branch.UseWebSockets();
+            branch.Run(context => ServeAsync(context, forwarder, destination, client, request));
         });
         return app;
+    }
+
+    private static async Task ServeAsync(HttpContext context, IHttpForwarder forwarder, string destination, HttpMessageInvoker client, ForwarderRequestConfig request)
+    {
+        var services = context.RequestServices;
+        var auth = services.GetRequiredService<IOptions<AuthOptions>>().Value;
+        var access = services.GetRequiredService<DesktopAccess>();
+        var cookieName = CookieName(auth);
+
+        // A ticket is exchanged for the cookie of this origin, and the person goes on to the desktop without it in their address bar.
+        if (context.Request.Path.Equals(EnterPath, StringComparison.OrdinalIgnoreCase) && HttpMethods.IsGet(context.Request.Method))
+        {
+            if (access.Redeem(context.Request.Query["ticket"].ToString()) is not { } token)
+            {
+                await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "This link to the desktop is not valid any more. Open it again from the Connection page of Geminarr.");
+                return;
+            }
+
+#pragma warning disable S2092 // Secure is the operator's own rule (CookieSecurity): always, or when the request was; a plain-HTTP sandbox cannot set a Secure cookie.
+            context.Response.Cookies.Append(cookieName, token, new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Strict,
+                Secure = auth.CookieSecurity == CookieSecurityMode.Always || context.Request.IsHttps,
+                Path = "/",
+                IsEssential = true,
+            });
+#pragma warning restore S2092
+            context.Response.Redirect(BrowserOptions.RelayPath);
+            return;
+        }
+
+        if (!IsRelayPath(context.Request.Path))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var sessionId = access.SessionOf(context.Request.Cookies[cookieName]);
+        if (sessionId is null)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "Open the desktop from the Connection page of Geminarr.");
+            return;
+        }
+
+        // The desktop is served under the path with its slash: without it, the person is sent there (routing matches both, so the endpoint tells them apart).
+        if (string.Equals(context.Request.Path.Value, BrowserOptions.RelayPath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.Redirect(BrowserOptions.RelayPath);
+            return;
+        }
+
+        // A desktop that could be reached by something else than Geminarr is not relayed: the person is told why, and the health says it (browser-exposed).
+        if (services.GetRequiredService<IBrowserExposure>().Check() is { IsExposed: true } exposure)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, exposure.Describe());
+            return;
+        }
+
+        // The desktop's client reads its pages and opens one WebSocket: no write goes over HTTP, and what else the image's web server offers (files, other services) is not relayed.
+        if (!IsRelayed(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<AllowedHostList>(), services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
+        using var stop = new CancellationTokenSource();
+        var watching = context.WebSockets.IsWebSocketRequest
+            ? EndWithTheSessionAsync(context, services.GetRequiredService<SessionRegistry>(), services.GetRequiredService<IBrowserExposure>(), services.GetRequiredService<TimeProvider>(), sessionId, stop.Token)
+            : Task.CompletedTask;
+        try
+        {
+            var error = await forwarder.SendAsync(context, destination, client, request, RelayTransformer.Instance, context.RequestAborted);
+            if (error != ForwarderError.None && !context.Response.HasStarted)
+            {
+                context.Response.StatusCode = StatusCodes.Status502BadGateway;
+            }
+        }
+        finally
+        {
+            await stop.CancelAsync();
+            await watching;
+        }
+    }
+
+    /// <summary>The name of the cookie of the desktop's origin: its own, so that the operator's cookie (which a browser also sends to another port of the same host) is never mistaken for it.</summary>
+    public static string CookieName(AuthOptions auth) => auth.CookieSecurity == CookieSecurityMode.Always ? "__Host-geminarr.desktop" : "geminarr.desktop";
+
+    private static Task WriteProblemAsync(HttpContext context, int status, string title)
+    {
+        context.Response.StatusCode = status;
+        return context.Response.WriteAsJsonAsync(
+            new Microsoft.AspNetCore.Mvc.ProblemDetails { Status = status, Title = title },
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: context.RequestAborted);
     }
 
     /// <summary>

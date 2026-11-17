@@ -13,7 +13,7 @@ const base: ConnectionResource = {
   reader: 'Web',
   hasBrowser: true,
   pausedUntil: null,
-  browserPagePath: '/browser/',
+  hasDesktop: true,
   account: null,
   signingIn: false,
 };
@@ -129,7 +129,7 @@ describe('Connection', () => {
     let signedIn = false;
     let posted = 0;
     const close = vi.fn();
-    const opened = { closed: false, close } as unknown as Window;
+    const opened = { closed: false, close, location: { href: 'about:blank' } } as unknown as Window;
     const open = vi.spyOn(globalThis, 'open').mockReturnValue(opened);
     serveApi({
       'GET /connection': () =>
@@ -141,12 +141,15 @@ describe('Connection', () => {
         posted += 1;
         return { ...base, signingIn: true };
       },
+      'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
     });
     renderAt(<Connection />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
 
-    expect(open).toHaveBeenCalledWith('/browser/', 'geminarr-browser');
+    // The window is opened by the click, empty, and goes to the desktop's own origin with the ticket once the server has given it.
+    expect(open).toHaveBeenCalledWith('about:blank', 'geminarr-browser');
+    await waitFor(() => expect(opened.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
     expect(await screen.findByText('Signing in…')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
 
@@ -164,12 +167,31 @@ describe('Connection', () => {
       'GET /runs': () => ({ runs: [], running: false }),
       'POST /connection/sign-in': () =>
         Response.json({ title: 'The browser container could not be reached.' }, { status: 502 }),
+      'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
     });
     renderAt(<Connection />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be reached');
+  });
+
+  it('closes the window and says why when the address of the desktop could not be given', async () => {
+    const close = vi.fn();
+    vi.spyOn(globalThis, 'open').mockReturnValue({ closed: false, close, location: { href: '' } } as unknown as Window);
+    serveApi({
+      'GET /connection': () => base,
+      'GET /runs': () => ({ runs: [], running: false }),
+      'POST /connection/sign-in': () => base,
+      'POST /connection/desktop': () =>
+        Response.json({ title: 'The session is not one that is open any more: sign in again.' }, { status: 400 }),
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('sign in again');
+    await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
   });
 
   it('says that the desktop needs HTTPS, and points to the https address, instead of opening a window that shows an error', async () => {
@@ -187,7 +209,7 @@ describe('Connection', () => {
   });
 
   it('says when no desktop is given to relay', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, browserPagePath: null }) });
+    serveApi({ 'GET /connection': () => ({ ...base, hasDesktop: false }) });
     renderAt(<Connection />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('GEMINARR__BROWSER__DESKTOPURL');

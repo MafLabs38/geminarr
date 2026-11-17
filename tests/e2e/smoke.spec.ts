@@ -257,11 +257,11 @@ test.describe('smoke @smoke', () => {
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 
-    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, through Geminarr and its own sign-in (no second login).
+    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, on an origin of its own that a ticket of the operator's session opens (no second login).
     const signInButton = page.getByRole('button', { name: 'Sign in to the assistant' });
     await expect(signInButton).toBeVisible({ timeout: 90_000 });
     const [desktop] = await Promise.all([page.context().waitForEvent('page'), signInButton.click()]);
-    await expect(desktop).toHaveURL(/\/browser\/$/);
+    await expect(desktop).toHaveURL(/localhost:8283\/browser\/$/);
     await expect(desktop).toHaveTitle(/Chromium|Selkies/, { timeout: 60_000 });
     await desktop.close();
 
@@ -352,15 +352,16 @@ test.describe('smoke @smoke', () => {
     },
   );
 
-  test('the web desktop of the browser is reached through Geminarr only, behind its sign-in @browserless', async ({
+  test("the web desktop of the browser is on an origin of its own, opened by a ticket of the operator's session @browserless", async ({
     request,
     playwright,
     baseURL,
   }) => {
-    const anonymous = await request.get('/browser/', { maxRedirects: 0 });
-    expect(anonymous.status()).toBe(302);
-    expect(anonymous.headers().location).toBe('/');
-    expect((await request.get('/browser/api/websockets', { maxRedirects: 0 })).status()).toBe(302);
+    const desktopOrigin = 'http://localhost:8283';
+    // Nothing of the desktop is reached without the cookie that a ticket gives, and a made-up ticket gives none.
+    expect((await request.get(`${desktopOrigin}/browser/`, { maxRedirects: 0 })).status()).toBe(401);
+    expect((await request.get(`${desktopOrigin}/browser/api/websockets`, { maxRedirects: 0 })).status()).toBe(401);
+    expect((await request.get(`${desktopOrigin}/enter?ticket=not-a-ticket`, { maxRedirects: 0 })).status()).toBe(401);
 
     // The desktop is no port of the machine, and no other container of the network reaches it: it listens on the loopback of the namespace of the two containers, and it has no login of its own.
     await expect(request.get('http://localhost:3000/', { timeout: 5_000 })).rejects.toThrow();
@@ -371,15 +372,34 @@ test.describe('smoke @smoke', () => {
         }
       ).open;
     expect(await reaches(8282), "the control: Geminarr's own port is open to the network").toBe(true);
-    expect(await reaches(3000), 'the desktop is not').toBe(false);
+    expect(await reaches(8283), "the control: so is the desktop's origin, which is closed without its cookie").toBe(
+      true,
+    );
+    expect(await reaches(3000), 'the desktop itself is not').toBe(false);
     expect(await reaches(3001), 'nor its TLS port').toBe(false);
     expect(await reaches(9222), 'nor the debugging port').toBe(false);
 
+    // The operator's session asks for the address, with a ticket; it is worth one opening.
     const api = await signedInRequest(playwright, required(baseURL));
-    const page = await api.get('/browser/');
+    const asked = await api.post('/api/v1/connection/desktop');
+    expect(asked.status()).toBe(200);
+    const ticketUrl = new URL(((await asked.json()) as { url: string }).url);
+    expect(ticketUrl.origin).toBe(desktopOrigin);
+    const desktop = await playwright.request.newContext({ baseURL: desktopOrigin });
+    const entered = await desktop.get(`${ticketUrl.pathname}${ticketUrl.search}`, { maxRedirects: 0 });
+    expect(entered.status()).toBe(302);
+    expect(entered.headers().location).toBe('/browser/');
+    expect(
+      (await request.get(`${desktopOrigin}${ticketUrl.pathname}${ticketUrl.search}`, { maxRedirects: 0 })).status(),
+    ).toBe(401);
+
+    const page = await desktop.get('/browser/');
     expect(page.status()).toBe(200);
     expect(await page.text()).toContain('Selkies');
     expect(page.headers()['set-cookie']).toBeUndefined();
+    // The desktop's origin serves the desktop and nothing of Geminarr, and the interface's origin serves nothing of the desktop.
+    expect((await desktop.get('/api/v1/connection')).status()).toBe(404);
+    expect(await (await api.get('/browser/')).text()).not.toContain('Selkies');
     // What the desktop's web server offers beyond its client (its files, its other services) is not relayed, by any spelling of the path: the server merges slashes and decodes before it routes.
     for (const path of [
       '/browser/api/files',
@@ -388,9 +408,10 @@ test.describe('smoke @smoke', () => {
       '/browser/pelorus/',
       '/browser/api/',
     ]) {
-      expect((await api.get(path)).status(), path).toBe(404);
+      expect((await desktop.get(path)).status(), path).toBe(404);
     }
-    expect((await api.post('/browser/api/clipboard')).status()).toBe(404);
+    expect((await desktop.post('/browser/api/clipboard')).status()).toBe(404);
+    await desktop.dispose();
   });
 
   test('the system status page shows the version of the running build', async ({ page }) => {
