@@ -1,23 +1,20 @@
-using Geminarr.Core.Access;
-using Geminarr.Core.Configuration;
 using Geminarr.Host.Http;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 
 namespace Geminarr.Integration.Test;
 
 /// <summary>Whose page opens a WebSocket to the desktop: the rule that tells the person's own page from a hostile one that the browser or another site loads.</summary>
 public sealed class BrowserRelayOriginFixture
 {
-    private static bool FromAnother(string? origin, string host, string allowed = "localhost", string? publicUrl = null) =>
-        BrowserRelay.IsFromAnotherOrigin(origin, new HostString(host), new AllowedHostList(Options.Create(new GeminarrOptions { AllowedHostNames = allowed, PublicUrl = publicUrl })), publicUrl);
+    private static bool FromAnother(string? origin, string host, string? desktopPublicUrl = null) =>
+        BrowserRelay.IsFromAnotherOrigin(origin, new HostString(host), desktopPublicUrl);
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     public void should_take_a_request_that_names_no_origin_for_no_page(string? origin)
     {
-        FromAnother(origin, "localhost:8282").Should().BeFalse();
+        FromAnother(origin, "localhost:8283").Should().BeFalse();
     }
 
     [Theory]
@@ -26,61 +23,37 @@ public sealed class BrowserRelayOriginFixture
     [InlineData("localhost")]
     public void should_take_an_origin_that_is_not_one_for_a_foreign_one(string origin)
     {
-        FromAnother(origin, "localhost:8282").Should().BeTrue("a sandboxed frame says null");
+        FromAnother(origin, "localhost:8283").Should().BeTrue("a sandboxed frame says null");
     }
 
     [Theory]
-    [InlineData("http://localhost:8282", "localhost:8282", false)]
-    [InlineData("https://localhost:8282", "localhost:8282", false)]
-    [InlineData("http://LOCALHOST:8282", "localhost:8282", false)]
-    [InlineData("http://localhost:9000", "localhost:8282", true)]
-    [InlineData("http://localhost", "localhost:8282", true)]
+    [InlineData("http://localhost:8283", "localhost:8283", false)]
+    [InlineData("https://localhost:8283", "localhost:8283", false)]
+    [InlineData("http://LOCALHOST:8283", "localhost:8283", false)]
+    [InlineData("http://localhost:8282", "localhost:8283", true, "the operator's page is another origin: another port")]
+    [InlineData("http://localhost:9000", "localhost:8283", true)]
+    [InlineData("http://localhost", "localhost:8283", true)]
     [InlineData("http://localhost", "localhost", false)]
     [InlineData("https://localhost", "localhost", false)]
     [InlineData("http://localhost:9000", "localhost", true)]
-    [InlineData("https://evil.example", "localhost:8282", true)]
-    public void should_judge_a_direct_access_by_the_host_and_the_port_of_the_request(string origin, string host, bool foreign)
+    [InlineData("https://evil.example", "localhost:8283", true)]
+    public void should_judge_a_direct_access_by_the_host_and_the_port_of_the_request(string origin, string host, bool foreign, string? because = null)
     {
-        FromAnother(origin, host).Should().Be(foreign);
+        FromAnother(origin, host).Should().Be(foreign, because);
     }
 
     [Theory]
-    [InlineData("https://geminarr.example:8443", false)]
-    [InlineData("https://geminarr.example:9000", true)]
-    [InlineData("https://geminarr.example", false)]
-    [InlineData("https://evil.example:8443", true)]
-    public void should_take_the_public_address_for_the_page_even_when_the_proxy_sends_no_port(string origin, bool foreign)
+    [InlineData("https://desktop.homelab.example", "desktop.homelab.example", false)]
+    [InlineData("https://desktop.homelab.example:8443", "desktop.internal:8283", false, "a proxy that sends a Host of its own")]
+    [InlineData("http://desktop.homelab.example:443", "desktop.homelab.example", true, "the scheme is the desktop's too")]
+    [InlineData("https://desktop.homelab.example:9000", "desktop.homelab.example", true)]
+    [InlineData("https://geminarr.homelab.example", "desktop.homelab.example", true, "the operator's page is another origin, and so are its names")]
+    [InlineData("https://evil.example", "desktop.homelab.example", true)]
+    public void should_judge_a_websocket_by_the_desktops_public_address(string origin, string host, bool foreign, string? because = null)
     {
-        // A proxy on port 8443 that sends `Host: geminarr.example` without the port.
-        FromAnother(origin, "geminarr.example", allowed: "localhost", publicUrl: "https://geminarr.example:8443").Should().Be(foreign);
-    }
+        // The proxy gives the desktop an address of its own, on port 8443 for the second row.
+        var publicUrl = origin.Contains(":8443", StringComparison.Ordinal) ? "https://desktop.homelab.example:8443" : "https://desktop.homelab.example";
 
-    [Theory]
-    [InlineData("https://localhost", false)]
-    [InlineData("https://geminarr.example", false)]
-    [InlineData("http://localhost:9000", true)]
-    [InlineData("https://evil.example", true)]
-    public void should_judge_the_origin_by_the_names_the_page_may_be_reached_by_when_a_proxy_sends_a_host_of_its_own(string origin, bool foreign)
-    {
-        FromAnother(origin, "geminarr.internal:8282", allowed: "localhost;geminarr.example").Should().Be(foreign);
-    }
-
-    [Fact]
-    public void should_not_judge_by_a_list_that_says_nothing()
-    {
-        FromAnother("https://other.example", "geminarr.internal:8282", allowed: "*").Should().BeTrue("with every name allowed, a name proves nothing");
-        FromAnother("http://geminarr.internal:8282", "geminarr.internal:8282", allowed: "*").Should().BeFalse("the page's own host and port still do");
-    }
-
-    [Theory]
-    [InlineData("https://desktop.homelab.example", false)]
-    [InlineData("https://geminarr.example", true)]
-    [InlineData("https://evil.example", true)]
-    public void should_judge_a_websocket_of_the_desktops_origin_by_the_desktops_address_and_not_the_pages_names(string origin, bool foreign)
-    {
-        // A proxy sends the Host of the desktop's address; the page's own names are allowed too, and are another origin.
-        var hosts = new AllowedHostList(Options.Create(new GeminarrOptions { AllowedHostNames = "geminarr.example", PublicUrl = "https://geminarr.example" }));
-
-        BrowserRelay.IsFromAnotherOrigin(origin, new HostString("desktop.homelab.example"), hosts, "https://desktop.homelab.example", pageNamesAllowed: false).Should().Be(foreign);
+        FromAnother(origin, host, publicUrl).Should().Be(foreign, because);
     }
 }

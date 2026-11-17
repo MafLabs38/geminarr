@@ -189,6 +189,7 @@ spec:
               value: Etc/UTC   # your time zone
             # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share), and the page the browser opens: the assistant, which
             # sends a person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it, and it is no container port of the pod.
+            # The page the browser opens at start is the assistant's address: keep it the same as GEMINARR__BROWSER__ASSISTANTURL.
             - name: CHROME_CLI
               value: --remote-debugging-port=9222 https://gemini.google.com/app
             # The web desktop is served under this path, where Geminarr relays it.

@@ -87,23 +87,7 @@ public static partial class BrowserRelay
         // A ticket is exchanged for the cookie of this origin, and the person goes on to the desktop without it in their address bar.
         if (context.Request.Path.Equals(EnterPath, StringComparison.OrdinalIgnoreCase) && HttpMethods.IsGet(context.Request.Method))
         {
-            if (access.Redeem(context.Request.Query["ticket"].ToString()) is not { } token)
-            {
-                await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "This link to the desktop is not valid any more. Open it again from the Connection page of Geminarr.");
-                return;
-            }
-
-#pragma warning disable S2092 // Secure is the operator's own rule (CookieSecurity): always, or when the request was; a plain-HTTP sandbox cannot set a Secure cookie.
-            context.Response.Cookies.Append(cookieName, token, new CookieOptions
-            {
-                HttpOnly = true,
-                SameSite = SameSiteMode.Strict,
-                Secure = auth.CookieSecurity == CookieSecurityMode.Always || context.Request.IsHttps,
-                Path = "/",
-                IsEssential = true,
-            });
-#pragma warning restore S2092
-            context.Response.Redirect(BrowserOptions.RelayPath);
+            await EnterAsync(context, access, auth, cookieName);
             return;
         }
 
@@ -141,7 +125,7 @@ public static partial class BrowserRelay
             return;
         }
 
-        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<AllowedHostList>(), services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl, pageNamesAllowed: false))
+        if (context.WebSockets.IsWebSocketRequest && IsFromAnotherOrigin(context.Request.Headers.Origin.ToString(), context.Request.Host, services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPublicUrl))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
@@ -165,6 +149,27 @@ public static partial class BrowserRelay
             await stop.CancelAsync();
             await watching;
         }
+    }
+
+    private static async Task EnterAsync(HttpContext context, DesktopAccess access, AuthOptions auth, string cookieName)
+    {
+        if (access.Redeem(context.Request.Query["ticket"].ToString()) is not { } token)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "This link to the desktop is not valid any more. Open it again from the Connection page of Geminarr.");
+            return;
+        }
+
+#pragma warning disable S2092 // Secure is the operator's own rule (CookieSecurity): always, or when the request was; a plain-HTTP sandbox cannot set a Secure cookie.
+        context.Response.Cookies.Append(cookieName, token, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Strict,
+            Secure = auth.CookieSecurity == CookieSecurityMode.Always || context.Request.IsHttps,
+            Path = "/",
+            IsEssential = true,
+        });
+#pragma warning restore S2092
+        context.Response.Redirect(BrowserOptions.RelayPath);
     }
 
     /// <summary>The name of the cookie of the desktop's origin: its own, so that the operator's cookie (which a browser also sends to another port of the same host) is never mistaken for it.</summary>
@@ -205,12 +210,12 @@ public static partial class BrowserRelay
     private static partial Regex RelayedPaths();
 
     /// <summary>
-    /// Whether the origin that a WebSocket handshake names is another than the page's: a handshake is not bound by the same-origin policy, and the cookie of the session is only <c>SameSite</c>, which another port
-    /// of the same host (a hostile page) would not stop. A request that names no origin is not from a page. The origin is the page's when it is the public address (<paramref name="publicUrl"/>: a proxy on a port of its
-    /// own, or one that sends no port in its Host header), or the host and the port of the request (a direct access: the scheme cannot be told behind a proxy that ends TLS); or, when a proxy sends a Host of its own,
-    /// one of the names the page may be reached by, on a default port, and then only if the list of names says something (not <c>*</c>); <paramref name="pageNamesAllowed"/> is false on the desktop's own origin, which is its address and not the page's.
+    /// Whether the origin that a WebSocket handshake names is another than the desktop's own: a handshake is not bound by the same-origin policy, and the desktop's cookie is only <c>SameSite</c>, which another port of the
+    /// same host (a hostile page) would not stop. A request that names no origin is not from a page. The origin is the desktop's when it is its public address (<paramref name="desktopPublicUrl"/>: a proxy that gives it an address
+    /// of its own, with or without a port in its Host header, and the same scheme), or the host and the port of the request (a direct access: the scheme cannot be told behind a proxy that ends TLS). Nothing else is:
+    /// not the operator's page, which is another origin (ADR 0019).
     /// </summary>
-    public static bool IsFromAnotherOrigin(string? origin, HostString host, AllowedHostList hosts, string? publicUrl, bool pageNamesAllowed = true)
+    public static bool IsFromAnotherOrigin(string? origin, HostString host, string? desktopPublicUrl)
     {
         if (string.IsNullOrEmpty(origin))
         {
@@ -222,18 +227,12 @@ public static partial class BrowserRelay
             return true;
         }
 
-        if (Uri.TryCreate(publicUrl, UriKind.Absolute, out var page) && string.Equals(page.Host, uri.Host, StringComparison.OrdinalIgnoreCase) && page.Port == uri.Port)
+        if (Uri.TryCreate(desktopPublicUrl, UriKind.Absolute, out var own) && own.Scheme == uri.Scheme && string.Equals(own.Host, uri.Host, StringComparison.OrdinalIgnoreCase) && own.Port == uri.Port)
         {
             return false;
         }
 
-        if (string.Equals(uri.Host, host.Host, StringComparison.OrdinalIgnoreCase))
-        {
-            return host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort;
-        }
-
-        // The desktop's own origin is its address and nothing else: the page's names do not open its WebSocket (they are not it, and the page is another origin).
-        return !pageNamesAllowed || hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
+        return !string.Equals(uri.Host, host.Host, StringComparison.OrdinalIgnoreCase) || (host.Port is { } port ? uri.Port != port : !uri.IsDefaultPort);
     }
 
     private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, IBrowserExposure exposure, TimeProvider clock, string? sessionId, CancellationToken stop)

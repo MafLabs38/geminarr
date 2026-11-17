@@ -55,6 +55,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<LinkService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
+        services.AddSingleton<IValidateOptions<BrowserOptions>, DesktopOriginValidator>();
         services.AddOptions<BrowserOptions>().Bind(configuration.GetSection(BrowserOptions.SectionName)).ValidateOnStart();
         services.TryAddSingleton<IBrowserHost, NoBrowserHost>();
         services.TryAddSingleton<IBrowserExposure, NoBrowserExposure>();
