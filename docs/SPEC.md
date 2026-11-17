@@ -349,6 +349,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-CON-02 | Sign in by hand in the browser container's page (§7.3); disconnect clears its session | M | 3 built; awaiting the real target (spike S1) |
 | F-CON-03 | Pause and resume | S | 3 ✅ |
 | F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 built; awaiting the real target; for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode a signed-in account is told by the names of its cookies (ADR 0016), measured on the real target in spike S1 |
+| F-CON-05 | The Connection page says **who** the browser is signed in as (the address, and the name when the assistant's page gives one) and notices by itself that a sign-in is finished (the list of tabs, plain HTTP, no attachment: a sign-in page that was open is gone, so a pass is asked for). The account is read from the label of the assistant's own account button, kept in memory, shown to the operator only: **never logged, never in the heartbeat, never sent to Mnemarr, never in a fixture or a screenshot kept** (rule 2). | S | 3 ✅ (measured on the real target: signed in, the account read) |
 | **F-RDR** | **The reader** | | |
 | F-RDR-01 | `IConversationReader`/`IConversationSink` and the pipeline with a demonstration reader and a real sink | M | 2 ✅ |
 | F-RDR-02 | The web reader: session check, list, open, extract turns (§6) | M | 4 |

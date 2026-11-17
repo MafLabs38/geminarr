@@ -13,7 +13,13 @@ public sealed class FakeBrowserHost : IBrowserHost
 
     public int Disconnected { get; private set; }
 
-    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null);
+    public AccountIdentity? Account { get; set; }
+
+    public bool SigningIn { get; set; }
+
+    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null, Account);
+
+    public Task<bool> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult(SigningIn);
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
         Unreachable ? throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.") : Task.FromResult(Check);

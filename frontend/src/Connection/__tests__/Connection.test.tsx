@@ -14,6 +14,7 @@ const base: ConnectionResource = {
   hasBrowser: true,
   pausedUntil: null,
   browserPagePath: '/browser/',
+  account: null,
 };
 
 describe('Connection', () => {
@@ -55,6 +56,64 @@ describe('Connection', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
+  });
+
+  it('says who the browser is signed in as, by name and by address', async () => {
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'Connected',
+        account: { name: 'Jane Doe', email: 'jane@example.org' },
+      }),
+    });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Signed in as Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('jane@example.org')).toBeInTheDocument();
+  });
+
+  it('says the address when the page gave no name', async () => {
+    serveApi({
+      'GET /connection': () => ({ ...base, state: 'Connected', account: { name: null, email: 'jane@example.org' } }),
+    });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Signed in as jane@example.org')).toBeInTheDocument();
+  });
+
+  it('says that nobody is signed in, and that the account is not read yet when only the session is known', async () => {
+    serveApi({ 'GET /connection': () => base });
+    const view = renderAt(<Connection />);
+    expect(await screen.findByText('Not signed in')).toBeInTheDocument();
+    view.unmount();
+
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'Connected' }) });
+    renderAt(<Connection />);
+    expect(await screen.findByText('Signed in (the account is not read yet)')).toBeInTheDocument();
+  });
+
+  it('says that the session has ended when a sign-in is asked for again', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('The session has ended: sign in again')).toBeInTheDocument();
+  });
+
+  it('lets the person ask for a check at once instead of waiting for the next pass', async () => {
+    let asked = 0;
+    serveApi({
+      'GET /connection': () => base,
+      'GET /runs': () => ({ runs: [], running: false }),
+      'POST /runs': () => {
+        asked += 1;
+        return new Response(null, { status: 202 });
+      },
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Check again' }));
+
+    await waitFor(() => expect(asked).toBe(1));
   });
 
   it('says when no desktop is given to relay', async () => {

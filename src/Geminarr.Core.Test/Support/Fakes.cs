@@ -154,7 +154,13 @@ public sealed class FakeBrowser : IBrowserHost
 
     public int Disconnected { get; private set; }
 
-    public BrowserState State() => new(Configured, Reachable);
+    public AccountIdentity? Account { get; set; }
+
+    public bool SigningIn { get; set; }
+
+    public BrowserState State() => new(Configured, Reachable, Account);
+
+    public Task<bool> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult(SigningIn);
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {

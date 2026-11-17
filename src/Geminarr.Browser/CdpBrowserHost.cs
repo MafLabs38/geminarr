@@ -21,11 +21,13 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly ILogger<CdpBrowserHost> _logger;
     private readonly SemaphoreSlim _attached = new(1, 1);
     private const int ListTimeoutSeconds = 5;
+    private const int AccountWaitMilliseconds = 8_000;
     private static readonly HttpClient Tabs = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
     private volatile int _reachable = -1;
+    private volatile AccountIdentity? _account;
 
     public CdpBrowserHost(IOptions<BrowserOptions> options, ILogger<CdpBrowserHost> logger)
     {
@@ -35,7 +37,25 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
     private BrowserOptions Options => _options.Value;
 
-    public BrowserState State() => new(!string.IsNullOrWhiteSpace(Options.CdpUrl), _reachable switch { 1 => true, 0 => false, _ => null });
+    public BrowserState State() => new(!string.IsNullOrWhiteSpace(Options.CdpUrl), _reachable switch { 1 => true, 0 => false, _ => null }, _account);
+
+    public async Task<bool> IsSigningInAsync(CancellationToken cancellationToken)
+    {
+        if (!State().Configured)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await ATabIsOnASignInPageAsync(cancellationToken, quiet: true);
+        }
+        catch (ReaderException)
+        {
+            // A browser that does not answer is not a person signing in; the passes say what is wrong with it.
+            return false;
+        }
+    }
 
     public async Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
@@ -90,6 +110,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
                 await browser.Context.ClearCookiesAsync();
                 return true;
             });
+            _account = null;
         }
         finally
         {
@@ -108,7 +129,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     /// Whether a tab of the browser is on a sign-in page, read from the list of tabs that the debugging port serves over plain HTTP: nothing is attached to read it. A browser that does not answer is not a person
     /// signing in (the attachment says what is wrong).
     /// </summary>
-    private async Task<bool> ATabIsOnASignInPageAsync(CancellationToken cancellationToken)
+    private async Task<bool> ATabIsOnASignInPageAsync(CancellationToken cancellationToken, bool quiet = false)
     {
         string failure;
         try
@@ -125,7 +146,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
         // A browser that cannot even list its tabs cannot be attached to either, and a guard that failed open would attach in the middle of a sign-in: the pass says the browser failed.
         _reachable = 0;
-        _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
+        if (!quiet)
+        {
+            _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
+        }
+
         throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
     }
 
@@ -215,7 +240,29 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         var kind = OriginPolicy.Classify(page.Url, Options);
         // The names of the cookies of the assistant's address, never their values: they say whether the account is signed in, which a guest page does not.
         var names = kind == PageKind.Assistant ? (await context.CookiesAsync([Options.AssistantUrl])).Select(cookie => cookie.Name) : [];
-        return SessionVerdict.Decide(kind, SessionVerdict.HasSessionCookie(names, Options));
+        var check = SessionVerdict.Decide(kind, SessionVerdict.HasSessionCookie(names, Options));
+        // Who it is signed in as is read from the page that was just loaded; a signed-out session has nobody.
+        _account = check == SessionCheck.SignedIn ? await ReadAccountAsync(page) ?? _account : null;
+        return check;
+    }
+
+    /// <summary>
+    /// The label of the account button of the assistant's page (a link to the page of the account provider where one signs out), parsed by <see cref="AccountLabel"/>. The page may not have drawn it yet or may not show one:
+    /// that is no account known, never an error of the session. Never logged.
+    /// </summary>
+    private static async Task<AccountIdentity?> ReadAccountAsync(IPage page)
+    {
+        const string selector = "a[href*='SignOutOptions']";
+        try
+        {
+            await page.WaitForSelectorAsync(selector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = AccountWaitMilliseconds });
+            var labels = await page.Locator(selector).EvaluateAllAsync<string[]>("elements => elements.slice(0, 4).map(element => element.getAttribute('aria-label') || '')");
+            return AccountLabel.Parse(labels);
+        }
+        catch (Exception ex) when (ex is TimeoutException or PlaywrightException)
+        {
+            return null;
+        }
     }
 
     private static async Task CloseWhenConnectedAsync(Task<IBrowser> connecting)

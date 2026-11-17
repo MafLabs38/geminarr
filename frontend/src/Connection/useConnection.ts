@@ -19,14 +19,19 @@ export interface Connection {
   pausedUntil: string | null;
   /** Where Geminarr relays the web desktop of the browser, where a person signs in by hand (ADR 0017), or null when no desktop is given. */
   browserPagePath: string | null;
+  /** Who the browser is signed in as (an address, and a name when the assistant's page gives one), or null when nobody is or when no check has found out yet. */
+  account: { name: string | null; email: string } | null;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
 
+/** The Connection page is looked at by a person who is waiting for it to change (they have just signed in): it asks again every few seconds. */
+export const CONNECTION_WAITING_REFRESH_MS = 3_000;
+
 const connectionPath = '/connection';
 
-export function useConnection() {
-  return useApiQuery<Connection>(connectionPath, { refetchInterval: CONNECTION_REFRESH_MS });
+export function useConnection(refreshMs: number = CONNECTION_REFRESH_MS) {
+  return useApiQuery<Connection>(connectionPath, { refetchInterval: refreshMs });
 }
 
 function useWrite<V, R>(send: (value: V) => Promise<R>) {

@@ -56,6 +56,18 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_say_who_the_browser_is_signed_in_as_to_the_operator_and_nobody_when_no_check_found_out()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().BeNull();
+
+        factory.Browser.Account = new Geminarr.Core.Browser.AccountIdentity("Jane Doe", "jane@example.org");
+
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().Be(new AccountResource("Jane Doe", "jane@example.org"));
+    }
+
+    [Fact]
     public async Task should_never_give_the_debugging_address_or_the_names_of_the_cookies()
     {
         using var factory = new BrowserFactory();

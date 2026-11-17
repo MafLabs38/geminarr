@@ -27,6 +27,9 @@ public sealed class ConnectionService
 
     public ConnectionRecord Current() => _tracker.Current();
 
+    /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged).</summary>
+    public AccountIdentity? Account => _browser.State().Account;
+
     /// <summary>Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. A browser that cannot be reached is said, and the connection is forgotten all the same.</summary>
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {

@@ -10,11 +10,19 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import PageHeading from 'Components/Page/PageHeading';
 import StatusLabel from 'Components/Status/StatusLabel';
 import { reasonKeyOf } from 'Overview/healthTexts';
+import { useRunNow, useRuns } from 'Runs/useRuns';
 import translate from 'Utilities/String/translate';
 
 import styles from './Connection.module.css';
 import { connectionStates } from './connectionStates';
-import { type Connection as ConnectionState, useConnection, useDisconnect, usePause, useResume } from './useConnection';
+import {
+  type Connection as ConnectionState,
+  CONNECTION_WAITING_REFRESH_MS,
+  useConnection,
+  useDisconnect,
+  usePause,
+  useResume,
+} from './useConnection';
 
 /** The hours of the quick pause. */
 export const PAUSE_HOURS = 6;
@@ -22,19 +30,53 @@ export const PAUSE_HOURS = 6;
 /** The states in which a person may have to sign in: a paused connection keeps what it was, and a connected one has nothing to ask. */
 const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConnected', 'NeedsLogin', 'Degraded']);
 
+/** Who the browser is signed in as, or that nobody is: the first thing the page says, in words and not only in a color. */
+function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
+  const { account } = connection;
+  const signedIn = account !== null || connection.state === 'Connected';
+  let headline = translate('NotSignedIn');
+  if (account) {
+    headline = translate('SignedInAs', { who: account.name ?? account.email });
+  } else if (signedIn) {
+    headline = translate('SignedInUnknownAccount');
+  } else if (connection.state === 'NeedsLogin') {
+    headline = translate('SessionEnded');
+  }
+
+  return (
+    <div className={styles.identity}>
+      <p className={styles.who}>{headline}</p>
+      {account?.name && <p className={styles.email}>{account.email}</p>}
+    </div>
+  );
+}
+
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
 function SignIn({ pagePath }: Readonly<{ pagePath: string | null }>) {
+  const runNow = useRunNow();
+  const runs = useRuns();
+
   return (
     <div className={styles.block}>
       <p>{translate('SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
       {pagePath ? (
-        <a className={styles.open} href={pagePath} rel="noopener noreferrer" target="_blank">
-          {translate('OpenTheBrowser')}
-        </a>
+        <div className={styles.actions}>
+          <a className={styles.open} href={pagePath} rel="noopener noreferrer" target="_blank">
+            {translate('OpenTheBrowser')}
+          </a>
+          <Button
+            disabled={runs.data?.running === true || runNow.isPending}
+            variant="quiet"
+            onClick={() => runNow.mutate()}
+          >
+            {translate('CheckAgain')}
+          </Button>
+        </div>
       ) : (
         <Alert>{translate('BrowserPageNotGiven')}</Alert>
       )}
+      {runNow.error && <Alert>{runNow.error.message}</Alert>}
     </div>
   );
 }
@@ -91,7 +133,7 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
 
 /** The session of the assistant: its state, where a person signs in (the browser container's desktop, relayed under /browser/), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
 export default function Connection() {
-  const { data, error, isPending } = useConnection();
+  const { data, error, isPending } = useConnection(CONNECTION_WAITING_REFRESH_MS);
   const reason = reasonKeyOf(data?.reason ?? null);
   const state = data ? connectionStates[data.state] : undefined;
 
@@ -105,6 +147,7 @@ export default function Connection() {
           {error && <Alert>{translate('ConnectionCouldNotRead', { message: error.message })}</Alert>}
           {data && state && !error && (
             <>
+              <Identity connection={data} />
               <DescriptionList
                 items={[
                   {

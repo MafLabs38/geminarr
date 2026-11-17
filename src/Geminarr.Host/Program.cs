@@ -25,6 +25,7 @@ builder.Services.AddGeminarrBrowserRelay();
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
+builder.Services.AddHostedService<SignInWatcher>();
 builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();

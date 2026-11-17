@@ -41,6 +41,7 @@ The connection and the health use the `StatusLabel` component (icon, text and co
 ### 2.3 Signing in to the browser container
 
 - The page *Connection* says in words what to do ("Sign in by hand, in the page of the browser container: Geminarr never types a credential") and which account to use ("Use the dedicated account, never your main one"), and gives **a link to `/browser/`, opened in a tab of its own** (`target="_blank"`, `rel="noopener noreferrer"`): the web desktop is Geminarr's relay of another program's page, behind the operator's session, not a frame of this one, and the person signs in to nothing else.
+- The page begins with **who is signed in** (the name, and the address under it) or with "Not signed in" / "The session has ended: sign in again", in words and not only in a color. It asks again every few seconds, because a person is waiting for it to change after signing in; a sign-in that ends makes Geminarr check at once. A "Check again" button asks for a pass without waiting.
 - The link is not shown when the session is good, and a missing desktop is said (`GEMINARR__BROWSER__DESKTOPURL`).
 - Nothing in the DOM holds a credential: Geminarr's page never sees what is typed in the browser's page.
 

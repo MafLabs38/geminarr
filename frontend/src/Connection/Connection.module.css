@@ -20,3 +20,20 @@
   margin-top: 4px;
   font-weight: 600;
 }
+
+.identity {
+  margin: 12px 0;
+}
+
+.who {
+  margin: 0;
+  font-family: var(--displayFontFamily);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.email {
+  margin: 2px 0 0;
+  color: var(--inkSoft);
+  font-family: var(--monoSpaceFontFamily);
+}
