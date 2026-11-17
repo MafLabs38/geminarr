@@ -20,7 +20,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private const string Unreachable = "The browser container could not be reached.";
     private const int ListTimeoutSeconds = 5;
     private const int AccountWaitMilliseconds = 8_000;
-    private readonly CdpTabsClient _tabs = new();
+    private readonly CdpTabsClient _tabs;
 
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
@@ -28,10 +28,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private volatile int _tabsAnswer = -1;
     private volatile AccountIdentity? _account;
 
-    public CdpBrowserHost(IOptions<BrowserOptions> options, ILogger<CdpBrowserHost> logger)
+    public CdpBrowserHost(IOptions<BrowserOptions> options, ILogger<CdpBrowserHost> logger, CdpTabsClient tabs)
     {
         _options = options;
         _logger = logger;
+        _tabs = tabs;
     }
 
     private BrowserOptions Options => _options.Value;
@@ -147,8 +148,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
+        // The semaphore is not disposed: a pass that is still waiting on it would throw at shutdown, and it holds no handle that needs releasing.
         _playwright?.Dispose();
-        _attached.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -278,7 +279,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         try
         {
             await page.WaitForSelectorAsync(selector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = AccountWaitMilliseconds });
-            var labels = await page.Locator(selector).EvaluateAllAsync<string[]>("elements => elements.slice(0, 4).map(element => (element.getAttribute('aria-label') || '').slice(0, 512))");
+            // One character more than Core accepts (512): the page cannot make the transfer long, and Core still sees that a label is too long and refuses it.
+            var labels = await page.Locator(selector).EvaluateAllAsync<string[]>("elements => elements.slice(0, 4).map(element => (element.getAttribute('aria-label') || '').slice(0, 513))");
             return AccountLabel.Parse(labels);
         }
         catch (Exception ex) when (ex is TimeoutException or PlaywrightException)

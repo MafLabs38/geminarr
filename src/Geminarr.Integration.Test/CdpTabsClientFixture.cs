@@ -145,4 +145,19 @@ public sealed class CdpTabsClientFixture
         result.Tabs.Should().BeNull();
         result.Failure.Should().Be("TooLarge", "a page can make its address as long as it likes: the list is read up to a limit and no more");
     }
+
+    [Fact]
+    public async Task should_read_a_list_of_tabs_that_weighs_exactly_the_limit()
+    {
+        const string head = "[{\"type\":\"page\",\"url\":\"https://example.org/";
+        const string tail = "\"}]";
+        var body = head + new string('a', CdpTabsClient.MaxListBytes - head.Length - tail.Length) + tail;
+        body.Length.Should().Be(CdpTabsClient.MaxListBytes);
+        var subject = new CdpTabsClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json(body)))));
+
+        var result = await subject.ListAsync(Cdp, 5, Token);
+
+        result.Failure.Should().BeNull("the limit is on what is more than a megabyte, not on a megabyte");
+        result.Tabs.Should().ContainSingle();
+    }
 }

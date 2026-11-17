@@ -11,7 +11,7 @@ public sealed record TabsResult(IReadOnlyList<BrowserTab>? Tabs, string? Failure
 /// The half of the browser's debugging address that is plain HTTP (ADR 0016): the list of the tabs, and a tab that a person will use to sign in. Nothing is attached, so the browser sees nothing of a driver. It is a class
 /// of its own so that it is tested without a browser; the half that drives Chromium is <see cref="CdpBrowserHost"/>. The debugging address is the loopback: no proxy of the environment is asked, and no redirect is followed.
 /// </summary>
-public sealed class CdpTabsClient
+public sealed class CdpTabsClient : IDisposable
 {
     /// <summary>The most that the list of the tabs may weigh: each tab's address is its page's, and a page can make it as long as it likes.</summary>
     public const int MaxListBytes = 1024 * 1024;
@@ -24,6 +24,8 @@ public sealed class CdpTabsClient
     }
 
     public CdpTabsClient(HttpClient http) => _http = http;
+
+    public void Dispose() => _http.Dispose();
 
     /// <summary>The tabs of the browser. A browser that does not answer, answers something else, or takes longer than <paramref name="timeoutSeconds"/> is a failure of a kind; the caller's own cancellation is not.</summary>
     public async Task<TabsResult> ListAsync(string cdpUrl, int timeoutSeconds, CancellationToken cancellationToken)
