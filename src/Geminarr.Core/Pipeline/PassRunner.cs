@@ -466,7 +466,7 @@ public sealed class PassRunner
 
         try
         {
-            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), _settings.Exposure.Check().IsExposed ? HeartbeatContent.ExposedError : HeartbeatContent.ErrorOf(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl), connection.State == ConnectionState.Paused), cancellationToken);
+            await _sink.HeartbeatAsync(new Heartbeat(BuildInfo.Version, _outbox.PendingLines(), ExposureErrorOrConnection(connection), HeartbeatContent.AttentionOf(connection, _settings.PublicUrl), connection.State == ConnectionState.Paused), cancellationToken);
         }
         catch (SinkException ex)
         {
@@ -484,4 +484,12 @@ public sealed class PassRunner
             _link.RecordTalk(state.Destination is { } failure ? HeartbeatContent.ProblemOf(failure) : null);
         }
     }
+
+    /// <summary>What the heartbeat says: the exposure of the browser first (the most serious state, and it needs the operator), by what is wrong, else what the connection says.</summary>
+    private string? ExposureErrorOrConnection(ConnectionRecord connection) => _settings.Exposure.Check() switch
+    {
+        { IsExposed: true } exposure when exposure.Reason == ConnectionReasons.EgressUnguarded => HeartbeatContent.UnguardedError,
+        { IsExposed: true } => HeartbeatContent.ExposedError,
+        _ => HeartbeatContent.ErrorOf(connection),
+    };
 }

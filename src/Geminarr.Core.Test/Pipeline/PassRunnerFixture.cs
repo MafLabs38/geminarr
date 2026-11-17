@@ -298,6 +298,23 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_skip_the_run_with_a_reason_of_its_own_and_say_so_to_mnemarr_when_the_egress_guard_is_missing()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.Sent.Clear();
+        _exposure = new ExposureReport([], Unreadable: false, Unguarded: true);
+        _reader.Say("c2", "T2", "b");
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.EgressUnguarded));
+        _sink.Sent.Should().BeEmpty("nothing is read while Geminarr's own egress is not limited");
+        _sink.Heartbeats.Last().Error.Should().Be(HeartbeatContent.UnguardedError);
+    }
+
+    [Fact]
     public async Task should_say_not_connected_when_the_reader_finds_no_browser()
     {
         _reader.Session = SessionCheck.NoBrowser;

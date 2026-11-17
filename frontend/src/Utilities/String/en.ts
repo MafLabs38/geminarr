@@ -123,6 +123,8 @@ const en = {
     'The browser container does not answer: check that it runs and that its debugging address is the one Geminarr is given.',
   ReasonBrowserExposed:
     'A port of the browser container listens off the loopback: its desktop is closed until it is fixed (see the runbook).',
+  ReasonEgressUnguarded:
+    "Geminarr's own egress is not limited (the egress guard is missing): its desktop is closed and nothing is read until it is back (see the runbook).",
   ReasonReaderBroken: "The assistant's page is no longer what the reader knows.",
   ReasonUnreachable: 'The assistant could not be reached: Geminarr tries again.',
   ReasonPaused: 'Reading is paused: nothing is read until the pause ends or you resume.',

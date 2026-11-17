@@ -449,7 +449,7 @@ Every limit and interval above comes from configuration with that default; none 
 |---|---|
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
-| `browser` | `browser-failed` (the browser container could not be reached), `browser-exposed` (a port of the shared namespace listens off the loopback: `/browser/` is closed, D-25), `not-connected` (the reader is `Web` and no `BROWSER__CDPURL`); `browser-exposed` applies whatever the reader |
+| `browser` | `browser-failed` (the browser container could not be reached), `browser-exposed` (a port of the shared namespace listens off the loopback: the desktop is closed, D-25), `egress-unguarded` (the egress guard is missing: a connection to an address on no list was not refused at once; the desktop and the reading are closed, D-28), `not-connected` (the reader is `Web` and no `BROWSER__CDPURL`); `browser-exposed` and `egress-unguarded` apply whatever the reader |
 | `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable`, `paused` |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |

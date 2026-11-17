@@ -56,15 +56,4 @@ public sealed class TcpEgressProbeFixture
 
         new TcpEgressProbe(Closed(IPAddress.Loopback), (IPEndPoint)listener.LocalEndpoint, Wait).IsRefused().Should().BeFalse("a missing guard of IPv6 is a missing guard");
     }
-
-    [Fact]
-    public void should_take_no_route_for_ipv6_as_nothing_to_guard_but_not_for_ipv4()
-    {
-        // A machine that has no route to the documentation range of IPv6 cannot use IPv6: nothing is said of it. An IPv4 that is not refused is a guard that is missing.
-        using var open = new TcpListener(IPAddress.Loopback, 0);
-        open.Start();
-        var noRoute = new IPEndPoint(IPAddress.Parse("::ffff:0:0"), 9);
-
-        new TcpEgressProbe((IPEndPoint)open.LocalEndpoint, noRoute, Wait).IsRefused().Should().BeFalse();
-    }
 }

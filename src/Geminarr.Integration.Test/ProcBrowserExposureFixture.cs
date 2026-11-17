@@ -39,8 +39,13 @@ public sealed class ProcBrowserExposureFixture : IDisposable
 
     private ProcBrowserExposure Subject(BrowserOptions? options = null, params string[] addresses) => Subject(options, refused: true, addresses);
 
-    private ProcBrowserExposure Subject(BrowserOptions? options, bool refused, params string[] addresses) =>
-        new(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(addresses), _clock, [V4, V6], new FixedProbe(refused));
+    private ProcBrowserExposure Subject(BrowserOptions? options, bool refused, params string[] addresses)
+    {
+        var subject = new ProcBrowserExposure(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(addresses), _clock, [V4, V6], new FixedProbe(refused));
+        // The guard is looked at by a timer of its own: the first look is made.
+        _clock.Advance(TimeSpan.FromMilliseconds(1));
+        return subject;
+    }
 
     private void Write(string file, params string[] sockets) => File.WriteAllLines(file, [Header, .. sockets]);
 
@@ -143,18 +148,37 @@ public sealed class ProcBrowserExposureFixture : IDisposable
     }
 
     [Fact]
-    public void should_ask_the_guard_once_in_the_time_that_the_answer_is_kept()
+    public void should_ask_the_guard_by_a_timer_of_its_own_and_never_when_a_request_checks()
     {
         Write(V4, On8282AllInterfaces);
         var probe = new CountingProbe();
         var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(["http://+:8282"]), _clock, [V4, V6], probe);
 
-        subject.Check();
-        subject.Check();
-        _clock.Advance(TimeSpan.FromSeconds(16));
-        subject.Check();
+        _clock.Advance(TimeSpan.FromMilliseconds(1));
+        var checks = Enumerable.Range(0, 5).Select(_ => subject.Check()).ToList();
+        probe.Asked.Should().Be(1, "a check asks nothing: it says what the timer found last");
+        _clock.Advance(TimeSpan.FromSeconds(10));
 
         probe.Asked.Should().Be(2);
+        checks.Should().OnlyContain(report => !report.Unguarded);
+    }
+
+    [Fact]
+    public void should_take_a_guard_that_has_not_been_looked_at_yet_for_a_guard_that_is_missing()
+    {
+        Write(V4, On8282AllInterfaces);
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
+        // A timer that has not fired: the provider is given a due time that has not come (a probe that is slow to start).
+        using var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(["http://+:8282"]), new NotYetTimeProvider(clock), [V4, V6], new FixedProbe(refused: true));
+
+        subject.Check().Unguarded.Should().BeTrue("nothing is known before the first look, and what is not known is not taken for good");
+    }
+
+    private sealed class NotYetTimeProvider(FakeTimeProvider inner) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) => inner.CreateTimer(callback, state, TimeSpan.FromHours(1), period);
     }
 
     private sealed class CountingProbe : IEgressProbe

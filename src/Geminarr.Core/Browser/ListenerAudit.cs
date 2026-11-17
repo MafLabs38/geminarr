@@ -23,10 +23,10 @@ public sealed record ExposureReport(IReadOnlyList<int> Ports, bool Unreadable, b
 
     public bool IsExposed => Unreadable || Ports.Count > 0 || Unguarded;
 
-    /// <summary>One sentence, with no path: what is wrong and what is done about it.</summary>
     /// <summary>The stable code of why the desktop is closed: a missing guard has a code of its own (the operator's fix is not the same as for a port that listens).</summary>
     public string Reason => Unguarded && !Unreadable && Ports.Count == 0 ? ConnectionReasons.EgressUnguarded : ConnectionReasons.BrowserExposed;
 
+    /// <summary>The sentences, with no path: what is wrong and what is done about it.</summary>
     public string Describe()
     {
         var sentences = new List<string>();

@@ -11,7 +11,7 @@ namespace Geminarr.Host.Http;
 /// so any socket that listens off the loopback, other than Geminarr's own port, is a way to the browser that bypasses Geminarr. The answer is kept for a few seconds. A host without those files (not Linux)
 /// has nothing to say, and nothing is checked when no browser is configured.
 /// </summary>
-public sealed partial class ProcBrowserExposure : IBrowserExposure
+public sealed partial class ProcBrowserExposure : IBrowserExposure, IDisposable
 {
     private static readonly TimeSpan KeepFor = TimeSpan.FromSeconds(15);
     private static readonly string[] ProcFiles = ["/proc/net/tcp", "/proc/net/tcp6"];
@@ -24,7 +24,12 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
     private readonly Lock _gate = new();
     private DateTimeOffset _readAt = DateTimeOffset.MinValue;
     private ExposureReport _report = ExposureReport.None;
-    private bool _refreshing;
+    private readonly ITimer? _probeTimer;
+    private int _guard = Unknown;
+    private const int Unknown = -1;
+    private const int NotGuarded = 0;
+    private const int Guarded = 1;
+    private static readonly TimeSpan ProbeEvery = TimeSpan.FromSeconds(10);
 
     public ProcBrowserExposure(IOptions<BrowserOptions> options, IServer server, TimeProvider clock, IEgressProbe egress)
         : this(options, server, clock, ProcFiles, egress)
@@ -39,6 +44,10 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
         _options = options;
         _server = server;
         _clock = clock;
+        if (options.Value.RequireEgressGuard && (!string.IsNullOrWhiteSpace(options.Value.CdpUrl) || !string.IsNullOrWhiteSpace(options.Value.DesktopUrl)))
+        {
+            _probeTimer = clock.CreateTimer(_ => Probe(), null, TimeSpan.Zero, ProbeEvery);
+        }
     }
 
     public ExposureReport Check()
@@ -49,61 +58,52 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure
             return ExposureReport.None;
         }
 
-        bool refresh;
-        ExposureReport current;
         lock (_gate)
         {
-            // The answer is kept for a few seconds. One caller reads it again (the probe of the guard may wait up to a second when the guard is missing) and the others keep the last answer meanwhile, so that
-            // no request waits for a refresh that another one is making.
             var now = _clock.GetUtcNow();
-            // The very first answer is made by everybody who asks: nothing is known before it, and what is not known is not taken for good.
-            refresh = now - _readAt >= KeepFor && (!_refreshing || _readAt == DateTimeOffset.MinValue);
-            _refreshing |= refresh;
-            current = _report;
-        }
+            if (now - _readAt >= KeepFor)
+            {
+                _report = Read(browser);
+                _readAt = now;
+            }
 
-        if (!refresh)
-        {
-            return current;
+            // The guard is looked at by a timer of its own, never on the path of a request (a connection that is not refused waits): what it says last is what is said here, and what is not known yet is not taken for
+            // good (closed until the first answer, a fraction of a second after the start).
+            return !browser.RequireEgressGuard || Volatile.Read(ref _guard) == Guarded ? _report : _report with { Unguarded = true };
         }
+    }
 
-        ExposureReport report;
+    public void Dispose() => _probeTimer?.Dispose();
+
+    private void Probe()
+    {
+        bool refused;
         try
         {
-            report = Read(browser);
+            refused = _egress.IsRefused();
         }
-        finally
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            lock (_gate)
-            {
-                _refreshing = false;
-            }
+            // A probe that cannot say is not a guard that is there.
+            refused = false;
         }
 
-        lock (_gate)
-        {
-            _report = report;
-            _readAt = _clock.GetUtcNow();
-        }
-
-        return report;
+        Volatile.Write(ref _guard, refused ? Guarded : NotGuarded);
     }
 
     private ExposureReport Read(BrowserOptions browser)
     {
         var allowed = new HashSet<int>(OwnPorts());
         allowed.UnionWith(OriginPolicy.Entries(browser.AllowedOpenPorts).Select(port => int.Parse(port, System.Globalization.CultureInfo.InvariantCulture)));
-        // Geminarr's own egress is the guard's (ADR 0020): a guard that is not there is said, and the desktop and the reading are closed like for a port that listens.
-        var unguarded = browser.RequireEgressGuard && !_egress.IsRefused();
         // The listing of IPv4 sockets always exists on Linux; the one of IPv6 only where IPv6 does. What cannot be read is not taken for isolated.
         if (ReadLines(_files[0]) is not { } v4)
         {
-            return new ExposureReport([], Unreadable: true, unguarded);
+            return new ExposureReport([], Unreadable: true);
         }
 
         var v6Exists = File.Exists(_files[1]);
         var v6 = v6Exists ? ReadLines(_files[1]) : [];
-        return new ExposureReport([.. ListenerAudit.OffTheLoopback(v4.Concat(v6 ?? []), allowed)], Unreadable: v6Exists && v6 is null, unguarded);
+        return new ExposureReport([.. ListenerAudit.OffTheLoopback(v4.Concat(v6 ?? []), allowed)], Unreadable: v6Exists && v6 is null);
     }
 
     /// <summary>The ports that Geminarr itself listens on (<c>http://+:8282</c>, <c>http://0.0.0.0:8282</c>…): the one place that something may listen off the loopback.</summary>
