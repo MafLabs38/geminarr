@@ -89,9 +89,6 @@ function SignIn({
           <Button disabled={signIn.isPending} onClick={() => start(pagePath)}>
             {translate('SignInToAssistant')}
           </Button>
-          <a className={styles.open} href={pagePath} rel="noopener noreferrer" target="_blank">
-            {translate('OpenTheBrowser')}
-          </a>
           <Button
             disabled={runs.data?.running === true || runNow.isPending}
             variant="quiet"

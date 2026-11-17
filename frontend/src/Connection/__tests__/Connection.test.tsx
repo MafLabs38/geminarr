@@ -48,18 +48,18 @@ describe('Connection', () => {
     renderAt(<Connection />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No browser reads this Geminarr');
-    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
   });
 
-  it('sends the person to the page of the browser, in a tab of its own, to sign in by hand', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+  it('offers one way in to sign in by hand, the Sign in button, and no other link to the browser', async () => {
+    serveApi({
+      'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }),
+      'GET /runs': () => ({ runs: [], running: false }),
+    });
     renderAt(<Connection />);
 
-    const link = await screen.findByRole('link', { name: 'Open the browser' });
-
-    expect(link).toHaveAttribute('href', '/browser/');
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    expect(await screen.findByRole('button', { name: 'Sign in to the assistant' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /browser/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe('Connection', () => {
     renderAt(<Connection />);
 
     await screen.findByText('Connected', { selector: 'span' });
-    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
   });
 
   it('shows the pause and the way to resume while the passes are paused', async () => {
@@ -244,7 +244,7 @@ describe('Connection', () => {
     renderAt(<Connection />);
 
     await screen.findByRole('button', { name: 'Resume' });
-    expect(screen.queryByRole('link', { name: 'Open the browser' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in to the assistant' })).not.toBeInTheDocument();
   });
 
   it('asks twice before it disconnects, and can be backed out of', async () => {

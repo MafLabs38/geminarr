@@ -257,12 +257,10 @@ test.describe('smoke @smoke', () => {
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 
-    // Nobody has signed in to the browser yet: the page says so and sends the person to the browser, in a tab of its own, through Geminarr and its own sign-in (no second login).
-    const open = page.getByRole('link', { name: 'Open the browser' });
-    await expect(open).toBeVisible({ timeout: 90_000 });
-    await expect(open).toHaveAttribute('href', '/browser/');
-    await expect(open).toHaveAttribute('target', '_blank');
-    const [desktop] = await Promise.all([page.context().waitForEvent('page'), open.click()]);
+    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, through Geminarr and its own sign-in (no second login).
+    const signInButton = page.getByRole('button', { name: 'Sign in to the assistant' });
+    await expect(signInButton).toBeVisible({ timeout: 90_000 });
+    const [desktop] = await Promise.all([page.context().waitForEvent('page'), signInButton.click()]);
     await expect(desktop).toHaveURL(/\/browser\/$/);
     await expect(desktop).toHaveTitle(/Chromium|Selkies/, { timeout: 60_000 });
     await desktop.close();
@@ -276,6 +274,10 @@ test.describe('smoke @smoke', () => {
         const context = browser.contexts()[0];
         if (!context) {
           throw new Error('The browser container has no context.');
+        }
+        // The Sign in button opened the sign-in page in a tab (a person would use it): the script plays that person, so the tab is closed first (a pass steps aside while one is open).
+        for (const open of context.pages().filter((candidate) => candidate.url().startsWith('http://signin:'))) {
+          await open.close();
         }
         const tab = await context.newPage();
         await tab.goto(`http://assistant:8081/auth?t=${token}`);

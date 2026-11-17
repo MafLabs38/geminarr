@@ -48,7 +48,6 @@ const en = {
   SigningInHint:
     'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',
   SignInDedicated: 'Use the dedicated account, never your main one.',
-  OpenTheBrowser: 'Open the browser',
   BrowserPageNotGiven: 'No browser desktop is given to relay (GEMINARR__BROWSER__DESKTOPURL).',
   ConnectionConnected: 'Connected',
   DemoReaderNotice:
