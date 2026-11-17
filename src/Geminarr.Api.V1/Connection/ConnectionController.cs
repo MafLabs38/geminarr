@@ -142,8 +142,8 @@ public sealed class ConnectionController : ControllerBase
         }
         catch (ReaderException)
         {
-            // The connection is forgotten, but the browser could not be reached: the session stays in it until it is cleared (the sentence is ours, never an address).
-            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The browser container could not be reached: the connection is forgotten here, but the session stays in the browser until it is signed out there.");
+            // Nothing changed: the session is still in the browser (the sentence is ours, never an address).
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The browser container could not be reached: nothing was disconnected. Try again when it is back.");
         }
 
         return Get();

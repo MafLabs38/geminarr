@@ -1,6 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
@@ -23,8 +20,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private const string Unreachable = "The browser container could not be reached.";
     private const int ListTimeoutSeconds = 5;
     private const int AccountWaitMilliseconds = 8_000;
-    // The debugging address is the loopback: no proxy of the environment is asked, and no redirect is followed.
-    private static readonly HttpClient Tabs = new(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan };
+    private readonly CdpTabsClient _tabs = new();
 
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
@@ -111,22 +107,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             return;
         }
 
-        string failure;
-        try
+        var failure = await _tabs.OpenAsync(Options.CdpUrl!, Options.SignInUrl, ListTimeoutSeconds, cancellationToken);
+        if (failure is null)
         {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
-            // The value is deliberately not escaped: the browser takes the whole query as the address to open, and the settings validator has checked it (an https address on a sign-in host).
-            // The browser's own way to open a tab, over its plain HTTP address: nothing is attached, so the page of the account provider is a page that a person opened, with nothing of a driver in it.
-            using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(new Uri(Options.CdpUrl!), "/json/new?" + Options.SignInUrl));
-            using var response = await Tabs.SendAsync(request, timeout.Token);
-            response.EnsureSuccessStatusCode();
             _reachable = 1;
             return;
-        }
-        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
-        {
-            failure = ex.GetType().Name;
         }
 
         _reachable = 0;
@@ -151,11 +136,11 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
                 await browser.Context.ClearCookiesAsync();
                 return true;
             });
+            // The cookies are gone: nobody is signed in. A browser that could not be reached threw before this line, and the session (and its account) is still there.
+            _account = null;
         }
         finally
         {
-            // Whatever happened, the connection is forgotten: nobody is shown as signed in.
-            _account = null;
             _attached.Release();
         }
     }
@@ -173,20 +158,14 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     /// </summary>
     private async Task<bool> ATabIsOnASignInPageAsync(CancellationToken cancellationToken, bool quiet = false)
     {
-        string failure;
-        try
+        var listed = await _tabs.ListAsync(Options.CdpUrl!, ListTimeoutSeconds, cancellationToken);
+        if (listed.Tabs is { } tabs)
         {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
-            var tabs = await Tabs.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(Options.CdpUrl!), "/json/list"), timeout.Token);
             _tabsAnswer = 1;
-            return SessionVerdict.APersonIsSigningIn((tabs ?? []).Select(tab => new BrowserTab(tab.Type, tab.Url)), Options);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
-        {
-            failure = ex.GetType().Name;
+            return SessionVerdict.APersonIsSigningIn(tabs, Options);
         }
 
+        var failure = listed.Failure;
         // A browser that cannot even list its tabs cannot be attached to either, and a guard that failed open would attach in the middle of a sign-in: the pass says the browser failed.
         _tabsAnswer = 0;
         if (!quiet)
@@ -198,8 +177,6 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
         throw new ReaderException(ConnectionReasons.BrowserFailed, Unreachable);
     }
-
-    private sealed record TabInfo([property: JsonPropertyName("type")] string? Type, [property: JsonPropertyName("url")] string? Url);
 
     private async Task<Attachment> AttachAsync(CancellationToken cancellationToken)
     {

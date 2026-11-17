@@ -73,7 +73,7 @@ public sealed class ConnectionServiceFixture : IDisposable
 
         _tracker.Disconnected();
 
-        subject.Account.Should().BeNull("a disconnect that did not reach the browser leaves the account in it, and the page must not say signed in beside not connected");
+        subject.Account.Should().BeNull("the page must not say signed in beside not connected");
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_forget_the_connection_all_the_same_when_the_browser_cannot_be_reached_and_say_so()
+    public async Task should_change_nothing_when_the_browser_cannot_be_reached_and_say_so()
     {
         var subject = Subject();
         _tracker.Connected();
@@ -199,7 +199,7 @@ public sealed class ConnectionServiceFixture : IDisposable
         var disconnect = () => subject.DisconnectAsync(TestContext.Current.CancellationToken);
 
         await disconnect.Should().ThrowAsync<ReaderException>();
-        subject.Current().State.Should().Be(ConnectionState.NotConnected);
+        subject.Current().State.Should().Be(ConnectionState.Connected, "the session is still in the browser: saying that it is gone would be false");
     }
 
     [Fact]

@@ -48,17 +48,14 @@ public sealed class ConnectionService
     /// <summary>The same, for a record that the caller has read.</summary>
     public AccountIdentity? AccountAt(ConnectionRecord record) => record.State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _browser.State().Account;
 
-    /// <summary>Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. A browser that cannot be reached is said, and the connection is forgotten all the same.</summary>
+    /// <summary>
+    /// Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. It is all or nothing: a browser that cannot be reached is said, and nothing changes
+    /// (the session is still in it, so the connection and the account are still what they were, and the operator tries again when it is back).
+    /// </summary>
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            await _browser.DisconnectAsync(cancellationToken);
-        }
-        finally
-        {
-            _tracker.Disconnected();
-        }
+        await _browser.DisconnectAsync(cancellationToken);
+        _tracker.Disconnected();
     }
 
     /// <summary>Quiet until a moment, or until the operator resumes.</summary>
