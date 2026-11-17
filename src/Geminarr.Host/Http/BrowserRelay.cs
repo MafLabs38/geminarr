@@ -164,7 +164,7 @@ public static partial class BrowserRelay
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Strict,
-            Secure = auth.CookieSecurity == CookieSecurityMode.Always || context.Request.IsHttps,
+            Secure = auth.CookieSecurity == CookieSecurityMode.Always || context.Request.IsHttps, // NOSONAR S2092: the operator's own rule (always, or when the request was)
             Path = "/",
             IsEssential = true,
         });

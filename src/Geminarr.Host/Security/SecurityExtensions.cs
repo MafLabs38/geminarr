@@ -34,7 +34,7 @@ public static class SecurityExtensions
         cookie.Cookie.Name = always ? "__Host-geminarr.session" : "geminarr.session";
         cookie.Cookie.HttpOnly = true;
         cookie.Cookie.SameSite = SameSiteMode.Strict;
-        cookie.Cookie.SecurePolicy = always ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+        cookie.Cookie.SecurePolicy = always ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest; // NOSONAR S2092: SameAsRequest is the explicit sandbox setting (ADR 0018), Always by default
         cookie.ExpireTimeSpan = TimeSpan.FromHours(auth.SessionHours);
         cookie.SlidingExpiration = false;
         cookie.Events.OnValidatePrincipal = ValidateSession;
