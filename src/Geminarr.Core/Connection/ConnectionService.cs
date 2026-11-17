@@ -13,19 +13,28 @@ public sealed class ConnectionService
     private readonly IBrowserHost _browser;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly TimeProvider _clock;
+    private readonly SignInObserver _signIn;
 
-    public ConnectionService(ConnectionTracker tracker, IBrowserHost browser, IOptions<ReaderOptions> reader, TimeProvider clock)
+    public ConnectionService(ConnectionTracker tracker, IBrowserHost browser, IOptions<ReaderOptions> reader, TimeProvider clock, SignInObserver signIn)
     {
         _tracker = tracker;
         _browser = browser;
         _reader = reader;
         _clock = clock;
+        _signIn = signIn;
     }
 
     /// <summary>Whether a browser reads this Geminarr: without it there is nothing to pause or to disconnect.</summary>
     public bool HasBrowser => _reader.Value.Kind == ReaderKind.Web;
 
     public ConnectionRecord Current() => _tracker.Current();
+
+    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page).</summary>
+    public bool SigningIn => _signIn.SigningIn;
+
+    /// <summary>Opens the sign-in page of the account provider in the browser, where the person signs in by hand. Nothing here types a credential.</summary>
+    public Task OpenSignInAsync(CancellationToken cancellationToken) =>
+        HasBrowser ? _browser.OpenSignInPageAsync(cancellationToken) : throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to sign in to.");
 
     /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged).</summary>
     public AccountIdentity? Account => _browser.State().Account;

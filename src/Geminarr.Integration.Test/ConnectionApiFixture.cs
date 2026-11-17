@@ -68,6 +68,31 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_open_the_sign_in_page_of_the_browser_when_asked_and_say_so_when_the_browser_is_gone()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        (await client.PostAsync("/api/v1/connection/sign-in", content: null, Token)).EnsureSuccessStatusCode();
+        factory.Browser.SignInPagesOpened.Should().Be(1);
+
+        factory.Browser.Unreachable = true;
+        var gone = await client.PostAsync("/api/v1/connection/sign-in", content: null, Token);
+
+        gone.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await gone.Content.ReadAsStringAsync(Token)).Should().NotContain("127.0.0.1").And.NotContain("9222");
+    }
+
+    [Fact]
+    public async Task should_refuse_to_open_a_sign_in_page_when_no_browser_reads()
+    {
+        using var factory = new GeminarrFactory();
+        using var client = await factory.SignedInClientAsync();
+
+        (await client.PostAsync("/api/v1/connection/sign-in", content: null, Token)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task should_never_give_the_debugging_address_or_the_names_of_the_cookies()
     {
         using var factory = new BrowserFactory();

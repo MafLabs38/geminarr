@@ -15,6 +15,7 @@ const base: ConnectionResource = {
   pausedUntil: null,
   browserPagePath: '/browser/',
   account: null,
+  signingIn: false,
 };
 
 describe('Connection', () => {
@@ -114,6 +115,55 @@ describe('Connection', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Check again' }));
 
     await waitFor(() => expect(asked).toBe(1));
+  });
+
+  it('opens the browser and its sign-in page when the person presses Sign in, and closes that window when the sign-in is done', async () => {
+    let signedIn = false;
+    let posted = 0;
+    const close = vi.fn();
+    const opened = { closed: false, close } as unknown as Window;
+    const open = vi.spyOn(globalThis, 'open').mockReturnValue(opened);
+    serveApi({
+      'GET /connection': () =>
+        signedIn
+          ? { ...base, state: 'Connected', account: { name: 'Jane Doe', email: 'jane@example.org' } }
+          : { ...base, signingIn: posted > 0 },
+      'GET /runs': () => ({ runs: [], running: false }),
+      'POST /connection/sign-in': () => {
+        posted += 1;
+        return { ...base, signingIn: true };
+      },
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
+
+    expect(open).toHaveBeenCalledWith('/browser/', 'geminarr-browser');
+    expect(await screen.findByText('Signing in…')).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+
+    signedIn = true;
+    await userEvent.click(await screen.findByRole('button', { name: 'Check again' }));
+
+    expect(await screen.findByText('Signed in as Jane Doe', {}, { timeout: 5000 })).toBeInTheDocument();
+    await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
+    open.mockRestore();
+  });
+
+  it('says why the sign-in page could not be opened', async () => {
+    const open = vi.spyOn(globalThis, 'open').mockReturnValue(null);
+    serveApi({
+      'GET /connection': () => base,
+      'GET /runs': () => ({ runs: [], running: false }),
+      'POST /connection/sign-in': () =>
+        Response.json({ title: 'The browser container could not be reached.' }, { status: 502 }),
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not be reached');
+    open.mockRestore();
   });
 
   it('says when no desktop is given to relay', async () => {

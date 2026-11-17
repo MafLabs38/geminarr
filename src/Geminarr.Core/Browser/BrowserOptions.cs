@@ -38,6 +38,12 @@ public sealed class BrowserOptions
     public string SignInHosts { get; set; } = "accounts.google.com";
 
     /// <summary>
+    /// The page of the account provider that the "Sign in" button of the Connection page opens in the browser, in a tab of its own (a person types their credentials there, by hand; Geminarr never does). Its host is one of
+    /// <see cref="SignInHosts"/> and it brings the person back to the assistant's page.
+    /// </summary>
+    public string SignInUrl { get; set; } = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fgemini.google.com%2Fapp";
+
+    /// <summary>
     /// The names (never the values) of the cookies that say that the account is signed in, separated by <c>;</c>: one of them must be in the browser. The assistant's page is shown to a visitor who is not
     /// signed in (a guest mode), so the page alone does not say it. Empty: the page alone decides.
     /// </summary>
@@ -73,6 +79,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             ?? Address("DesktopUrl", options.DesktopUrl)
             ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? Hosts("SignInHosts", options.SignInHosts)
+            ?? SignInUrl(options)
             ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
             ?? OpenPorts(options)
             ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
@@ -80,6 +87,11 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
     }
 
     /// <summary>A wildcard covers the names under a domain of its own (<c>*.example.org</c>): never a whole public suffix (<c>*.org</c>), and a list is not empty.</summary>
+    private static string? SignInUrl(BrowserOptions options) =>
+        OriginPolicy.Classify(options.SignInUrl, options) == PageKind.SignIn && (options.SignInUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || options.AllowInsecureAssistant)
+            ? null
+            : "Browser:SignInUrl (GEMINARR__BROWSER__SIGNINURL) must be an https address on one of the SignInHosts (http only when the sandbox switch allows it).";
+
     private static string? Hosts(string setting, string list)
     {
         var entries = OriginPolicy.Entries(list);

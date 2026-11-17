@@ -15,6 +15,23 @@ public sealed class BrowserOptionsValidatorFixture
     }
 
     [Theory]
+    [InlineData("https://accounts.google.com/ServiceLogin?continue=x", true)]
+    [InlineData("http://accounts.google.com/ServiceLogin", false)]
+    [InlineData("https://elsewhere.example/signin", false)]
+    [InlineData("not an address", false)]
+    [InlineData("", false)]
+    public void should_accept_a_sign_in_page_only_on_a_sign_in_host_and_over_https(string address, bool valid)
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { SignInUrl = address }).Failed.Should().Be(!valid);
+    }
+
+    [Fact]
+    public void should_accept_plain_http_for_the_sign_in_page_when_the_sandbox_switch_allows_it()
+    {
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { SignInUrl = "http://accounts.google.com/x", AllowInsecureAssistant = true }).Failed.Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("http://127.0.0.1:9222", true)]
     [InlineData("http://localhost:9222", true)]
     [InlineData("http://[::1]:9222", true)]

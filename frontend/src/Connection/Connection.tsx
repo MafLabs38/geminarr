@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type MutableRefObject, useEffect, useRef, useState } from 'react';
 
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
@@ -20,6 +20,7 @@ import {
   CONNECTION_WAITING_REFRESH_MS,
   useConnection,
   useDisconnect,
+  useOpenSignIn,
   usePause,
   useResume,
 } from './useConnection';
@@ -39,6 +40,8 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
     headline = translate('SignedInAs', { who: account.name ?? account.email });
   } else if (signedIn) {
     headline = translate('SignedInUnknownAccount');
+  } else if (connection.signingIn) {
+    headline = translate('SigningInNow');
   } else if (connection.state === 'NeedsLogin') {
     headline = translate('SessionEnded');
   }
@@ -52,16 +55,30 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
 }
 
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
-function SignIn({ pagePath }: Readonly<{ pagePath: string | null }>) {
+function SignIn({
+  pagePath,
+  signingIn,
+  windowRef,
+}: Readonly<{ pagePath: string | null; signingIn: boolean; windowRef: MutableRefObject<Window | null> }>) {
   const runNow = useRunNow();
   const runs = useRuns();
+  const signIn = useOpenSignIn();
+
+  // The window is opened by the click itself (a browser lets a window open only then), and the server opens the sign-in page in the browser it shows. It is the same origin as this page, which closes it when the sign-in is done.
+  const start = (path: string) => {
+    windowRef.current = window.open(path, 'geminarr-browser');
+    signIn.mutate();
+  };
 
   return (
     <div className={styles.block}>
-      <p>{translate('SignInInTheBrowser')}</p>
+      <p>{translate(signingIn ? 'SigningInHint' : 'SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
       {pagePath ? (
         <div className={styles.actions}>
+          <Button disabled={signIn.isPending} onClick={() => start(pagePath)}>
+            {translate('SignInToAssistant')}
+          </Button>
           <a className={styles.open} href={pagePath} rel="noopener noreferrer" target="_blank">
             {translate('OpenTheBrowser')}
           </a>
@@ -76,7 +93,7 @@ function SignIn({ pagePath }: Readonly<{ pagePath: string | null }>) {
       ) : (
         <Alert>{translate('BrowserPageNotGiven')}</Alert>
       )}
-      {runNow.error && <Alert>{runNow.error.message}</Alert>}
+      {(signIn.error ?? runNow.error) && <Alert>{(signIn.error ?? runNow.error)?.message}</Alert>}
     </div>
   );
 }
@@ -135,6 +152,18 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
 export default function Connection() {
   const { data, error, isPending } = useConnection(CONNECTION_WAITING_REFRESH_MS);
   const reason = reasonKeyOf(data?.reason ?? null);
+  // The window of the browser that this page opened to sign in: closed by this page once the connection says that it is done.
+  const browserWindow = useRef<Window | null>(null);
+  const connected = data?.state === 'Connected';
+  useEffect(() => {
+    if (connected && browserWindow.current) {
+      if (!browserWindow.current.closed) {
+        browserWindow.current.close();
+      }
+      browserWindow.current = null;
+      window.focus();
+    }
+  }, [connected]);
   const state = data ? connectionStates[data.state] : undefined;
 
   return (
@@ -179,7 +208,9 @@ export default function Connection() {
                 <p className={styles.reason}>{translate(reason)}</p>
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
-              {data.hasBrowser && SIGN_IN_STATES.has(data.state) && <SignIn pagePath={data.browserPagePath} />}
+              {data.hasBrowser && SIGN_IN_STATES.has(data.state) && (
+                <SignIn pagePath={data.browserPagePath} signingIn={data.signingIn} windowRef={browserWindow} />
+              )}
               {data.hasBrowser && <Actions connection={data} />}
             </>
           )}

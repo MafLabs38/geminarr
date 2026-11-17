@@ -20,6 +20,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly IOptions<BrowserOptions> _options;
     private readonly ILogger<CdpBrowserHost> _logger;
     private readonly SemaphoreSlim _attached = new(1, 1);
+    private const string Unreachable = "The browser container could not be reached.";
     private const int ListTimeoutSeconds = 5;
     private const int AccountWaitMilliseconds = 8_000;
     private static readonly HttpClient Tabs = new() { Timeout = Timeout.InfiniteTimeSpan };
@@ -93,6 +94,41 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         }
     }
 
+    public async Task OpenSignInPageAsync(CancellationToken cancellationToken)
+    {
+        if (!State().Configured)
+        {
+            return;
+        }
+
+        // A sign-in that is under way is not opened a second time (a second click, a second person's tab).
+        if (await ATabIsOnASignInPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        string failure;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
+            // The browser's own way to open a tab, over its plain HTTP address: nothing is attached, so the page of the account provider is a page that a person opened, with nothing of a driver in it.
+            using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(new Uri(Options.CdpUrl!), "/json/new?" + Options.SignInUrl));
+            using var response = await Tabs.SendAsync(request, timeout.Token);
+            response.EnsureSuccessStatusCode();
+            _reachable = 1;
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            failure = ex.GetType().Name;
+        }
+
+        _reachable = 0;
+        _logger.LogWarning("The sign-in page could not be opened in the browser ({Failure}).", failure);
+        throw new ReaderException(ConnectionReasons.BrowserFailed, Unreachable);
+    }
+
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
         if (!State().Configured)
@@ -137,6 +173,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
             var tabs = await Tabs.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(Options.CdpUrl!), "/json/list"), timeout.Token);
+            _reachable = 1;
             return SessionVerdict.APersonIsSigningIn((tabs ?? []).Select(tab => new BrowserTab(tab.Type, tab.Url)), Options);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
@@ -151,7 +188,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             _logger.LogWarning("The list of the tabs of the browser could not be read ({Failure}).", failure);
         }
 
-        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
+        throw new ReaderException(ConnectionReasons.BrowserFailed, Unreachable);
     }
 
     private sealed record TabInfo([property: JsonPropertyName("type")] string? Type, [property: JsonPropertyName("url")] string? Url);
@@ -192,7 +229,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         _reachable = 0;
         // The kind of failure only: the message of a browser's error holds its address and what it was doing.
         _logger.LogWarning("The browser container could not be reached ({Failure}).", failure);
-        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
+        throw new ReaderException(ConnectionReasons.BrowserFailed, Unreachable);
     }
 
     /// <summary>What a browser that drops after the attachment throws is a browser that cannot be reached, said as such and never as an unforeseen error.</summary>
@@ -210,7 +247,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
         _reachable = 0;
         _logger.LogWarning("The browser container dropped while it was used ({Failure}).", failure);
-        throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
+        throw new ReaderException(ConnectionReasons.BrowserFailed, Unreachable);
     }
 
     private async Task<SessionCheck> LoadAsync(IPage page, IBrowserContext context, CancellationToken cancellationToken)

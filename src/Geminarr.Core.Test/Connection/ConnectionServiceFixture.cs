@@ -20,7 +20,17 @@ public sealed class ConnectionServiceFixture : IDisposable
 
     public void Dispose() => _workspace.Dispose();
 
-    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _browser, Options.Of(new ReaderOptions { Kind = kind }), _clock);
+    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _browser, Options.Of(new ReaderOptions { Kind = kind }), _clock, new SignInObserver());
+
+    [Fact]
+    public async Task should_open_the_sign_in_page_of_the_browser_and_refuse_when_no_browser_reads()
+    {
+        await Subject().OpenSignInAsync(TestContext.Current.CancellationToken);
+
+        _browser.SignInPagesOpened.Should().Be(1);
+        var act = () => Subject(ReaderKind.Demo).OpenSignInAsync(TestContext.Current.CancellationToken);
+        await act.Should().ThrowAsync<ConnectionRefusedException>();
+    }
 
     [Theory]
     [InlineData(ReaderKind.None)]

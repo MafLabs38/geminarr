@@ -81,6 +81,7 @@ services:
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
       GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
       GEMINARR__BROWSER__SIGNINHOSTS: signin
+      GEMINARR__BROWSER__SIGNINURL: http://signin:8081/signin?next=/app
       # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
       GEMINARR__BROWSER__SESSIONCOOKIES: assistant
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'

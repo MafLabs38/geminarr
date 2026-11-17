@@ -21,12 +21,14 @@ export interface Connection {
   browserPagePath: string | null;
   /** Who the browser is signed in as (an address, and a name when the assistant's page gives one), or null when nobody is or when no check has found out yet. */
   account: { name: string | null; email: string } | null;
+  /** A person is signing in right now: a tab of the browser is on the sign-in page of the account provider. */
+  signingIn: boolean;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
 
 /** The Connection page is looked at by a person who is waiting for it to change (they have just signed in): it asks again every few seconds. */
-export const CONNECTION_WAITING_REFRESH_MS = 3_000;
+export const CONNECTION_WAITING_REFRESH_MS = 2_000;
 
 const connectionPath = '/connection';
 
@@ -49,6 +51,11 @@ export function usePause() {
 
 export function useResume() {
   return useWrite(() => apiSend<Connection>('POST', `${connectionPath}/resume`));
+}
+
+/** Opens the sign-in page of the account provider in the browser container; the person signs in there by hand. */
+export function useOpenSignIn() {
+  return useWrite(() => apiSend<Connection>('POST', `${connectionPath}/sign-in`));
 }
 
 export function useDisconnect() {

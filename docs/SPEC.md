@@ -346,7 +346,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-LNK-04 | Show the destination, its state and its last error; unlink | S | 2 ✅ |
 | **F-CON** | **The connection to the assistant** | | |
 | F-CON-01 | The connection state machine (§7.2) and its page | M | 3 ✅ |
-| F-CON-02 | Sign in by hand in the browser container's page (§7.3); disconnect clears its session | M | 3 built; awaiting the real target (spike S1) |
+| F-CON-02 | Sign in by hand in the browser container's page (§7.3): the **Sign in** button opens that page in a window and, in the browser, the account provider's sign-in page (`SIGNINURL`, opened over the debugging port's plain HTTP, nothing attached); the page shows "Signing in…" while that tab is open, and closes the window when the connection says it is done; disconnect clears its session | M | 3 built; awaiting the real target (spike S1) |
 | F-CON-03 | Pause and resume | S | 3 ✅ |
 | F-CON-04 | Detect an expired session and ask to sign in again (`needs-login`, `attention`) | M | 3 built; awaiting the real target; for an assistant that sends a signed-out visitor to a sign-in page; for Gemini's guest mode a signed-in account is told by the names of its cookies (ADR 0016), measured on the real target in spike S1 |
 | F-CON-05 | The Connection page says **who** the browser is signed in as (the address, and the name when the assistant's page gives one) and notices by itself that a sign-in is finished (the list of tabs, plain HTTP, no attachment: a sign-in page that was open is gone, so a pass is asked for). The account is read from the label of the assistant's own account button, kept in memory, shown to the operator only: **never logged, never in the heartbeat, never sent to Mnemarr, never in a fixture or a screenshot kept** (rule 2). | S | 3 ✅ (measured on the real target: signed in, the account read) |
@@ -407,6 +407,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `BROWSER__ASSISTANTURL` | **`https://gemini.google.com/app`** | The page of the assistant that is opened; its host is the origin the browser may talk to |
 | `BROWSER__SESSIONCOOKIES` | **`SID;__Secure-1PSID`** | The names of the cookies that say the account is signed in (a guest mode shows the page to a visitor) |
 | `BROWSER__SIGNINHOSTS` | **`accounts.google.com`** | The sign-in pages whose redirect says the session is gone |
+| `BROWSER__SIGNINURL` | **`https://accounts.google.com/ServiceLogin?continue=…gemini…`** | The page that the Sign in button opens in the browser (a host of `SIGNINHOSTS`) |
 | `BROWSER__ALLOWEDOPENPORTS` | none | Ports that other containers of the pod open on purpose off the loopback (a mesh proxy, an exporter), not to be taken for the browser being exposed; never the desktop's or the debugging port |
 | `BROWSER__SIGNINGINPASSES` | **3** | Passes in a row that step aside while a tab is on a sign-in page; then the session is checked as usual |
 | `BROWSER__SESSIONCHECKTIMEOUTSECONDS` | **30** | How long the attachment and the assistant's page may take |

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Geminarr.Api.V1.Connection;
 
 /// <summary>The connection to the assistant: its state (SPEC §7.2), since when, the last pass that worked, why it is not simply connected, which reader reads, whether a browser reads, and until when the passes are paused.</summary>
-public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, string? BrowserPagePath, AccountResource? Account);
+public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, string? BrowserPagePath, AccountResource? Account, bool SigningIn);
 
 /// <summary>The account that the browser is signed in as: an address, and a name when the page says one. For the operator's page only.</summary>
 public sealed record AccountResource(string? Name, string Email);
@@ -40,7 +40,30 @@ public sealed class ConnectionController : ControllerBase
     public ConnectionResource Get()
     {
         var record = _connection.Current();
-        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? null : BrowserOptions.RelayPath, _connection.Account is { } account ? new AccountResource(account.Name, account.Email) : null);
+        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? null : BrowserOptions.RelayPath, _connection.Account is { } account ? new AccountResource(account.Name, account.Email) : null, _connection.SigningIn);
+    }
+
+    /// <summary>Opens the sign-in page of the account provider in the browser container: the person signs in there by hand (any way the provider offers), and the connection notices when it is done.</summary>
+    [HttpPost("sign-in")]
+    [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    public async Task<ActionResult<ConnectionResource>> SignIn(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _connection.OpenSignInAsync(cancellationToken);
+        }
+        catch (ConnectionRefusedException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
+        }
+        catch (ReaderException)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The browser container could not be reached: its sign-in page could not be opened.");
+        }
+
+        return Get();
     }
 
     /// <summary>Quiet: no pass reads until the moment given, or until the operator resumes.</summary>

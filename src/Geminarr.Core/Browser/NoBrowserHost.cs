@@ -11,5 +11,7 @@ public sealed class NoBrowserHost : IBrowserHost
 
     public Task<bool> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult(false);
 
+    public Task OpenSignInPageAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task DisconnectAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
