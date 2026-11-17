@@ -1,6 +1,6 @@
 # 0018 — A guard may be lightened in a sandbox by an explicit setting; strict by default
 
-- **Status**: accepted (by the maintainer, 2026-11-17)
+- **Status**: decided by the maintainer in the conversation of 2026-11-17; his approval comment on the pull request is awaited (R-24-109)
 - **Date**: 2026-11-17
 - **Spec**: D-26, `GEMINARR__AUTH__MINPASSWORDLENGTH`
 
@@ -21,4 +21,4 @@ This guard is not harmless: **the operator's password is the key to the browser'
 
 - A deployment that sets the minimum below 12 does so knowingly; a copy of a sandbox's environment into a real deployment shows in the log at every start.
 - The sandbox runs `admin` / `admin` with `GEMINARR__AUTH__MINPASSWORDLENGTH=1`, with the dedicated account only. Whoever reaches that sandbox on the private network reaches the dedicated account's session: that is the price, accepted by the maintainer.
-- A decision at "major" that the review agents raised and that is the maintainer's: it is registered as declined-by-design with his approval comment (docs/review-decisions/24.md).
+- The review agents raised it at "major": it is registered in `docs/review-decisions/24.md` (R-24-109) and awaits the maintainer's approval comment on the pull request.

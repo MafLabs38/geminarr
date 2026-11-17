@@ -9,6 +9,9 @@ namespace Geminarr.Core.Connection;
 /// </summary>
 public sealed class ConnectionService
 {
+    /// <summary>How long "signing in" is still said after the sign-in page is gone, while the check that follows looks at the session (unless it already found it good).</summary>
+    private static readonly TimeSpan Settling = TimeSpan.FromSeconds(15);
+
     private readonly ConnectionTracker _tracker;
     private readonly IBrowserHost _browser;
     private readonly IOptions<ReaderOptions> _reader;
@@ -28,9 +31,6 @@ public sealed class ConnectionService
     public bool HasBrowser => _reader.Value.Kind == ReaderKind.Web;
 
     public ConnectionRecord Current() => _tracker.Current();
-
-    /// <summary>How long "signing in" is still said after the sign-in page is gone, while the check that follows looks at the session (unless it already found it good).</summary>
-    private static readonly TimeSpan Settling = TimeSpan.FromSeconds(15);
 
     /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at.</summary>
     public bool SigningIn => _signIn.SigningIn || (_signIn.EndedWithin(Settling) && Current().State != ConnectionState.Connected);

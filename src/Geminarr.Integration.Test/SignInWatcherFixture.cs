@@ -2,6 +2,7 @@ using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
 using Geminarr.Host.Pipeline;
 using Geminarr.Integration.Test.Support;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Geminarr.Integration.Test;
 
@@ -29,7 +30,7 @@ public sealed class SignInWatcherFixture
         var browser = new FakeBrowserHost { SigningIn = true };
         using var trigger = new PassTrigger();
         var observer = new SignInObserver();
-        using var subject = new SignInWatcher(browser, trigger, observer, Tick);
+        using var subject = new SignInWatcher(browser, trigger, observer, NullLogger<SignInWatcher>.Instance, Tick);
         await subject.StartAsync(Token);
         await AfterTicksAsync(browser);
         (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse("somebody is typing: nothing is asked while the page is open");
@@ -47,7 +48,7 @@ public sealed class SignInWatcherFixture
     {
         var browser = new FakeBrowserHost { SigningIn = false };
         using var trigger = new PassTrigger();
-        using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), Tick);
+        using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), NullLogger<SignInWatcher>.Instance, Tick);
 
         await subject.StartAsync(Token);
         await AfterTicksAsync(browser);
@@ -61,7 +62,7 @@ public sealed class SignInWatcherFixture
     {
         var browser = new FakeBrowserHost { Unreachable = true };
         using var trigger = new PassTrigger();
-        using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), Tick);
+        using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), NullLogger<SignInWatcher>.Instance, Tick);
         await subject.StartAsync(Token);
         await AfterTicksAsync(browser);
         (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse("the browser is still gone");
@@ -69,6 +70,23 @@ public sealed class SignInWatcherFixture
         browser.Unreachable = false;
 
         (await trigger.WaitAsync(TimeSpan.FromSeconds(5), Token)).Should().BeTrue("the browser is back: the session is looked at now, not after the backoff");
+        await subject.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task should_go_on_looking_after_a_failure_that_is_not_the_browsers()
+    {
+        var browser = new FakeBrowserHost { Breaks = true, SigningIn = true };
+        using var trigger = new PassTrigger();
+        using var subject = new SignInWatcher(browser, trigger, new SignInObserver(), NullLogger<SignInWatcher>.Instance, Tick);
+        await subject.StartAsync(Token);
+        await AfterTicksAsync(browser);
+
+        browser.Breaks = false;
+        await AfterTicksAsync(browser);
+        browser.SigningIn = false;
+
+        (await trigger.WaitAsync(TimeSpan.FromSeconds(5), Token)).Should().BeTrue("the watcher survived the failure and saw the sign-in end");
         await subject.StopAsync(CancellationToken.None);
     }
 }

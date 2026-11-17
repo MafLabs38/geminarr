@@ -33,6 +33,14 @@ public sealed class AccountLabelFixture
         AccountLabel.Parse(["Google Account: Jane (Doe) (jane@example.org)"]).Should().Be(new AccountIdentity("Jane (Doe)", "jane@example.org"));
     }
 
+    [Fact]
+    public void should_not_read_a_label_that_is_too_long_to_be_a_name_and_an_address()
+    {
+        var label = "Google Account: " + new string('x', 600) + " (jane@example.org)";
+
+        AccountLabel.Parse([label]).Should().BeNull();
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

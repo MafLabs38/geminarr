@@ -24,10 +24,18 @@ public sealed class ConnectionTracker
     }
 
     /// <summary>The state as it is now: a read, which writes nothing. A pause whose moment has come has ended by itself, and what is read is what the resume will give; it is written by <see cref="Settle"/> (the passes do) or by the next move.</summary>
-    public ConnectionRecord Current() => Atomically(() => IsOver(_store.Get()) ? ResumedRecord(_store.Get()) : _store.Get());
+    public ConnectionRecord Current() => Atomically(() =>
+    {
+        var record = _store.Get();
+        return IsOver(record) ? ResumedRecord(record) : record;
+    });
 
     /// <summary>Writes the end of a pause whose moment has come (a pass begins by it); anything else is left as it is.</summary>
-    public ConnectionRecord Settle() => Atomically(() => IsOver(_store.Get()) ? Resumed() : _store.Get());
+    public ConnectionRecord Settle() => Atomically(() =>
+    {
+        var record = _store.Get();
+        return IsOver(record) ? Resumed() : record;
+    });
 
     private bool IsOver(ConnectionRecord record) => record.State == ConnectionState.Paused && record.PausedUntil is { } until && until <= _clock.GetUtcNow();
 

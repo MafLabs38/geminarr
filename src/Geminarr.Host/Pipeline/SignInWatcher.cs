@@ -16,10 +16,12 @@ public sealed class SignInWatcher : BackgroundService
     private readonly IBrowserHost _browser;
     private readonly PassTrigger _trigger;
     private readonly SignInObserver _observer;
+    private readonly ILogger<SignInWatcher> _logger;
     private readonly TimeSpan _interval;
 
-    public SignInWatcher(IBrowserHost browser, PassTrigger trigger, SignInObserver observer, TimeSpan? interval = null)
+    public SignInWatcher(IBrowserHost browser, PassTrigger trigger, SignInObserver observer, ILogger<SignInWatcher> logger, TimeSpan? interval = null)
     {
+        _logger = logger;
         _browser = browser;
         _trigger = trigger;
         _observer = observer;
@@ -35,27 +37,40 @@ public sealed class SignInWatcher : BackgroundService
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(_interval, stoppingToken);
-                var now = await _browser.IsSigningInAsync(stoppingToken);
-                if (signingIn && !now)
+                try
                 {
-                    _trigger.Request();
+                    (signingIn, reachable) = await LookAsync(signingIn, reachable, stoppingToken);
                 }
-
-                // A browser that was gone and answers again (a restart of both containers: the first pass came before it was up) is looked at now, not after the backoff of the failed pass.
-                var answers = _browser.State().Reachable != false;
-                if (answers && !reachable)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _trigger.Request();
+                    // What a watcher meets (a bad address, a browser that is being disposed) must not end it, and a hosted service that fails stops the whole host: it is logged and it looks again.
+                    _logger.LogWarning(ex, "The tabs of the browser could not be looked at.");
                 }
-
-                reachable = answers;
-                signingIn = now;
-                _observer.Set(now);
             }
         }
         catch (OperationCanceledException)
         {
             // The application is stopping.
         }
+    }
+
+    /// <summary>One look at the tabs: says whether a sign-in is under way and whether the browser answers, and asks for a pass when a sign-in has just ended or a browser that was gone is back.</summary>
+    private async Task<(bool SigningIn, bool Reachable)> LookAsync(bool was, bool wasReachable, CancellationToken cancellationToken)
+    {
+        var now = await _browser.IsSigningInAsync(cancellationToken);
+        if (was && !now)
+        {
+            _trigger.Request();
+        }
+
+        // A browser that was gone and answers again (a restart of both containers: the first pass came before it was up) is looked at now, not after the backoff of the failed pass.
+        var answers = _browser.State().Reachable != false;
+        if (answers && !wasReachable)
+        {
+            _trigger.Request();
+        }
+
+        _observer.Set(now);
+        return (now, answers);
     }
 }

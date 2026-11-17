@@ -11,13 +11,16 @@ public sealed record AccountIdentity(string? Name, string Email);
 /// <summary>Reads the label that the assistant's page gives to the account button (<c>"Google Account: Jane Doe (jane@example.org)"</c>, in the language of the page).</summary>
 public static partial class AccountLabel
 {
+    private const int MaxLabelLength = 512;
+
     /// <summary>
     /// The address is what sits in parentheses and has an <c>@</c>. The name is what stands before it, after the colon that the page puts after the words "Google Account" (a label without a colon says no name: it is not
     /// guessed from words of a language).
     /// </summary>
     public static AccountIdentity? Parse(IEnumerable<string?> labels)
     {
-        var parsed = labels.Where(label => !string.IsNullOrWhiteSpace(label)).Select(label => Parse(label!)).Where(identity => identity is not null).ToList();
+        // A label is a few words: a longer one is not what the page says for its account button, and is not read (the page is the assistant's, and what it sends is bounded before it is parsed or kept).
+        var parsed = labels.Where(label => !string.IsNullOrWhiteSpace(label) && label.Length <= MaxLabelLength).Select(label => Parse(label!)).Where(identity => identity is not null).ToList();
         var first = parsed.FirstOrDefault();
         return first is null ? null : first with { Name = parsed.Select(identity => identity!.Name).FirstOrDefault(name => name is not null) };
     }

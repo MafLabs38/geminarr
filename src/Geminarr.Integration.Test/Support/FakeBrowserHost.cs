@@ -20,6 +20,9 @@ public sealed class FakeBrowserHost : IBrowserHost
     /// <summary>How many times the tabs were asked about.</summary>
     public int Ticks { get; private set; }
 
+    /// <summary>The look at the tabs fails with something that is not the browser's to say.</summary>
+    public bool Breaks { get; set; }
+
     public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null, Account);
 
     public int SignInPagesOpened { get; private set; }
@@ -33,7 +36,7 @@ public sealed class FakeBrowserHost : IBrowserHost
     public Task<bool> IsSigningInAsync(CancellationToken cancellationToken)
     {
         Ticks++;
-        return Task.FromResult(SigningIn);
+        return Breaks ? throw new InvalidOperationException("broken") : Task.FromResult(SigningIn);
     }
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
