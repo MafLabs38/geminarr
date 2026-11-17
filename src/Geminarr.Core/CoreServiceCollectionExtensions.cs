@@ -24,6 +24,7 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ISystemStatusService, SystemStatusService>();
         services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsBrowserValidator>();
         services.AddOptions<AuthOptions>().Bind(configuration.GetSection("Auth")).ValidateOnStart();
         services.AddSingleton<IOperatorCredentials, OperatorCredentials>();
         services.AddSingleton<LoginThrottle>();
