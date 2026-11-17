@@ -90,7 +90,7 @@ public static partial class BrowserRelay
             // A WebSocket outlives the check that let it in: it ends with the session that opened it (signing out, the end of its lifetime), and does not go on for as long as it is used.
             using var stop = new CancellationTokenSource();
             var watching = context.WebSockets.IsWebSocketRequest
-                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.RequestServices.GetRequiredService<TimeProvider>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
+                ? EndWithTheSessionAsync(context, context.RequestServices.GetRequiredService<SessionRegistry>(), context.RequestServices.GetRequiredService<IBrowserExposure>(), context.RequestServices.GetRequiredService<TimeProvider>(), context.User.FindFirst(AccessConstants.SessionClaim)?.Value, stop.Token)
                 : Task.CompletedTask;
             try
             {
@@ -164,14 +164,15 @@ public static partial class BrowserRelay
         return hosts.AllowsAny || !hosts.IsAllowed(uri.Authority) || !uri.IsDefaultPort;
     }
 
-    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, TimeProvider clock, string? sessionId, CancellationToken stop)
+    private static async Task EndWithTheSessionAsync(HttpContext context, SessionRegistry sessions, IBrowserExposure exposure, TimeProvider clock, string? sessionId, CancellationToken stop)
     {
         using var timer = new PeriodicTimer(SessionWatchInterval, clock);
         try
         {
             while (await timer.WaitForNextTickAsync(stop))
             {
-                if (!sessions.IsActive(sessionId))
+                // An open socket ends with the session that opened it, and with the desktop being closed: a namespace that became exposed after the socket was opened.
+                if (!sessions.IsActive(sessionId) || exposure.Check().IsExposed)
                 {
                     context.Abort();
                     return;

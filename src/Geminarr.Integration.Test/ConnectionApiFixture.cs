@@ -12,6 +12,7 @@ public sealed class ConnectionApiFixture
 
     [Theory]
     [InlineData("POST", "/api/v1/connection/pause")]
+    [InlineData("POST", "/api/v1/connection/sign-in")]
     [InlineData("POST", "/api/v1/connection/resume")]
     [InlineData("POST", "/api/v1/connection/disconnect")]
     public async Task should_refuse_a_write_without_a_sign_in_and_without_the_header(string method, string path)

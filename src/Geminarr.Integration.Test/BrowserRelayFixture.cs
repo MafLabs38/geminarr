@@ -179,6 +179,40 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
+    public async Task should_end_an_open_websocket_when_the_namespace_becomes_exposed_after_it_was_opened()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url, movableClock: true);
+        factory.UseKestrel(0);
+        factory.StartServer();
+        var address = new Uri(factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First());
+        var cookie = await SessionCookieAsync(factory, address);
+        using var socket = await ConnectAsync(new Uri($"ws://{address.Authority}/browser/api/websockets"), address.GetLeftPart(UriPartial.Authority), cookie);
+
+        factory.Exposure.Ports.Add(3000);
+        using var patience = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        patience.CancelAfter(TimeSpan.FromSeconds(30));
+        var receiving = socket.ReceiveAsync(new byte[64], patience.Token);
+        while (!receiving.IsCompleted && !patience.IsCancellationRequested)
+        {
+            factory.Clock!.Advance(TimeSpan.FromSeconds(6));
+            await Task.Delay(50, CancellationToken.None);
+        }
+
+        var ended = false;
+        try
+        {
+            ended = (await receiving).MessageType == WebSocketMessageType.Close;
+        }
+        catch (WebSocketException)
+        {
+            ended = true;
+        }
+
+        ended.Should().BeTrue("a desktop that others can reach is closed, the open sockets included");
+    }
+
+    [Fact]
     public async Task should_close_the_desktop_and_say_why_while_a_port_of_the_namespace_listens_off_the_loopback()
     {
         await using var desktop = await FakeDesktop.StartAsync();

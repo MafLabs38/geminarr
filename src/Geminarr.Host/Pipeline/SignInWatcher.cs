@@ -76,7 +76,7 @@ public sealed class SignInWatcher : BackgroundService
         }
 
         // A browser that was gone and answers again (a restart of both containers: the first pass came before it was up) is looked at now, not after the backoff of the failed pass.
-        var answers = _browser.State().Reachable != false;
+        var answers = _browser.State().TabsAnswer != false;
         if (answers && !wasReachable)
         {
             _trigger.Request();

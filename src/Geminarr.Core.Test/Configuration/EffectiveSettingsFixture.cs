@@ -10,8 +10,8 @@ namespace Geminarr.Core.Test.Configuration;
 
 public sealed class EffectiveSettingsFixture
 {
-    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? identity = null) =>
-        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()), Options.Of(new MnemarrOptions()), Options.Of(new BrowserOptions()), new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(null), new NoBrowserExposure()));
+    private static EffectiveSettings Subject(AuthOptions auth, string? name = "operator-name", IdentityOptions? identity = null, BrowserOptions? browser = null) =>
+        new(Options.Of(new GeminarrOptions { DataFolder = "/config", PublicUrl = "https://geminarr.homelab.example" }), Options.Of(auth), new FakeCredentials(name), Options.Of(identity ?? new IdentityOptions()), Options.Of(new MnemarrOptions()), Options.Of(browser ?? new BrowserOptions()), new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(null), new NoBrowserExposure()));
 
     [Fact]
     public void should_never_show_a_secret_nor_the_path_of_its_file_nor_the_name_of_the_operator()
@@ -43,6 +43,18 @@ public sealed class EffectiveSettingsFixture
 
         settings.Should().ContainKey("GEMINARR__BROWSER__CDPURL").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__SIGNINHOSTS");
         settings["GEMINARR__BROWSER__CDPURL"].Should().Be("not set");
+    }
+
+    [Fact]
+    public void should_never_show_the_debugging_address_when_one_is_set()
+    {
+        var browser = new BrowserOptions { CdpUrl = "http://127.0.0.1:9222", DesktopUrl = "http://127.0.0.1:3000" };
+
+        var settings = Subject(new AuthOptions(), browser: browser).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
+
+        settings["GEMINARR__BROWSER__CDPURL"].Should().Be("set");
+        settings["GEMINARR__BROWSER__DESKTOPURL"].Should().Be("set");
+        settings.Values.Should().NotContain(value => value.Contains("9222", StringComparison.Ordinal));
     }
 
     [Fact]

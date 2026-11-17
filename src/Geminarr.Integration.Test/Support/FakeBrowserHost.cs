@@ -23,7 +23,7 @@ public sealed class FakeBrowserHost : IBrowserHost
     /// <summary>The look at the tabs fails with something that is not the browser's to say.</summary>
     public bool Breaks { get; set; }
 
-    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null, Account);
+    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null, Account, TabsAnswer: Unreachable ? false : null);
 
     public int SignInPagesOpened { get; private set; }
 

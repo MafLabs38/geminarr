@@ -28,6 +28,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
     private readonly SigningInGuard _signingIn = new();
     private IPlaywright? _playwright;
     private volatile int _reachable = -1;
+    private volatile int _tabsAnswer = -1;
     private volatile AccountIdentity? _account;
 
     public CdpBrowserHost(IOptions<BrowserOptions> options, ILogger<CdpBrowserHost> logger)
@@ -38,7 +39,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
     private BrowserOptions Options => _options.Value;
 
-    public BrowserState State() => new(!string.IsNullOrWhiteSpace(Options.CdpUrl), _reachable switch { 1 => true, 0 => false, _ => null }, _account);
+    public BrowserState State() => new(!string.IsNullOrWhiteSpace(Options.CdpUrl), _reachable switch { 1 => true, 0 => false, _ => null }, _account, _tabsAnswer switch { 1 => true, 0 => false, _ => null });
 
     public async Task<bool> IsSigningInAsync(CancellationToken cancellationToken)
     {
@@ -175,7 +176,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(ListTimeoutSeconds));
             var tabs = await Tabs.GetFromJsonAsync<List<TabInfo>>(new Uri(new Uri(Options.CdpUrl!), "/json/list"), timeout.Token);
-            _reachable = 1;
+            _tabsAnswer = 1;
             return SessionVerdict.APersonIsSigningIn((tabs ?? []).Select(tab => new BrowserTab(tab.Type, tab.Url)), Options);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
@@ -184,6 +185,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         }
 
         // A browser that cannot even list its tabs cannot be attached to either, and a guard that failed open would attach in the middle of a sign-in: the pass says the browser failed.
+        _tabsAnswer = 0;
         _reachable = 0;
         if (!quiet)
         {

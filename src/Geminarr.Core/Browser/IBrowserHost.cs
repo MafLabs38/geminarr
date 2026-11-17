@@ -3,7 +3,7 @@ using Geminarr.Core.Pipeline;
 namespace Geminarr.Core.Browser;
 
 /// <summary>What is known of the browser from outside: whether one is configured, and whether the last attachment reached it (null until one was tried).</summary>
-public sealed record BrowserState(bool Configured, bool? Reachable, AccountIdentity? Account = null);
+public sealed record BrowserState(bool Configured, bool? Reachable, AccountIdentity? Account = null, bool? TabsAnswer = null);
 
 /// <summary>
 /// The browser that holds the session (ADR 0016): a container of its own, that a person signs in to by hand. Geminarr attaches to it to check the session (and later to read), and can clear the session on
@@ -11,7 +11,7 @@ public sealed record BrowserState(bool Configured, bool? Reachable, AccountIdent
 /// </summary>
 public interface IBrowserHost
 {
-    /// <summary>What the last attachment found, without trying one, and who the account was that it found signed in (null until a check found one, and after a sign-out).</summary>
+    /// <summary>What the last attachment found, without trying one, who the account was that it found signed in (null until a check found one, and after a sign-out), and whether the last look at the list of tabs was answered (the watcher's own, so that it does not hide what the passes found).</summary>
     BrowserState State();
 
     /// <summary>
