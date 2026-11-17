@@ -32,11 +32,11 @@ public sealed class ConnectionService
 
     public ConnectionRecord Current() => _tracker.Current();
 
-    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at.</summary>
+    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at. Not once the passes have said that a sign-in is needed again (a tab left on an account picker is not somebody typing).</summary>
     public bool SigningIn => SigningInAt(Current());
 
     /// <summary>The same, for a record that the caller has read (so that a response says one state, not two reads of it).</summary>
-    public bool SigningInAt(ConnectionRecord record) => _signIn.SigningIn || (_signIn.EndedWithin(Settling) && record.State != ConnectionState.Connected);
+    public bool SigningInAt(ConnectionRecord record) => record.State != ConnectionState.NeedsLogin && (_signIn.SigningIn || (_signIn.EndedWithin(Settling) && record.State != ConnectionState.Connected));
 
     /// <summary>Opens the sign-in page of the account provider in the browser, where the person signs in by hand. Nothing here types a credential.</summary>
     public Task OpenSignInAsync(CancellationToken cancellationToken) =>

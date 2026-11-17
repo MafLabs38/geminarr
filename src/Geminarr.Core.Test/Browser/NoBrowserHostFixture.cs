@@ -14,7 +14,7 @@ public sealed class NoBrowserHostFixture
 
         subject.State().Should().Be(new BrowserState(Configured: false, Reachable: null));
         (await subject.CheckSessionAsync(token)).Should().Be(SessionCheck.NoBrowser);
-        (await subject.IsSigningInAsync(token)).Should().BeFalse();
+        (await subject.IsSigningInAsync(token)).Should().Be(false);
         await subject.OpenSignInPageAsync(token);
         await subject.DisconnectAsync(token);
     }

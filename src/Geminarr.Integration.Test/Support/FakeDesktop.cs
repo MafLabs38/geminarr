@@ -30,6 +30,9 @@ public sealed class FakeDesktop : IAsyncDisposable
     /// <summary>The <c>Host</c> that each request came with, as the desktop saw it.</summary>
     public System.Collections.Concurrent.ConcurrentQueue<string> Hosts { get; } = new();
 
+    /// <summary>Whether a request came with a header that a proxy in front of Geminarr adds about the operator.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<bool> ForeignHeaders { get; } = new();
+
     public static async Task<FakeDesktop> StartAsync()
     {
         var builder = WebApplication.CreateSlimBuilder();
@@ -40,6 +43,7 @@ public sealed class FakeDesktop : IAsyncDisposable
         app.Map("/browser/{**path}", async context =>
         {
             desktop!.Seen.Enqueue((context.Request.Path, context.Request.Headers.Cookie.ToString() is { Length: > 0 } cookie ? cookie : null, context.Request.Headers.Authorization.ToString() is { Length: > 0 } authorization ? authorization : null));
+            desktop.ForeignHeaders.Enqueue(context.Request.Headers.ContainsKey("X-Forwarded-User") || context.Request.Headers.ContainsKey("Remote-User") || context.Request.Headers.ContainsKey("X-Authentik-Jwt"));
             desktop.Hosts.Enqueue(context.Request.Host.ToString());
             desktop.Origins.Enqueue(context.Request.Headers.Origin.ToString() is { Length: > 0 } origin ? origin : null);
             if (context.WebSockets.IsWebSocketRequest)

@@ -89,4 +89,22 @@ public sealed class SignInWatcherFixture
         (await trigger.WaitAsync(TimeSpan.FromSeconds(5), Token)).Should().BeTrue("the watcher survived the failure and saw the sign-in end");
         await subject.StopAsync(CancellationToken.None);
     }
+
+    [Fact]
+    public async Task should_not_take_a_browser_that_drops_for_a_sign_in_that_ended()
+    {
+        var browser = new FakeBrowserHost { SigningIn = true };
+        using var trigger = new PassTrigger();
+        var observer = new SignInObserver();
+        using var subject = new SignInWatcher(browser, trigger, observer, NullLogger<SignInWatcher>.Instance, Tick);
+        await subject.StartAsync(Token);
+        await AfterTicksAsync(browser);
+
+        browser.Unreachable = true;
+        await AfterTicksAsync(browser);
+
+        observer.SigningIn.Should().BeTrue("the browser could not say: what was known stays");
+        (await trigger.WaitAsync(TimeSpan.Zero, Token)).Should().BeFalse("a browser that dropped is not a sign-in that ended");
+        await subject.StopAsync(CancellationToken.None);
+    }
 }

@@ -42,7 +42,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
 
     public BrowserState State() => new(!string.IsNullOrWhiteSpace(Options.CdpUrl), _reachable switch { 1 => true, 0 => false, _ => null }, _account, _tabsAnswer switch { 1 => true, 0 => false, _ => null });
 
-    public async Task<bool> IsSigningInAsync(CancellationToken cancellationToken)
+    public async Task<bool?> IsSigningInAsync(CancellationToken cancellationToken)
     {
         if (!State().Configured)
         {
@@ -55,8 +55,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         }
         catch (ReaderException)
         {
-            // A browser that does not answer is not a person signing in; the passes say what is wrong with it.
-            return false;
+            // A browser that does not answer cannot say: neither "signing in" nor "not signing in" (the passes say what is wrong with it).
+            return null;
         }
     }
 
@@ -73,6 +73,8 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
             // Attaching makes a program of every tab of the browser for a moment: not while a person is typing on a sign-in page.
             if (_signingIn.StepsAside(await ATabIsOnASignInPageAsync(cancellationToken), Options.SigningInPasses))
             {
+                // Somebody is signing in, perhaps to another account: the one that was read before is not shown across it.
+                _account = null;
                 return SessionCheck.SigningIn;
             }
 
@@ -285,7 +287,7 @@ public sealed class CdpBrowserHost : IBrowserHost, IAsyncDisposable
         var names = kind == PageKind.Assistant ? (await context.CookiesAsync([Options.AssistantUrl])).Select(cookie => cookie.Name) : [];
         var check = SessionVerdict.Decide(kind, SessionVerdict.HasSessionCookie(names, Options));
         // Who it is signed in as is read from the page that was just loaded; a signed-out session has nobody.
-        _account = check == SessionCheck.SignedIn ? await ReadAccountAsync(page) ?? _account : null;
+        _account = check == SessionCheck.SignedIn ? await ReadAccountAsync(page) : null;
         return check;
     }
 

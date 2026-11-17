@@ -50,6 +50,20 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_stop_saying_signing_in_once_the_passes_say_that_a_sign_in_is_needed_again()
+    {
+        var subject = Subject();
+        _observer.Set(true);
+        subject.SigningIn.Should().BeTrue("a tab is on the sign-in page");
+
+        _tracker.SignedOut();
+        _tracker.SignedOut();
+
+        subject.Current().State.Should().Be(ConnectionState.NeedsLogin);
+        subject.SigningIn.Should().BeFalse("a tab left on an account picker is not somebody typing: the page says what the passes say");
+    }
+
+    [Fact]
     public void should_show_nobody_as_signed_in_while_the_connection_is_not_one()
     {
         _browser.Account = new AccountIdentity("Jane Doe", "jane@example.org");

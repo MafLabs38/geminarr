@@ -193,6 +193,14 @@ public static partial class BrowserRelay
     /// <summary>The one client of the relay, in a type of its own so that no other service takes it for theirs.</summary>
     public sealed record RelayClient(HttpMessageInvoker Invoker);
 
+    private static readonly HashSet<string> ForwardedHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control", "Connection", "Pragma", "Range", "If-Match", "If-None-Match", "If-Modified-Since", "If-Unmodified-Since", "If-Range", "User-Agent", "Upgrade", "Referer", "Origin",
+    };
+
+    /// <summary>Whether a header of the person's request goes on to the desktop: the ones above, and the <c>Sec-</c> ones (the WebSocket handshake, what a browser says of how a request was made).</summary>
+    private static bool IsForwardedHeader(string name) => ForwardedHeaders.Contains(name) || name.StartsWith("Sec-", StringComparison.OrdinalIgnoreCase);
+
     private sealed class RelayTransformer : HttpTransformer
     {
         public static readonly RelayTransformer Instance = new();
@@ -200,9 +208,12 @@ public static partial class BrowserRelay
         public override async ValueTask TransformRequestAsync(HttpContext httpContext, HttpRequestMessage proxyRequest, string destinationPrefix, CancellationToken cancellationToken)
         {
             await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
-            // Geminarr's session is Geminarr's: the desktop never sees it.
-            proxyRequest.Headers.Remove("Cookie");
-            proxyRequest.Headers.Remove("Authorization");
+            // Geminarr's session is Geminarr's: the desktop never sees it. Nor does it see what a proxy in front of Geminarr adds about the operator (an identity, a token): the desktop is a third party's program, and
+            // gets the headers that its client needs (what a browser sends for a page, a file and a WebSocket) and nothing else.
+            foreach (var name in proxyRequest.Headers.Select(header => header.Key).Where(name => !IsForwardedHeader(name)).ToList())
+            {
+                proxyRequest.Headers.Remove(name);
+            }
             // The desktop is told that it is Geminarr that speaks (its own list of allowed origins names this one and no web page can ever have it): a page that the browser itself loads can reach the desktop on the
             // loopback, and must not be taken for the person's.
             proxyRequest.Headers.Remove("Origin");

@@ -21,10 +21,10 @@ public interface IBrowserHost
     Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Whether a tab of the browser is on a sign-in page of the account provider at this moment, read from the list of tabs (plain HTTP, nothing is attached). A browser that cannot be reached is not a person signing in.
+    /// Whether a tab of the browser is on a sign-in page of the account provider at this moment, read from the list of tabs (plain HTTP, nothing is attached). A browser that cannot be reached cannot tell: the answer is then null, which is neither "signing in" nor "not signing in".
     /// The person who is signing in is waited for: when this turns from true to false, a check is worth making at once.
     /// </summary>
-    Task<bool> IsSigningInAsync(CancellationToken cancellationToken);
+    Task<bool?> IsSigningInAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Opens the sign-in page of the account provider in a tab of the browser of its own (<see cref="BrowserOptions.SignInUrl"/>), unless a tab is on a sign-in page already: the person then signs in by hand, in the browser's own page. Nothing

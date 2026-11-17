@@ -33,10 +33,10 @@ public sealed class FakeBrowserHost : IBrowserHost
         return Unreachable ? throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.") : Task.CompletedTask;
     }
 
-    public Task<bool> IsSigningInAsync(CancellationToken cancellationToken)
+    public Task<bool?> IsSigningInAsync(CancellationToken cancellationToken)
     {
         Ticks++;
-        return Breaks ? throw new InvalidOperationException("broken") : Task.FromResult(SigningIn);
+        return Breaks ? throw new InvalidOperationException("broken") : Task.FromResult<bool?>(Unreachable ? null : SigningIn);
     }
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>

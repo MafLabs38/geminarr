@@ -269,6 +269,23 @@ public sealed class BrowserRelayFixture
     }
 
     [Fact]
+    public async Task should_not_give_the_desktop_what_a_proxy_in_front_of_geminarr_says_of_the_operator()
+    {
+        await using var desktop = await FakeDesktop.StartAsync();
+        using var factory = new RelayFactory(desktop.Url);
+        using var client = await factory.SignedInClientAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/browser/");
+        request.Headers.Add("X-Forwarded-User", "operator");
+        request.Headers.Add("Remote-User", "operator");
+        request.Headers.Add("X-Authentik-Jwt", "a-token");
+        request.Headers.Add("Accept-Language", "fr");
+
+        (await client.SendAsync(request, Token)).EnsureSuccessStatusCode();
+
+        desktop.ForeignHeaders.Should().Equal(false);
+    }
+
+    [Fact]
     public async Task should_say_bad_gateway_when_the_desktop_is_not_there_yet()
     {
         await using var desktop = await FakeDesktop.StartAsync();

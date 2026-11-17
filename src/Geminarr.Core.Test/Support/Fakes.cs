@@ -168,7 +168,7 @@ public sealed class FakeBrowser : IBrowserHost
         return Task.CompletedTask;
     }
 
-    public Task<bool> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult(SigningIn);
+    public Task<bool?> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult<bool?>(SigningIn);
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {

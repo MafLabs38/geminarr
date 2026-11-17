@@ -73,8 +73,10 @@ public sealed class SignInWatcher : BackgroundService
     /// <summary>One look at the tabs: says whether a sign-in is under way and whether the browser answers, and asks for a pass when a sign-in has just ended or a browser that was gone is back.</summary>
     private async Task<(bool SigningIn, bool Reachable)> LookAsync(bool was, bool wasReachable, CancellationToken cancellationToken)
     {
-        var now = await _browser.IsSigningInAsync(cancellationToken);
-        if (was && !now)
+        var seen = await _browser.IsSigningInAsync(cancellationToken);
+        // A browser that could not say (it dropped) is neither a sign-in that ended nor one that began: what was known stays, and a browser that is back is asked about below.
+        var now = seen ?? was;
+        if (was && seen == false)
         {
             _trigger.Request();
         }
