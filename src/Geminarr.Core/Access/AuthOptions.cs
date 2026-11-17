@@ -28,6 +28,9 @@ public sealed class AuthOptions
 
     /// <summary>How long a session lasts, in hours, used or not: the operator signs in again after it.</summary>
     public int SessionHours { get; set; } = 12;
+
+    /// <summary>The shortest password of the operator that is accepted (<see cref="OperatorCredentials.DefaultMinPasswordLength"/> unless a sandbox lowers it: a machine that nobody else reaches).</summary>
+    public int MinPasswordLength { get; set; } = OperatorCredentials.DefaultMinPasswordLength;
 }
 
 public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
@@ -37,6 +40,11 @@ public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
         if (options.SessionHours is < 1 or > AuthOptions.MaxSessionHours)
         {
             return ValidateOptionsResult.Fail($"Auth:SessionHours (GEMINARR__AUTH__SESSIONHOURS) must be between 1 and {AuthOptions.MaxSessionHours}.");
+        }
+
+        if (options.MinPasswordLength is < 1 or > 1_024)
+        {
+            return ValidateOptionsResult.Fail("Auth:MinPasswordLength (GEMINARR__AUTH__MINPASSWORDLENGTH) must be between 1 and 1024.");
         }
 
         return string.IsNullOrWhiteSpace(options.AdminUser) == string.IsNullOrWhiteSpace(options.AdminPasswordFile)

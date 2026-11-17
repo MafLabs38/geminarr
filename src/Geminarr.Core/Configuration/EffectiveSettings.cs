@@ -52,6 +52,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__AUTH__ADMINUSER", _credentials.Name is null ? NotSet : "set", true),
         new("GEMINARR__AUTH__ADMINPASSWORDFILE", string.IsNullOrWhiteSpace(_auth.Value.AdminPasswordFile) ? NotSet : "set", true),
         new("GEMINARR__AUTH__COOKIESECURITY", _auth.Value.CookieSecurity.ToString(), false),
+        new("GEMINARR__AUTH__MINPASSWORDLENGTH", _auth.Value.MinPasswordLength.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__AUTH__SESSIONHOURS", _auth.Value.SessionHours.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__IDENTITY__NAME", _identity.Value.Name is { Length: > 0 } name ? name : NotSet, false),
         new("GEMINARR__IDENTITY__LOGOFILE", string.IsNullOrWhiteSpace(_identity.Value.LogoFile) ? NotSet : "set", false),
