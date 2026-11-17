@@ -1,5 +1,6 @@
 using System.Net;
 using Geminarr.Browser;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Geminarr.Integration.Test;
 
@@ -105,9 +106,11 @@ public sealed class CdpTabsClientFixture
     public async Task should_say_the_kind_of_the_failure_when_the_tab_cannot_be_opened()
     {
         var refused = new CdpTabsClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json("{}", HttpStatusCode.InternalServerError)))));
+        var notFound = new CdpTabsClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json("{}", HttpStatusCode.NotFound)))));
         var gone = new CdpTabsClient(new HttpClient(new Handler((_, _) => throw new HttpRequestException("down"))));
 
         (await refused.OpenAsync(Cdp, "https://accounts.example/", 5, Token)).Should().Be(nameof(HttpRequestException));
+        (await notFound.OpenAsync(Cdp, "https://accounts.example/", 5, Token)).Should().Be(nameof(HttpRequestException));
         (await gone.OpenAsync(Cdp, "https://accounts.example/", 5, Token)).Should().Be(nameof(HttpRequestException));
     }
 
@@ -159,5 +162,52 @@ public sealed class CdpTabsClientFixture
 
         result.Failure.Should().BeNull("the limit is on what is more than a megabyte, not on a megabyte");
         result.Tabs.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task should_list_a_tab_that_has_no_type_and_no_address()
+    {
+        var subject = new CdpTabsClient(new HttpClient(new Handler((_, _) => Task.FromResult(Json("[{}]")))));
+
+        var result = await subject.ListAsync(Cdp, 5, Token);
+
+        result.Tabs!.Select(tab => (tab.Type, tab.Url)).Should().Equal((null, null));
+    }
+
+    [Fact]
+    public async Task should_follow_no_redirect_and_ask_for_no_proxy_when_the_container_builds_it()
+    {
+        // The container must give the debugging address's client, not the factory's default one (which follows redirects and uses the environment's proxy): it is built from the real registration, next to AddHttpClient.
+        await using var app = await RedirectingBrowserAsync();
+        using var provider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().AddHttpClient().AddGeminarrBrowser().BuildServiceProvider();
+        var subject = provider.GetRequiredService<CdpTabsClient>();
+
+        var result = await subject.ListAsync(app.Url, 5, Token);
+
+        result.Failure.Should().NotBeNull("a redirect from the debugging address is not followed");
+        result.Tabs.Should().BeNull();
+    }
+
+    private sealed class Redirecting(Microsoft.AspNetCore.Builder.WebApplication app, string url) : IAsyncDisposable
+    {
+        public string Url { get; } = url;
+
+        public async ValueTask DisposeAsync()
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
+    private static async Task<Redirecting> RedirectingBrowserAsync()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
+        builder.Configuration["urls"] = "http://127.0.0.1:0";
+        var app = builder.Build();
+        Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet(app, "/json/list", (Microsoft.AspNetCore.Http.HttpContext context) => Microsoft.AspNetCore.Http.Results.Redirect("/elsewhere"));
+        Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet(app, "/elsewhere", () => Microsoft.AspNetCore.Http.Results.Text("[]", "application/json"));
+        await app.StartAsync();
+        var url = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>(app.Services).Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()!.Addresses.First();
+        return new Redirecting(app, url);
     }
 }

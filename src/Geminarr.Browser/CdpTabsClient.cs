@@ -23,7 +23,8 @@ public sealed class CdpTabsClient : IDisposable
     {
     }
 
-    public CdpTabsClient(HttpClient http) => _http = http;
+    /// <summary>For a test: a client that is given, so that a handler can stand in for the browser. Not public, so that the container can only build the one above (the factory's default client would follow redirects and use the environment's proxy).</summary>
+    internal CdpTabsClient(HttpClient http) => _http = http;
 
     public void Dispose() => _http.Dispose();
 
@@ -71,7 +72,8 @@ public sealed class CdpTabsClient : IDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
             using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(new Uri(cdpUrl), "/json/new?" + address));
-            using var response = await _http.SendAsync(request, timeout.Token);
+            // Only the status is used: the body is not read.
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             response.EnsureSuccessStatusCode();
             return null;
         }
