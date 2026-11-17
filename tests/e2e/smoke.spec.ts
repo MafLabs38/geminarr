@@ -292,7 +292,9 @@ test.describe('smoke @smoke', () => {
     // A pass attaches to the browser, opens a page of its own on the assistant's address and finds the session: the state is connected.
     const connection = async () => ((await (await api.get('/api/v1/connection')).json()) as { state: string }).state;
     const runNow = async () => {
-      expect((await api.post('/api/v1/runs')).status()).toBeLessThan(300);
+      // The watcher of the sign-in has already started a pass when the sign-in tab closed: on a slower machine it is still running (409), which is what was asked.
+      const status = (await api.post('/api/v1/runs')).status();
+      expect(status < 300 || status === 409, `status ${status}`).toBe(true);
     };
     await runNow();
     await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('Connected');
