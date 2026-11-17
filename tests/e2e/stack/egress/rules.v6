@@ -1,7 +1,7 @@
 *filter
 :OUTPUT ACCEPT [0:0]
 -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
--A OUTPUT -m owner --uid-owner 1654 -o lo -j ACCEPT
+-A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 9222,3000 -j ACCEPT
 -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
 -A OUTPUT -m owner --uid-owner 1654 -j REJECT
 COMMIT

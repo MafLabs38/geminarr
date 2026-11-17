@@ -32,8 +32,15 @@ public sealed class ProcBrowserExposureFixture : IDisposable
 
     private string V6 => Path.Combine(_folder, "tcp6");
 
-    private ProcBrowserExposure Subject(BrowserOptions? options = null, params string[] addresses) =>
-        new(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(addresses), _clock, [V4, V6]);
+    private sealed class FixedProbe(bool refused) : IEgressProbe
+    {
+        public bool IsRefused() => refused;
+    }
+
+    private ProcBrowserExposure Subject(BrowserOptions? options = null, params string[] addresses) => Subject(options, refused: true, addresses);
+
+    private ProcBrowserExposure Subject(BrowserOptions? options, bool refused, params string[] addresses) =>
+        new(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(addresses), _clock, [V4, V6], new FixedProbe(refused));
 
     private void Write(string file, params string[] sockets) => File.WriteAllLines(file, [Header, .. sockets]);
 
@@ -110,6 +117,54 @@ public sealed class ProcBrowserExposureFixture : IDisposable
         _clock.Advance(TimeSpan.FromSeconds(16));
 
         subject.Check().Ports.Should().Equal(3000);
+    }
+
+    [Fact]
+    public void should_close_the_desktop_while_the_egress_guard_is_not_in_place_and_say_why()
+    {
+        Write(V4, On8282AllInterfaces);
+
+        var report = Subject(options: null, refused: false, "http://+:8282").Check();
+
+        report.Unguarded.Should().BeTrue();
+        report.IsExposed.Should().BeTrue("a guard that is missing fails open, and nothing else would say so");
+        report.Describe().Should().Contain("egress guard").And.Contain("closed");
+    }
+
+    [Fact]
+    public void should_not_ask_for_the_egress_guard_when_the_setting_says_it_is_held_by_something_else()
+    {
+        Write(V4, On8282AllInterfaces);
+
+        var report = Subject(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222", RequireEgressGuard = false }, refused: false, "http://+:8282").Check();
+
+        report.IsExposed.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_ask_the_guard_once_in_the_time_that_the_answer_is_kept()
+    {
+        Write(V4, On8282AllInterfaces);
+        var probe = new CountingProbe();
+        var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(["http://+:8282"]), _clock, [V4, V6], probe);
+
+        subject.Check();
+        subject.Check();
+        _clock.Advance(TimeSpan.FromSeconds(16));
+        subject.Check();
+
+        probe.Asked.Should().Be(2);
+    }
+
+    private sealed class CountingProbe : IEgressProbe
+    {
+        public int Asked { get; private set; }
+
+        public bool IsRefused()
+        {
+            Asked++;
+            return true;
+        }
     }
 
     private sealed class FakeServer : IServer

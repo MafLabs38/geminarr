@@ -28,6 +28,7 @@ builder.Configuration["Urls"] = DesktopListener.Plan(builder.Configuration["Urls
 builder.Services.AddGeminarrCore(builder.Configuration);
 builder.Services.AddGeminarrBrowser();
 builder.Services.AddGeminarrBrowserRelay();
+builder.Services.AddSingleton<Geminarr.Core.Browser.IEgressProbe, Geminarr.Host.Http.TcpEgressProbe>();
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
@@ -63,6 +64,12 @@ if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operat
 if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLength < OperatorCredentials.DefaultMinPasswordLength)
 {
     app.Logger.LogWarning("The minimum length of the operator's password is lowered (GEMINARR__AUTH__MINPASSWORDLENGTH): this is for a sandbox that nobody else reaches. The operator's password is also the key to the browser's session.");
+}
+
+// A browser without the egress guard is a choice that is said at each start (ADR 0020): the platform that cannot run it holds the rules by something else.
+if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { RequireEgressGuard: false, CdpUrl: { Length: > 0 } })
+{
+    app.Logger.LogWarning("The egress guard is not required (GEMINARR__BROWSER__REQUIREEGRESSGUARD): Geminarr's own process is limited only if something else holds the rules (ADR 0020).");
 }
 
 // A desktop that a proxy publishes on a host of its own says so (DESKTOPPUBLICURL); without it, its address is the page's on the desktop's port, which a proxy that serves 443 only does not answer.

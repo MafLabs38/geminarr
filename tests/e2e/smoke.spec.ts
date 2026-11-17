@@ -432,7 +432,10 @@ test.describe('smoke @smoke', () => {
     expect(asBrowser.open, 'the control: the browser reaches the assistant, as the pod allows').toBe(true);
     expect(asGeminarr.open, "Geminarr's process does not, in the same namespace").toBe(false);
     expect((await probe(9224, '127.0.0.1', 9222)).open, 'it still reaches the browser, on the loopback').toBe(true);
-    expect((await probe(9224, 'debug-relay-is-not-a-host', 80)).open).toBe(false);
+    expect(
+      (await probe(9224, '127.0.0.1', 8282)).open,
+      'but not another port of the loopback (a proxy of a mesh would be there)',
+    ).toBe(false);
   });
 
   test('the system status page shows the version of the running build', async ({ page }) => {

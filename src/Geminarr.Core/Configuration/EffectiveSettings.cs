@@ -71,6 +71,12 @@ public sealed class EffectiveSettings
         new("GEMINARR__READER__LOGINFAILURES", _pass.Reading.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__DEMOGROWSECONDS", _pass.Reading.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _pass.Reading.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        .. BrowserSettings(),
+        new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+    ];
+
+    private SettingValue[] BrowserSettings() =>
+    [
         new("GEMINARR__BROWSER__CDPURL", string.IsNullOrWhiteSpace(_browser.Value.CdpUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__DESKTOPURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__DESKTOPPORT", _browser.Value.DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
@@ -82,7 +88,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS", _browser.Value.SessionCheckTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__SIGNINGINPASSES", _browser.Value.SigningInPasses.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__ALLOWEDOPENPORTS", string.IsNullOrWhiteSpace(_browser.Value.AllowedOpenPorts) ? NotSet : _browser.Value.AllowedOpenPorts, false),
+        new("GEMINARR__BROWSER__REQUIREEGRESSGUARD", _browser.Value.RequireEgressGuard ? "true" : "false", false),
         new("GEMINARR__BROWSER__ALLOWINSECUREASSISTANT", _browser.Value.AllowInsecureAssistant ? "true" : "false", false),
-        new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

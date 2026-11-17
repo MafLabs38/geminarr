@@ -70,6 +70,12 @@ public sealed class BrowserOptions
     /// </summary>
     public string AllowedOpenPorts { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether the egress guard must be in place (ADR 0020): the default. Geminarr then tries, from time to time, a connection that the guard refuses at once, and closes the desktop and reads nothing while it is not refused (the guard fails
+    /// open when it is missing: a restart that makes a new namespace, an init container left out, a user that the rules do not name). False only where the platform cannot run the guard and its rules are held by something else.
+    /// </summary>
+    public bool RequireEgressGuard { get; set; } = true;
+
     /// <summary>A sandbox or a test only: the assistant and the sign-in pages may be on plain http.</summary>
     public bool AllowInsecureAssistant { get; set; }
 

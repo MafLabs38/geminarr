@@ -16,16 +16,27 @@ public interface IBrowserExposure
 /// The ports that listen off the loopback and are not Geminarr's own or tolerated (a sandbox or a test only), or the fact that the listing could not be read: what cannot be checked is not taken for isolated
 /// (it fails closed).
 /// </summary>
-public sealed record ExposureReport(IReadOnlyList<int> Ports, bool Unreadable)
+public sealed record ExposureReport(IReadOnlyList<int> Ports, bool Unreadable, bool Unguarded = false)
 {
     public static readonly ExposureReport None = new([], false);
 
-    public bool IsExposed => Unreadable || Ports.Count > 0;
+    public bool IsExposed => Unreadable || Ports.Count > 0 || Unguarded;
 
     /// <summary>One sentence, with no path: what is wrong and what is done about it.</summary>
-    public string Describe() => Unreadable
-        ? "The listening sockets of the container's network (the browser's) could not be read, so whether the browser is isolated cannot be known. The desktop of the browser is closed until it can."
-        : $"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", Ports)}. The desktop of the browser is closed until it is fixed.";
+    public string Describe()
+    {
+        if (Unreadable)
+        {
+            return "The listening sockets of the container's network (the browser's) could not be read, so whether the browser is isolated cannot be known. The desktop of the browser is closed until it can.";
+        }
+
+        if (Ports.Count > 0)
+        {
+            return $"A port of the container's network (the browser's) listens off the loopback: {string.Join(", ", Ports)}. The desktop of the browser is closed until it is fixed.";
+        }
+
+        return "Geminarr's own process is not limited by the egress guard (a connection to an address that is on no list was not refused at once): it would reach whatever the browser's network reaches. The desktop of the browser is closed until the guard is in place (ADR 0020).";
+    }
 }
 
 /// <summary>The pure part of the audit: which of the listening sockets of a <c>/proc/net/tcp</c> listing are off the loopback.</summary>
