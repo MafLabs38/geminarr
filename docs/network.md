@@ -18,7 +18,7 @@ The live view is the page where the operator types the dedicated account's passw
 |---|---|---|
 | The assistant's origin (`gemini.google.com`) and the static hosts it loads its page from | Read the conversations | Every pass |
 | The account provider's sign-in origin (`accounts.google.com`) | Sign in | Only during a live view |
-| The configured Mnemarr (HTTPS) | Send turns, positions, heartbeat, pairing | Every pass |
+| The configured Mnemarr (HTTPS) | Send turns, positions, heartbeat; pairing and enrolment when the key is asked for | Every pass (a pairing: while it waits, a call every few seconds) |
 
 The browser has a **route filter** that refuses every other origin, and the container's network policy repeats the list at the cluster level. The exact host names the assistant's page needs are written down by the first spike and listed here, **and a new destination is a decision** (ADR 0008: the network policy is in the trust anchor).
 
@@ -26,4 +26,4 @@ A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/c
 
 ## Firewalls and proxies at the other end
 
-Geminarr reaches Mnemarr over HTTPS only (a loopback address or an explicit sandbox switch excepted); redirects are not followed. Which of Mnemarr's paths must be open to it: `/api/v1/ingest/*` (conversations, positions, heartbeat, pairing, enrolment).
+Geminarr reaches Mnemarr over HTTPS only (a loopback address or an explicit sandbox switch, `GEMINARR__MNEMARR__ALLOWINSECUREHTTP`, excepted); redirects are not followed, every call is bounded (30 seconds), and the key goes only to the address that was configured. Which of Mnemarr's paths must be open to it: `/api/v1/ingest/*` (conversations, positions, heartbeat, pairing, enrolment). Mnemarr's own page, where a person approves a pairing, is a link that Geminarr shows with its host visible: Geminarr never calls it.

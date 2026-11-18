@@ -25,6 +25,15 @@ public static class HealthReasons
     /// <summary>The password of the operator is too short: nobody can sign in with it.</summary>
     public const string OperatorPasswordWeak = "operator-password-weak";
 
+    /// <summary>The database cannot be opened or read.</summary>
+    public const string DatabaseUnreadable = "database-unreadable";
+
+    /// <summary>The database was written by a newer version than this one knows: it is not opened.</summary>
+    public const string DatabaseStepUnknown = "database-step-unknown";
+
+    /// <summary>Something waits for Mnemarr since more than an hour.</summary>
+    public const string OutboxGrowing = "outbox-growing";
+
     /// <summary>Something is wrong but the container does what it must (and is safe): a stable reason code beside the words.</summary>
     public static HealthCheckResult Degraded(string reason, string description) => HealthCheckResult.Degraded(description, data: Data(reason));
 

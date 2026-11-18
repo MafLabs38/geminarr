@@ -1,0 +1,16 @@
+.rows {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.reason,
+.notice {
+  color: var(--inkSoft);
+}
+
+.notice {
+  font-style: italic;
+}

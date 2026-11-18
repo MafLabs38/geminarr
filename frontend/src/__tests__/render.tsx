@@ -57,3 +57,26 @@ export function renderAt(ui: ReactElement, path = '/') {
   );
   return { ...view, client };
 }
+
+/**
+ * Answers the calls of the application by method and path (`'POST /mnemarr/pairing'`), each answer taken from a function that can change from one call to the next. A value is the JSON
+ * body of a 200, or a `Response`; a call that is not in the table is a 404. The calls are recorded, to look at what was sent.
+ */
+export function serveApi(routes: Readonly<Record<string, () => unknown>>) {
+  const calls: Array<{ key: string; body: unknown }> = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(requestAddress(input), 'http://localhost').pathname.replace(/^\/api\/v1/, '');
+      const key = `${init?.method ?? 'GET'} ${path}`;
+      calls.push({ key, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
+      const route = routes[key];
+      if (!route) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      const value = route();
+      return Promise.resolve(value instanceof Response ? value : Response.json(value));
+    }),
+  );
+  return calls;
+}

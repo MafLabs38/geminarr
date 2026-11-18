@@ -1,10 +1,12 @@
 using System.Net.Http.Json;
 using Geminarr.Core.Access;
+using Geminarr.Core.Link;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Geminarr.Integration.Test;
@@ -38,6 +40,11 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
 
     protected virtual int SessionHours => 12;
 
+    /// <summary>What a variant of the host changes in its services, after the application's own.</summary>
+    protected virtual void ConfigureServices(IServiceCollection services)
+    {
+    }
+
     /// <summary>What a variant of the host adds to its configuration.</summary>
     protected virtual void AddSettings(Dictionary<string, string?> settings)
     {
@@ -63,10 +70,16 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
 
         AddSettings(settings);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
-        if (Clock is { } clock)
+        builder.ConfigureTestServices(services =>
         {
-            builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(clock));
-        }
+            // The tests run passes themselves, when they want one: a scheduler running behind them would make them depend on the clock of the machine.
+            services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
+            ConfigureServices(services);
+            if (Clock is { } clock)
+            {
+                services.AddSingleton<TimeProvider>(clock);
+            }
+        });
     }
 
     /// <summary>A client that has signed in as the operator: its cookie jar holds the session, and (unless asked not to) every request it sends carries the header of a write.</summary>
@@ -190,6 +203,56 @@ public sealed class IdentityFactory : GeminarrFactoryBase
         if (disposing)
         {
             File.Delete(_logo);
+        }
+    }
+}
+
+/// <summary>A host whose deployment gives it a Mnemarr (a fake, in memory), a demonstration reader and a public address, as a sandbox does.</summary>
+public sealed class MnemarrFactory : GeminarrFactoryBase
+{
+    public MnemarrFactory(bool urlFromSettings = false, string? enrolmentCode = null, bool blockTheReader = false)
+        : base(createFolder: true)
+    {
+        UrlFromSettings = urlFromSettings;
+        EnrolmentCode = enrolmentCode;
+        Mnemarr = new Support.FakeMnemarr();
+        Blocker = blockTheReader ? new Support.BlockingReader() : null;
+    }
+
+    public Support.FakeMnemarr Mnemarr { get; }
+
+    /// <summary>A reader that waits until the test lets it go, to hold a pass open.</summary>
+    public Support.BlockingReader? Blocker { get; }
+
+    private bool UrlFromSettings { get; }
+
+    private string? EnrolmentCode { get; }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        settings["Reader:Kind"] = "Demo";
+        settings["Reader:LoginFailures"] = "2";
+        settings["Reader:DemoGrowSeconds"] = "1";
+        settings["PublicUrl"] = "https://geminarr.homelab.example";
+        if (UrlFromSettings)
+        {
+            settings["Mnemarr:Url"] = "https://mnemarr.test";
+        }
+
+        if (EnrolmentCode is not null)
+        {
+            var file = Path.Combine(DataFolder, "enrolment-code");
+            File.WriteAllText(file, EnrolmentCode);
+            settings["Mnemarr:EnrolmentCodeFile"] = file;
+        }
+    }
+
+    protected override void ConfigureServices(IServiceCollection services)
+    {
+        services.AddHttpClient(MnemarrClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Mnemarr);
+        if (Blocker is not null)
+        {
+            services.AddSingleton(new Geminarr.Core.Pipeline.ReaderProvider(Blocker));
         }
     }
 }
