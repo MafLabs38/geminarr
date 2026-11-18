@@ -44,9 +44,9 @@ The connection and the health use the `StatusLabel` component (icon, text and co
 - It says in words what it is ("You are controlling the browser of the Geminarr container") and which account it expects ("Sign in with the dedicated account, not your main one").
 - Frames are never stored; nothing in the DOM contains what is typed.
 
-### 2.4 The brand
+### 2.4 The brand and the identity of the environment
 
-No logo yet: the header shows the name as text. Playfulness is for the overview and empty states ("Nothing to collect yet."), never for errors or alerts.
+The header shows the product's mark (two overlapping rings, drawn in the theme's colors) and its name. The **menu ends with the identity badge** of the environment, the same as Mnemarr's and Portarr's ([ADR 0013](adr/0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md)): the name of the laboratory, its picture and the version, set by the deployment. Playfulness is for the overview and empty states ("Nothing to collect yet."), never for errors or alerts.
 
 ### 2.5 Not there yet
 

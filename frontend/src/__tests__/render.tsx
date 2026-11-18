@@ -48,11 +48,12 @@ export const answer = (code: number) => new Response(null, { status: code });
 /** Renders a screen as the signed-in operator, with a query client that does not retry and a router at the given address. */
 export function renderAt(ui: ReactElement, path = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <SessionProvider session={session}>
         <MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>
       </SessionProvider>
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }

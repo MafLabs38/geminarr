@@ -14,10 +14,18 @@ services:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
       GEMINARR__AUTH__ADMINPASSWORDFILE: /run/admin-password
       GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
+      # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
+      GEMINARR__IDENTITY__NAME: E2E Lab
+      GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg
     configs:
+      - source: logo
+        target: /run/logo.svg
+        mode: 0444
       - source: admin_password
         target: /run/admin-password
         mode: 0444
 configs:
+  logo:
+    content: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10"><circle cx="5" cy="5" r="4" fill="#3ee0c5"/></svg>'
   admin_password:
     content: e2e-admin-password

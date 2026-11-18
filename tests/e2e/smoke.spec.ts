@@ -157,6 +157,29 @@ test.describe('smoke @smoke', () => {
     await expect(page.getByRole('region', { name: 'Settings' }).getByText('e2e-operator')).toHaveCount(0);
   });
 
+  test('the menu ends with who this environment is: its name, its picture and the version', async ({
+    page,
+    request,
+  }) => {
+    await signIn(page);
+
+    const menu = page.getByRole('complementary');
+    await expect(menu.getByText('E2E Lab')).toBeVisible();
+    await expect(menu.getByText(/^v\d/)).toBeVisible();
+    const logo = menu.getByRole('img', { name: 'E2E Lab' });
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate((image: HTMLImageElement) => image.naturalWidth > 0)).toBe(true);
+    // The picture is for the person who is signed in only.
+    const src = (await logo.getAttribute('src')) ?? '';
+    const cookies = await page.context().cookies();
+    const picture = await request.get(src, {
+      headers: { Cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') },
+    });
+    expect(picture.status()).toBe(200);
+    expect(picture.headers()['content-type']).toBe('image/svg+xml');
+    expect((await request.get(src)).status()).toBe(401);
+  });
+
   test('the system status page shows the version of the running build', async ({ page }) => {
     await signIn(page, '/system/status');
 

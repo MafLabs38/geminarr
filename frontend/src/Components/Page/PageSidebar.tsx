@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { menuEntries } from 'App/navigation';
 import translate from 'Utilities/String/translate';
 
+import IdentityBadge from './IdentityBadge';
 import styles from './PageSidebar.module.css';
 
 export default function PageSidebar() {
@@ -29,6 +30,7 @@ export default function PageSidebar() {
           ),
         )}
       </nav>
+      <IdentityBadge />
     </aside>
   );
 }

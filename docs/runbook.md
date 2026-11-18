@@ -26,6 +26,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `mnemarr-unreachable` | Mnemarr does not answer | Wait; the outbox keeps the turns. `outbox-growing` appears after an hour |
 | `operator-not-configured` | No name and password file: nobody can sign in, everything but the probes is closed | Set `GEMINARR__AUTH__ADMINUSER` and `…ADMINPASSWORDFILE` in the manifest and restart |
 | `operator-password-unreadable` | The password file is missing, empty or not readable by uid 1654 | Mount it, with the right permissions; it is read at each sign-in, no restart needed |
+| *(the container does not start, and its log names `GEMINARR__IDENTITY__…`)* | The name of the environment is longer than 40 characters or has a line break, or a color is not `#rgb`, `#rrggbb` or a theme token | Correct the setting: a typo in a name must not be a silent default |
 | `operator-password-weak` | The password has fewer than twelve characters: it is refused, not accepted | Put a longer one in the file |
 | `profile-not-private` | The profile folder is readable by others | Fix the permissions (`0700`, the container's user) before anything else |
 

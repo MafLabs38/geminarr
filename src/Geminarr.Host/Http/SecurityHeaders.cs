@@ -1,3 +1,5 @@
+using Geminarr.Api.V1.Security;
+
 namespace Geminarr.Host.Http;
 
 public static class SecurityHeaders
@@ -21,8 +23,18 @@ public static class SecurityHeaders
                 headers["X-Content-Type-Options"] = "nosniff";
                 headers["X-Frame-Options"] = "DENY";
                 headers["Referrer-Policy"] = "no-referrer";
-                headers["Content-Security-Policy"] = ContentSecurityPolicy;
-                if (ApiPaths.IsApi(context.Request.Path))
+                // Some endpoints keep their own headers when they are served: the logo of the identity is an image that is the same until its hash changes, with the strictest policy,
+                // and the browser of the person keeps it (ADR 0013). An error of the same endpoint has the application's policy and is not cached, like every other answer.
+                // The endpoint must also have said a policy: the marker alone does not leave an answer without one.
+                var keepsOwnHeaders = context.Response.StatusCode is StatusCodes.Status200OK or StatusCodes.Status304NotModified
+                    && context.GetEndpoint()?.Metadata.GetMetadata<KeepsItsOwnHeadersAttribute>() is not null
+                    && headers.ContainsKey("Content-Security-Policy");
+                if (!keepsOwnHeaders)
+                {
+                    headers["Content-Security-Policy"] = ContentSecurityPolicy;
+                }
+
+                if (ApiPaths.IsApi(context.Request.Path) && !keepsOwnHeaders)
                 {
                     // What the API says is for the person who asked: no cache keeps it.
                     headers.CacheControl = "no-store";

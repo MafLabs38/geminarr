@@ -63,6 +63,11 @@ spec:
             # The name you reach the page by: its host is allowed, a request for any other name is refused (the probes are exempt).
             - name: GEMINARR__PUBLICURL
               value: https://geminarr.homelab.example
+            # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
+            # - name: GEMINARR__IDENTITY__NAME
+            #   value: My lab
+            # - name: GEMINARR__IDENTITY__LOGOFILE
+            #   value: /run/geminarr/identity/logo.png
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -94,11 +99,17 @@ spec:
             - name: operator
               mountPath: /run/geminarr/operator
               readOnly: true
+            # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
+            #   mountPath: /run/geminarr/identity
+            #   readOnly: true
       volumes:
         - name: operator
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
             secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
+        # - name: identity
+        #   configMap:
+        #     name: geminarr-identity
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data

@@ -11,6 +11,7 @@
 | Vertical 0: foundation (repository, pipeline, review agents, skeleton, specification, deployment as code) | **Built, merged** |
 | Mnemarr's changes (M-1 to M-4 and the mail), see [mnemarr-changes.md](mnemarr-changes.md) | **Delivered** (Mnemarr 0.4.0; production runs 0.6.0) |
 | Vertical 1: operator access | **Built**, in review |
+| Vertical 1b: identity of the environment (name, picture, version in the menu; F-SYS-04) | **Built**, in review |
 | Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Verticals 2 to 6 | Not started |
@@ -25,6 +26,10 @@
 
 - F-ACC-01 to F-ACC-04, F-SYS-02, F-SYS-03 ([ADR 0011](adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md)); the two findings of the first review that were deferred here (R-1-10, R-1-12) are closed.
 - Not now: Mnemarr, the browser, the reader.
+
+## Vertical 1b — The identity of the environment *(built)*
+
+*Demo: the menu ends with the name of the laboratory, its picture and the version, as Mnemarr's and Portarr's do; the picture is a file the deployment mounts.* [ADR 0013](adr/0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md). The Settings page says why a picture is not used.
 
 ## Spike S1 — Read Gemini from a container *(no pull request)*
 

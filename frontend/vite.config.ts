@@ -11,6 +11,7 @@ const aliases = [
   'App',
   'Components',
   'Helpers',
+  'Identity',
   'Login',
   'Overview',
   'Session',

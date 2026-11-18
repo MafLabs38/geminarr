@@ -17,6 +17,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0010](0010-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | D-18 |
 | [0011](0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) | One operator, a session in memory, and everything closed but the probes | D-19 |
 | [0012](0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) | The attention mail points to Mnemarr, not to the satellite | D-20 |
+| [0013](0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md) | The menu says which environment it is: a name, a logo and the version | D-21, F-SYS-04 |
 
 ## Template
 
