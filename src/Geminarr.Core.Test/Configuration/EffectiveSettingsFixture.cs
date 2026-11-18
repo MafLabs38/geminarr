@@ -37,24 +37,24 @@ public sealed class EffectiveSettingsFixture
     }
 
     [Fact]
-    public void should_show_the_browser_settings_but_not_the_debugging_address_of_the_browser()
+    public void should_show_the_browser_settings()
     {
         var settings = Subject(new AuthOptions()).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
 
-        settings.Should().ContainKey("GEMINARR__BROWSER__CDPURL").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__SIGNINHOSTS");
-        settings["GEMINARR__BROWSER__CDPURL"].Should().Be("not set");
+        settings.Should().ContainKey("GEMINARR__BROWSER__DESKTOPURL").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__SIGNINHOSTS");
+        settings.Should().NotContainKey("GEMINARR__BROWSER__CDPURL");
+        settings["GEMINARR__BROWSER__DESKTOPURL"].Should().Be("not set");
     }
 
     [Fact]
-    public void should_never_show_the_debugging_address_when_one_is_set()
+    public void should_never_show_the_address_of_the_desktop()
     {
-        var browser = new BrowserOptions { CdpUrl = "http://127.0.0.1:9222", DesktopUrl = "http://127.0.0.1:3000" };
+        var browser = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000" };
 
         var settings = Subject(new AuthOptions(), browser: browser).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
 
-        settings["GEMINARR__BROWSER__CDPURL"].Should().Be("set");
         settings["GEMINARR__BROWSER__DESKTOPURL"].Should().Be("set");
-        settings.Values.Should().NotContain(value => value.Contains("9222", StringComparison.Ordinal));
+        settings.Values.Should().NotContain(value => value.Contains("3000", StringComparison.Ordinal));
     }
 
     [Fact]

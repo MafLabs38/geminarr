@@ -16,7 +16,7 @@ services:
         aliases:
           - assistant
           - signin
-  # The browser container (ADR 0016): an ordinary Chromium with a web desktop, a person signs in to it by hand. Its debugging port listens on the loopback of its own network namespace, which Geminarr shares.
+  # The browser container (ADR 0016): an ordinary Chromium with a web desktop, a person signs in to it by hand. Its web desktop listens on the loopback of its own network namespace, which Geminarr shares.
   # The image is a third party's, pinned by digest (the maintainer chooses it, SPEC Q-18). The ports of Geminarr are published here, since Geminarr uses this namespace.
   browser:
     image: lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108
@@ -39,7 +39,6 @@ services:
       # No login on the web desktop and nothing published for it: Geminarr relays it on a port of its own (8283), behind a cookie that a ticket of the operator's session gives.
       SUBFOLDER: /browser/
       SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
-      CHROME_CLI: --remote-debugging-port=9222
     volumes:
       # The desktop listens on the loopback of the namespace only (the same script as the deployment examples').
       - ../../../deploy/browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
@@ -47,8 +46,6 @@ services:
       - '8282:8282'
       # The desktop's origin (ADR 0019): open to the network, and closed without the cookie that a ticket of the operator's session gives.
       - '8283:8283'
-      # Test only: the debugging port, relayed below, so that a script can play the person who signs in by hand. Never Geminarr's own way in.
-      - '127.0.0.1:9223:9223'
       # Test only: what each user of the namespace can reach (the probes below), to show the egress guard.
       - '127.0.0.1:9224:9224'
       - '127.0.0.1:9225:9225'
@@ -56,12 +53,6 @@ services:
       default:
         aliases:
           - browser
-  debug-relay:
-    image: alpine/socat@sha256:71131702f671a88b3808a70b7330f9679cd9b9933adcafadc191508edfe55bba
-    command: tcp-listen:9223,fork,reuseaddr tcp:127.0.0.1:9222
-    network_mode: service:browser
-    depends_on:
-      - browser
   # The egress guard (ADR 0020): in the namespace that the two containers share, Geminarr's own process (uid 1654) may reach nothing but the loopback, whatever the network policy of the pod allows
   # for the browser. It runs once, with the one capability that it needs, and exits; Geminarr has no capability and cannot change what it set. One for IPv4, one for IPv6.
   egress-guard:
@@ -122,7 +113,7 @@ services:
   geminarr:
     build:
       context: ../../..
-    # Shares the network namespace of the browser container: the debugging address is the loopback, never a network.
+    # Shares the network namespace of the browser container: the desktop's address is the loopback, never a network.
     network_mode: service:browser
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
@@ -145,7 +136,6 @@ services:
       GEMINARR__READER__KIND: Web
       GEMINARR__READER__LOGINFAILURES: '1'
       GEMINARR__READER__POLLMINUTES: '1'
-      GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
       GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
       GEMINARR__BROWSER__SIGNINHOSTS: signin
@@ -153,8 +143,8 @@ services:
       # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
       GEMINARR__BROWSER__SESSIONCOOKIES: assistant
       GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
-      # Test only: the relay of the debugging port and the two probes listen off the loopback (a script plays the person who signs in by hand; the probes show the egress guard).
-      GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9223;9224;9225'
+      # Test only: the two probes listen off the loopback (they show the egress guard).
+      GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9224;9225'
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg

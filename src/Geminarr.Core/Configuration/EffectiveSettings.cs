@@ -77,7 +77,6 @@ public sealed class EffectiveSettings
 
     private SettingValue[] BrowserSettings() =>
     [
-        new("GEMINARR__BROWSER__CDPURL", string.IsNullOrWhiteSpace(_browser.Value.CdpUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__DESKTOPURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__DESKTOPPORT", _browser.Value.DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__DESKTOPPUBLICURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopPublicUrl) ? NotSet : _browser.Value.DesktopPublicUrl, false),

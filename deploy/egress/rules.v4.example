@@ -1,13 +1,13 @@
 # The egress guard (ADR 0020), IPv4. Copy to rules.v4 and edit what is between <...>. Loaded once, in the network namespace that Geminarr shares with the browser, by a container with the one
 # capability that it needs (NET_ADMIN); Geminarr has none and cannot change it. It names Geminarr's own process by the user of its image (uid 1654) and limits what that process may reach:
 # the browser's own processes are not named and keep whatever the pod's network policy allows. A change to Mnemarr's address is a change here, then a restart of the pod.
-# It stops Geminarr's process from connecting out by itself. It does not stop it from asking the browser, over the debugging port, to go somewhere (ADR 0020, "what it does not cover").
+# It stops Geminarr's process from connecting out by itself. It does not stop the browser itself from going anywhere its network lets it (ADR 0020).
 *filter
 :OUTPUT ACCEPT [0:0]
 # What comes in on the page is answered.
 -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-# The browser's debugging address and its desktop, on the loopback, and only those ports (a mesh proxy that listens on the loopback is not reached through here).
--A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 9222,3000 -j ACCEPT
+# The browser's desktop, on the loopback, and only that port (a mesh proxy that listens on the loopback is not reached through here).
+-A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 3000 -j ACCEPT
 # The name server that resolves Mnemarr's name (one line per server). Give Mnemarr by address (hostAliases, extra_hosts) and delete these two lines, and no name leaves at all.
 -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p udp --dport 53 -j ACCEPT
 -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p tcp --dport 53 -j ACCEPT

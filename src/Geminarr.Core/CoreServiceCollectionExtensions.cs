@@ -57,7 +57,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, DesktopOriginValidator>();
         services.AddOptions<BrowserOptions>().Bind(configuration.GetSection(BrowserOptions.SectionName)).ValidateOnStart();
-        services.TryAddSingleton<IBrowserHost, NoBrowserHost>();
+        services.TryAddSingleton<IBrowserHost, DesktopBrowserHost>();
         services.TryAddSingleton<IBrowserExposure, NoBrowserExposure>();
         services.AddSingleton<ConnectionTracker>();
         services.AddSingleton<SignInObserver>();

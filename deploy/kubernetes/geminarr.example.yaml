@@ -1,6 +1,6 @@
 # Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
 # One pod, two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
-# The browser is for Geminarr alone: no Service, no ingress, no login of its own. Its debugging port and its web desktop listen in the pod, which the two containers share,
+# The browser is for Geminarr alone: no Service, no ingress, no login of its own. Its web desktop listens in the pod, which the two containers share,
 # and Geminarr relays the desktop on a port of its own, behind a ticket of the operator's session: Geminarr's page and that origin are the only things that are published (behind your single sign-on if you have one).
 apiVersion: v1
 kind: Namespace
@@ -44,7 +44,7 @@ data:
     *filter
     :OUTPUT ACCEPT [0:0]
     -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 9222,3000 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 3000 -j ACCEPT
     -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p udp --dport 53 -j ACCEPT
     -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p tcp --dport 53 -j ACCEPT
     -A OUTPUT -m owner --uid-owner 1654 -d <mnemarr-ip>/32 -p tcp --dport <mnemarr-port> -j ACCEPT
@@ -55,7 +55,7 @@ data:
     *filter
     :OUTPUT ACCEPT [0:0]
     -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 9222,3000 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 3000 -j ACCEPT
     -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
     -A OUTPUT -m owner --uid-owner 1654 -j REJECT
     COMMIT
@@ -191,12 +191,10 @@ spec:
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
-            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the debugging address and the web desktop (both on
+            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the web desktop (on
             # the loopback of the pod, nothing else is accepted). The person signs in by hand, in the desktop that Geminarr relays on a port of its own (8283, set with GEMINARR__BROWSER__DESKTOPPORT; give its public address with GEMINARR__BROWSER__DESKTOPPUBLICURL when your ingress gives it one); Geminarr never types a credential.
             - name: GEMINARR__READER__KIND
               value: Web
-            - name: GEMINARR__BROWSER__CDPURL
-              value: http://127.0.0.1:9222
             - name: GEMINARR__BROWSER__DESKTOPURL
               value: http://127.0.0.1:3000
           securityContext:
@@ -252,11 +250,11 @@ spec:
               value: "1000"
             - name: TZ
               value: Etc/UTC   # your time zone
-            # The debugging port, on the loopback of the pod only (Geminarr reaches it through the namespace that the two containers share), and the page the browser opens: the assistant, which
+            # The page the browser opens: the assistant, which
             # sends a person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it, and it is no container port of the pod.
             # The page the browser opens at start is the assistant's address: keep it the same as GEMINARR__BROWSER__ASSISTANTURL.
             - name: CHROME_CLI
-              value: --remote-debugging-port=9222 https://gemini.google.com/app
+              value: https://gemini.google.com/app
             # The web desktop is served under this path, where Geminarr relays it.
             - name: SUBFOLDER
               value: /browser/
@@ -343,7 +341,7 @@ spec:
       port: 8283
       targetPort: desktop
 ---
-# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's ports (the page's, and the desktop's own origin): the web desktop of the browser (3000) and its debugging port (9222) have
+# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's ports (the page's, and the desktop's own origin): the web desktop of the browser (3000) has
 # no sign-in of their own, so no other pod may reach them, whatever listens in the pod. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -363,7 +361,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
-        # The desktop's own origin (ADR 0019). The desktop itself (3000) and the debugging port (9222) stay on the loopback and are in no policy.
+        # The desktop's own origin (ADR 0019). The desktop itself (3000) stays on the loopback and are in no policy.
         - protocol: TCP
           port: 8283
 ---
@@ -371,7 +369,7 @@ spec:
 # of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
 # The browser container (the same pod) also needs https to the assistant and to the account provider's sign-in pages, and whatever a Chromium reaches on its own (the list
 # of docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
-# port 443 for this pod only. The exact list is the spike S1's (ROADMAP), and a new destination is a decision. The debugging port of the browser is on the loopback: no policy
+# port 443 for this pod only. The exact list is the spike S1's (ROADMAP), and a new destination is a decision. The desktop of the browser is on the loopback: no policy
 # is needed for it, and none may open it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

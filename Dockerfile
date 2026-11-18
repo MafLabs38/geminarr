@@ -7,7 +7,6 @@
 # per architecture, and it only copies files, so a multi-architecture image is built without emulation.
 # The constraint that comes with it: an asset that differs per architecture (a native library) must be chosen with ARG TARGETARCH
 # (or `dotnet publish -a`), never by the architecture of the builder, or the arm64 image gets amd64 files and fails only when it runs.
-# The one asset of that kind is the driver that Playwright ships to attach to the browser container (a Node binary per platform): the backend stage keeps the one of the target architecture and makes it executable.
 # The image carries no browser (ADR 0016): the browser is a container of its own.
 FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
 WORKDIR /build
@@ -27,18 +26,10 @@ COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/Geminarr.Host/Geminarr.Host.csproj src/Geminarr.Host/
 COPY src/Geminarr.Api.V1/Geminarr.Api.V1.csproj src/Geminarr.Api.V1/
 COPY src/Geminarr.Core/Geminarr.Core.csproj src/Geminarr.Core/
-COPY src/Geminarr.Browser/Geminarr.Browser.csproj src/Geminarr.Browser/
 RUN dotnet restore src/Geminarr.Host/Geminarr.Host.csproj
 COPY src ./src
 RUN dotnet publish src/Geminarr.Host/Geminarr.Host.csproj -c Release --no-restore -o /app -p:Version=${VERSION} \
-    && mkdir /config \
-    && case "${TARGETARCH}" in \
-        amd64) platform=linux-x64 ;; \
-        arm64) platform=linux-arm64 ;; \
-        *) echo "unsupported architecture ${TARGETARCH}" >&2; exit 1 ;; \
-       esac \
-    && chmod 755 "/app/.playwright/node/${platform}/node" \
-    && find /app/.playwright/node -mindepth 1 -maxdepth 1 ! -name "${platform}" -exec rm -rf {} +
+    && mkdir /config
 
 # Chiseled image: no shell, no package manager, non-root user by default.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled@sha256:7c625e44e5d588b4d7b2a913e94ca4bd5098ce47442da404829e4c7936a764e1

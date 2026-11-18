@@ -53,7 +53,7 @@ public sealed class BrowserOptionsValidatorFixture
     [InlineData("http://user:secret@127.0.0.1:9222", false)]
     public void should_accept_only_a_loopback_address_for_the_debugging_port_of_the_browser(string address, bool valid)
     {
-        new BrowserOptionsValidator().Validate(null, new BrowserOptions { CdpUrl = address }).Failed.Should().Be(!valid);
+        new BrowserOptionsValidator().Validate(null, new BrowserOptions { DesktopUrl = address }).Failed.Should().Be(!valid);
     }
 
     [Theory]
@@ -106,11 +106,10 @@ public sealed class BrowserOptionsValidatorFixture
     [Theory]
     [InlineData("3000")]
     [InlineData("3001")]
-    [InlineData("9222")]
     [InlineData("15001;3000")]
-    public void should_never_tolerate_the_port_of_the_desktop_or_of_the_debugging_address(string ports)
+    public void should_never_tolerate_the_port_of_the_desktop(string ports)
     {
-        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222", AllowedOpenPorts = ports };
+        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", AllowedOpenPorts = ports };
 
         new BrowserOptionsValidator().Validate(null, options).Failed.Should().BeTrue();
     }
@@ -118,7 +117,7 @@ public sealed class BrowserOptionsValidatorFixture
     [Fact]
     public void should_tolerate_the_port_of_a_mesh_proxy()
     {
-        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222", AllowedOpenPorts = "15001;15006;15021" };
+        var options = new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", AllowedOpenPorts = "15001;15006;15021" };
 
         new BrowserOptionsValidator().Validate(null, options).Succeeded.Should().BeTrue();
     }

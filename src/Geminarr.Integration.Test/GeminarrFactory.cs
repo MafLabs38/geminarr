@@ -277,7 +277,6 @@ public sealed class BrowserFactory : GeminarrFactoryBase
     protected override void AddSettings(Dictionary<string, string?> settings)
     {
         settings["Reader:Kind"] = "Web";
-        settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
         settings["Browser:DesktopUrl"] = "http://127.0.0.1:3000";
     }
 
@@ -339,7 +338,6 @@ public sealed class RelayFactory : GeminarrFactoryBase
             settings["AllowedHostNames"] = _allowedHostNames;
         }
 
-        settings["Browser:CdpUrl"] = "http://127.0.0.1:9222";
         settings["Reader:Kind"] = "Web";
     }
 

@@ -1,5 +1,4 @@
 using Geminarr.Api.V1;
-using Geminarr.Browser;
 using Geminarr.Core;
 using Geminarr.Core.Access;
 using Geminarr.Core.SystemInfo;
@@ -26,7 +25,6 @@ builder.Configuration.AddEnvironmentVariables(prefix: "GEMINARR__");
 builder.Configuration["Urls"] = DesktopListener.Plan(builder.Configuration["Urls"], builder.Configuration["Browser:DesktopUrl"], builder.Configuration["Browser:DesktopPort"]);
 
 builder.Services.AddGeminarrCore(builder.Configuration);
-builder.Services.AddGeminarrBrowser();
 builder.Services.AddGeminarrBrowserRelay();
 builder.Services.AddSingleton<Geminarr.Core.Browser.IEgressProbe, Geminarr.Host.Http.TcpEgressProbe>();
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
@@ -67,7 +65,7 @@ if (app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.MinPasswordLe
 }
 
 // A browser without the egress guard is a choice that is said at each start (ADR 0020): the platform that cannot run it holds the rules by something else.
-if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { RequireEgressGuard: false } guardless && (!string.IsNullOrWhiteSpace(guardless.CdpUrl) || !string.IsNullOrWhiteSpace(guardless.DesktopUrl)))
+if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { RequireEgressGuard: false } guardless && !string.IsNullOrWhiteSpace(guardless.DesktopUrl))
 {
     app.Logger.LogWarning("The egress guard is not required (GEMINARR__BROWSER__REQUIREEGRESSGUARD): Geminarr's own process is limited only if something else holds the rules (ADR 0020).");
 }

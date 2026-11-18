@@ -8,7 +8,7 @@ namespace Geminarr.Core.Health;
 
 /// <summary>
 /// The attachment to the browser container (ADR 0016): healthy while the last attachment reached it (or none was needed), degraded with <c>browser-failed</c> when it could not be reached (the container is
-/// not started, the debugging address is wrong, a limit killed it). Not a readiness check: a container without its browser is alive and says so.
+/// not started, its desktop address is wrong, a limit killed it). Not a readiness check: a container without its browser is alive and says so.
 /// </summary>
 public sealed class BrowserHealthCheck : IHealthCheck
 {
@@ -39,12 +39,12 @@ public sealed class BrowserHealthCheck : IHealthCheck
         var state = _browser.State();
         if (!state.Configured)
         {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__CDPURL)."));
+            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__DESKTOPURL)."));
         }
 
         return Task.FromResult(
             state.Reachable == false
-                ? HealthReasons.Degraded(ConnectionReasons.BrowserFailed, "The browser container could not be reached: is it started, and is the debugging address right?")
+                ? HealthReasons.Degraded(ConnectionReasons.BrowserFailed, "The browser container could not be reached: is it started, and is its desktop address right?")
                 : HealthCheckResult.Healthy());
     }
 }

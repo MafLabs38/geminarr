@@ -241,108 +241,29 @@ test.describe('smoke @smoke', () => {
     expect((await request.post('/api/v1/mnemarr/pairing')).status()).toBe(403);
   });
 
-  test('a person signs in to the browser container by hand, Geminarr sees the session, loses it and clears it', async ({
+  test("the Connection page opens the browser's desktop, where a person signs in by hand", async ({
     page,
-    request,
     playwright,
     baseURL,
     browserName,
   }) => {
-    // One browser container and one server: the connection is walked once, in one browser project.
+    // One browser container and one server: the page is walked once, in one browser project.
     test.skip(browserName !== 'chromium', 'one browser container, one server');
-    test.setTimeout(240_000);
-    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the session.
+    test.setTimeout(120_000);
+    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the desktop.
     const api = await signedInRequest(playwright, required(baseURL));
     expect((await api.delete('/api/v1/mnemarr')).status()).toBe(204);
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 
-    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, on an origin of its own that a ticket of the operator's session opens (no second login).
+    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, on an origin of its own that a ticket of the operator's session opens
     const signInButton = page.getByRole('button', { name: 'Sign in to the assistant' });
     await expect(signInButton).toBeVisible({ timeout: 90_000 });
     const [desktop] = await Promise.all([page.context().waitForEvent('page'), signInButton.click()]);
     await expect(desktop).toHaveURL(/localhost:8283\/browser\/$/);
     await expect(desktop).toHaveTitle(/Chromium|Selkies/, { timeout: 60_000 });
     await desktop.close();
-
-    // The person signs in, in the browser container, by hand: here a script plays the person against the fake assistant, through the debugging port of the test (never Geminarr).
-    const signInByHand = async () => {
-      const token = ((await (await request.post('http://localhost:8091/admin/session')).json()) as { token: string })
-        .token;
-      const browser = await playwright.chromium.connectOverCDP('http://localhost:9223');
-      try {
-        const context = browser.contexts()[0];
-        if (!context) {
-          throw new Error('The browser container has no context.');
-        }
-        // The Sign in button opened the sign-in page in a tab (a person would use it): the script plays that person, so the tab is closed first (a pass steps aside while one is open).
-        for (const open of context.pages().filter((candidate) => candidate.url().startsWith('http://signin:'))) {
-          await open.close();
-        }
-        const tab = await context.newPage();
-        await tab.goto(`http://assistant:8081/auth?t=${token}`);
-        await expect(tab.getByText('Fake assistant: signed in')).toBeVisible();
-        await tab.close();
-      } finally {
-        await browser.close();
-      }
-    };
-    await signInByHand();
-
-    // A pass attaches to the browser, opens a page of its own on the assistant's address and finds the session: the state is connected.
-    const connection = async () => ((await (await api.get('/api/v1/connection')).json()) as { state: string }).state;
-    const runNow = async () => {
-      // The watcher of the sign-in has already started a pass when the sign-in tab closed: on a slower machine it is still running (409), which is what was asked.
-      const status = (await api.post('/api/v1/runs')).status();
-      expect(status < 300 || status === 409, `status ${status}`).toBe(true);
-    };
-    await runNow();
-    await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('Connected');
-    await page.reload();
-    await expect(page.getByText('Connected', { exact: true })).toBeVisible();
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-
-    // The assistant ends the session (an expiry): the next pass is sent to the sign-in page, and the state asks to sign in again.
-    expect((await request.post('http://localhost:8091/admin/expire')).status()).toBe(204);
-    await runNow();
-    await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('NeedsLogin');
-
-    // The person signs in again; then the operator disconnects: the cookies of the browser are cleared and the connection is forgotten.
-    await signInByHand();
-    await runNow();
-    await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('Connected');
-    await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    await page.getByRole('button', { name: 'Yes, disconnect' }).click();
-    await expect(page.getByText('Not connected', { exact: true })).toBeVisible({ timeout: 30_000 });
-
-    // The assistant now shows its page to a guest (as the real one does): the page is the right one, but no cookie says that an account is signed in, so it is not a session.
-    expect((await request.post('http://localhost:8091/admin/guest')).status()).toBe(204);
-    await runNow();
-    await expect.poll(connection, { timeout: 90_000, intervals: [1_000] }).toBe('NeedsLogin');
-
-    // A person is typing on a sign-in page of the browser: a pass steps aside (it opens nothing, so the assistant is not asked for its page), and the next one, once the tab is closed, looks again.
-    const latestRunId = async () =>
-      ((await (await api.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ?? 0;
-    const visits = async () =>
-      ((await (await request.get('http://localhost:8091/admin/visits')).json()) as { visits: number }).visits;
-    const passAfter = async (previous: number) => {
-      await runNow();
-      await expect.poll(latestRunId, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(previous);
-      return latestRunId();
-    };
-    const peopleBrowser = await playwright.chromium.connectOverCDP('http://localhost:9223');
-    try {
-      const tab = await required(peopleBrowser.contexts()[0]).newPage();
-      await tab.goto('http://signin:8081/signin?next=/app');
-      const asked = await visits();
-      const steppedAside = await passAfter(await latestRunId());
-      expect(await visits()).toBe(asked);
-      await tab.close();
-      await passAfter(steppedAside);
-      await expect.poll(visits, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(asked);
-    } finally {
-      await peopleBrowser.close();
-    }
   });
 
   test(
@@ -379,7 +300,6 @@ test.describe('smoke @smoke', () => {
     );
     expect(await reaches(3000), 'the desktop itself is not').toBe(false);
     expect(await reaches(3001), 'nor its TLS port').toBe(false);
-    expect(await reaches(9222), 'nor the debugging port').toBe(false);
 
     // The operator's session asks for the address, with a ticket; it is worth one opening.
     const api = await signedInRequest(playwright, required(baseURL));
@@ -431,7 +351,7 @@ test.describe('smoke @smoke', () => {
     expect(asBrowser.uid, "the control is the browser's user").toBe(1000);
     expect(asBrowser.open, 'the control: the browser reaches the assistant, as the pod allows').toBe(true);
     expect(asGeminarr.open, "Geminarr's process does not, in the same namespace").toBe(false);
-    expect((await probe(9224, '127.0.0.1', 9222)).open, 'it still reaches the browser, on the loopback').toBe(true);
+    expect((await probe(9224, '127.0.0.1', 3000)).open, 'it still reaches the browser, on the loopback').toBe(true);
     expect(
       (await probe(9224, '127.0.0.1', 8282)).open,
       'but not another port of the loopback (a proxy of a mesh would be there)',

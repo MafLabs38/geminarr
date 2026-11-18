@@ -11,12 +11,6 @@ public sealed class BrowserOptions
     public const string SectionName = "Browser";
 
     /// <summary>
-    /// The debugging address of the browser (for example <c>http://127.0.0.1:9222</c>): the key to its session, so a loopback address of a network namespace that the two containers share. Nothing is read
-    /// without it (the reader <c>Web</c> then says not connected).
-    /// </summary>
-    public string? CdpUrl { get; set; }
-
-    /// <summary>
     /// The web desktop of the browser container (for example <c>http://127.0.0.1:3000</c>): the screen of an ordinary Chromium where a person signs in by hand. Geminarr relays it, behind its own sign-in, at
     /// <see cref="RelayPath"/>: nothing else reaches it (ADR 0017), so it is a loopback address of the namespace the two containers share. Without it, nothing is relayed.
     /// </summary>
@@ -66,7 +60,7 @@ public sealed class BrowserOptions
 
     /// <summary>
     /// Ports that other containers of the same pod open on purpose, off the loopback, and that Geminarr must not take for the browser being exposed (a service-mesh proxy, a metrics exporter; the test relay of the
-    /// end-to-end stack), separated by <c>;</c>. Never the web desktop's or the debugging port: they have no sign-in (the start is refused).
+    /// end-to-end stack), separated by <c>;</c>. Never the web desktop's: it has no sign-in (the start is refused).
     /// </summary>
     public string AllowedOpenPorts { get; set; } = string.Empty;
 
@@ -95,8 +89,6 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
     {
         var problem =
             (OriginPolicy.AssistantHost(options) is null ? "Browser:AssistantUrl (GEMINARR__BROWSER__ASSISTANTURL) must be an https address with a host (http only when the sandbox switch allows it)." : null)
-            ?? Address("CdpUrl", options.CdpUrl)
-            ?? Loopback("CdpUrl", options.CdpUrl)
             ?? Address("DesktopUrl", options.DesktopUrl)
             ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? DesktopOrigin(options)
@@ -142,7 +134,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
                 : "Browser:DesktopPublicUrl (GEMINARR__BROWSER__DESKTOPPUBLICURL) must be an origin: a scheme, a host and a port, no path.");
     }
 
-    /// <summary>The ports that are tolerated off the loopback are port numbers, and none is the browser's own: its desktop (and the TLS port that goes with it) and its debugging port have no sign-in.</summary>
+    /// <summary>The ports that are tolerated off the loopback are port numbers, and none is the browser's own: its desktop (and the TLS port that goes with it) has no sign-in.</summary>
     private static string? OpenPorts(BrowserOptions options)
     {
         var ports = OriginPolicy.Entries(options.AllowedOpenPorts);
@@ -151,13 +143,13 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
             return "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) must be port numbers separated by semicolons.";
         }
 
-        var browser = new[] { options.DesktopUrl, options.CdpUrl }.Where(address => Uri.TryCreate(address, UriKind.Absolute, out _)).Select(address => new Uri(address!).Port).Concat([3001]);
+        var browser = new[] { options.DesktopUrl }.Where(address => Uri.TryCreate(address, UriKind.Absolute, out _)).Select(address => new Uri(address!).Port).Concat([3001]);
         return ports.Select(int.Parse).Intersect(browser).Any()
-            ? "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) may not name the port of the browser's desktop or debugging address: they have no sign-in."
+            ? "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) may not name the port of the browser's desktop: it has no sign-in."
             : null;
     }
 
-    /// <summary>The debugging address is the key to the session and the web desktop has no sign-in of its own (Geminarr's is the only one): both are the loopback of the namespace the two containers share, never an address of a network.</summary>
+    /// <summary>The web desktop has no sign-in of its own (Geminarr's is the only one): it is the loopback of the namespace the two containers share, never an address of a network.</summary>
     private static string? Loopback(string setting, string? value) =>
         string.IsNullOrWhiteSpace(value) || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsLoopback)
             ? null

@@ -162,7 +162,6 @@ jobs:
       # The .NET scanner does not read SONAR_TOKEN for `begin`, so the token is an argument of `begin` and `end`. This job runs the
       # pull request's own code (the build): same-repository branch authors are trusted with this secret, and pull requests from
       # forks never get it.
-      # src/Geminarr.Browser/CdpBrowserHost.cs is the half that drives a real Chromium (attach, cookies, the page): it is covered by the end-to-end test (tests/e2e), not by a coverage report. The other half (the list of the tabs, the tab to sign in, plain HTTP) is CdpTabsClient, and is measured. What is decided (the verdict on a session, the classification of a page, the connection) is in Core, which is covered.
       # tools/** (the release tooling and the checker of the review decisions) is analysed, but left out of the coverage figure: no coverage report
       # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs).
       # Documented exception (CLAUDE.md): docker:S8431 asks for the tag or the digest of a base image, not both. The Dockerfile keeps
@@ -175,7 +174,7 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
-          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**,src/Geminarr.Browser/CdpBrowserHost.cs"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.qualitygate.wait=true
           /d:sonar.issue.ignore.multicriteria=e1

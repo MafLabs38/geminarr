@@ -59,7 +59,7 @@ public sealed class AuthOptionsBrowserValidator(IOptions<BrowserOptions> browser
 {
     public ValidateOptionsResult Validate(string? name, AuthOptions options)
     {
-        var configured = !string.IsNullOrWhiteSpace(browser.Value.CdpUrl) || !string.IsNullOrWhiteSpace(browser.Value.DesktopUrl);
+        var configured = !string.IsNullOrWhiteSpace(browser.Value.DesktopUrl);
         return !configured || options.MinPasswordLength >= OperatorCredentials.DefaultMinPasswordLength
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail($"Auth:MinPasswordLength (GEMINARR__AUTH__MINPASSWORDLENGTH) cannot be below {OperatorCredentials.DefaultMinPasswordLength} while a browser is configured (GEMINARR__BROWSER__CDPURL or GEMINARR__BROWSER__DESKTOPURL): the operator's password is also the key to the browser's session.");

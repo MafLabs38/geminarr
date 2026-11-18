@@ -41,7 +41,7 @@ public sealed class ProcBrowserExposureFixture : IDisposable
 
     private ProcBrowserExposure Subject(BrowserOptions? options, bool refused, params string[] addresses)
     {
-        var subject = new ProcBrowserExposure(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(addresses), _clock, [V4, V6], new FixedProbe(refused));
+        var subject = new ProcBrowserExposure(Options.Create(options ?? new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000" }), new FakeServer(addresses), _clock, [V4, V6], new FixedProbe(refused));
         // The guard is looked at by a timer of its own: the first look is made.
         _clock.Advance(TimeSpan.FromMilliseconds(1));
         return subject;
@@ -142,7 +142,7 @@ public sealed class ProcBrowserExposureFixture : IDisposable
     {
         Write(V4, On8282AllInterfaces);
 
-        var report = Subject(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222", RequireEgressGuard = false }, refused: false, "http://+:8282").Check();
+        var report = Subject(new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000", RequireEgressGuard = false }, refused: false, "http://+:8282").Check();
 
         report.IsExposed.Should().BeFalse();
     }
@@ -152,7 +152,7 @@ public sealed class ProcBrowserExposureFixture : IDisposable
     {
         Write(V4, On8282AllInterfaces);
         var probe = new CountingProbe();
-        var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(["http://+:8282"]), _clock, [V4, V6], probe);
+        var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000" }), new FakeServer(["http://+:8282"]), _clock, [V4, V6], probe);
 
         _clock.Advance(TimeSpan.FromMilliseconds(1));
         var checks = Enumerable.Range(0, 5).Select(_ => subject.Check()).ToList();
@@ -169,7 +169,7 @@ public sealed class ProcBrowserExposureFixture : IDisposable
         Write(V4, On8282AllInterfaces);
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
         // A timer that has not fired: the provider is given a due time that has not come (a probe that is slow to start).
-        using var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { CdpUrl = "http://127.0.0.1:9222" }), new FakeServer(["http://+:8282"]), new NotYetTimeProvider(clock), [V4, V6], new FixedProbe(refused: true));
+        using var subject = new ProcBrowserExposure(Options.Create(new BrowserOptions { DesktopUrl = "http://127.0.0.1:3000" }), new FakeServer(["http://+:8282"]), new NotYetTimeProvider(clock), [V4, V6], new FixedProbe(refused: true));
 
         subject.Check().Unguarded.Should().BeTrue("nothing is known before the first look, and what is not known is not taken for good");
     }

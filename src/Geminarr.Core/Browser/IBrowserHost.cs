@@ -7,7 +7,7 @@ public sealed record BrowserState(bool Configured, bool? Reachable, AccountIdent
 
 /// <summary>
 /// The browser that holds the session (ADR 0016): a container of its own, that a person signs in to by hand. Geminarr attaches to it to check the session (and later to read), and can clear the session on
-/// request. It never launches a browser and never types a credential. The implementation (Playwright, attached to the debugging address) lives in its own project; everything that decides is in Core.
+/// request. It never launches a browser and never types a credential. Geminarr has no debugging port to it: the implementation only looks at the web desktop, and the extension of the browser says what the session is (ADR 0015).
 /// </summary>
 public interface IBrowserHost
 {
@@ -28,7 +28,7 @@ public interface IBrowserHost
 
     /// <summary>
     /// Opens the sign-in page of the account provider in a tab of the browser of its own (<see cref="BrowserOptions.SignInUrl"/>), unless a tab is on a sign-in page already: the person then signs in by hand, in the browser's own page. Nothing
-    /// is attached to do it (the browser is asked over its plain HTTP debugging address), and nothing is typed. A browser that cannot be reached is a <see cref="ReaderException"/>.
+    /// is attached to do it (the browser is not driven), and nothing is typed. A browser that cannot be reached is a <see cref="ReaderException"/>.
     /// </summary>
     Task OpenSignInPageAsync(CancellationToken cancellationToken);
 

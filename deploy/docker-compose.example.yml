@@ -1,6 +1,6 @@
 # Geminarr on a Docker host. Copy, adjust the values marked <...>, then `docker compose up -d`.
 # Two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
-# The browser is for Geminarr alone: it publishes nothing, has no sign-in of its own and no address of its own. Geminarr runs in its network namespace, reaches its debugging port and its
+# The browser is for Geminarr alone: it publishes nothing, has no sign-in of its own and no address of its own. Geminarr runs in its network namespace, reaches its
 # web desktop on the loopback of that namespace, and relays the desktop on a port of its own (8283) behind a ticket of the operator's session. The only ports published are Geminarr's two (on the `browser` service, which owns the namespace).
 services:
   browser:
@@ -14,10 +14,10 @@ services:
       PUID: "1000"
       PGID: "1000"
       TZ: Etc/UTC # your time zone
-      # The debugging port, on the loopback of the container only (Geminarr reaches it through the namespace that the two share), and the page the browser opens: the assistant, which sends a
+      # The page the browser opens: the assistant, which sends a
       # person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it.
       # The page the browser opens at start is the assistant's address: keep it the same as GEMINARR__BROWSER__ASSISTANTURL (below).
-      CHROME_CLI: --remote-debugging-port=9222 https://gemini.google.com/app
+      CHROME_CLI: https://gemini.google.com/app
       # The web desktop is served under this path, where Geminarr relays it.
       SUBFOLDER: /browser/
       # The only origin its WebSocket accepts: the one Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads can
@@ -33,7 +33,7 @@ services:
       - "127.0.0.1:8282:8282"
       # The desktop's own origin (ADR 0019): a second port of Geminarr, for the same proxy (a second host or port, HTTPS). It answers 401 without the cookie that a ticket of the operator's session gives.
       - "127.0.0.1:8283:8283"
-      # Never publish 3000 (the web desktop itself) or 9222 (the debugging port): they are for Geminarr alone.
+      # Never publish 3000 (the web desktop itself): it is for Geminarr alone.
     # Hardening, tried on 2026-11-15 with this image: its init needs these few capabilities to set the user and the files, and nothing else (Chromium runs as the user it sets).
     cap_drop:
       - ALL
@@ -85,7 +85,7 @@ services:
   geminarr:
     image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
     restart: unless-stopped
-    # The network of the browser: the debugging address is its loopback, never a network.
+    # The network of the browser: the desktop's address is its loopback, never a network.
     network_mode: service:browser
     depends_on:
       browser:
@@ -114,10 +114,9 @@ services:
       # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
-      # The browser container reads the session of the assistant: the reader Web (the default, None, reads nothing), the debugging address and the web desktop (both on the loopback of the
+      # The browser container reads the session of the assistant: the reader Web (the default, None, reads nothing) and the web desktop (on the loopback of the
       # shared namespace, nothing else is accepted). Geminarr relays the desktop on its own origin (port 8283; GEMINARR__BROWSER__DESKTOPPUBLICURL gives the address that your proxy publishes it by) and never types a credential.
       GEMINARR__READER__KIND: Web
-      GEMINARR__BROWSER__CDPURL: http://127.0.0.1:9222
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
       # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
     secrets:

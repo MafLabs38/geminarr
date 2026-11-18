@@ -44,7 +44,7 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure, IDisposable
         _options = options;
         _server = server;
         _clock = clock;
-        if (options.Value.RequireEgressGuard && (!string.IsNullOrWhiteSpace(options.Value.CdpUrl) || !string.IsNullOrWhiteSpace(options.Value.DesktopUrl)))
+        if (options.Value.RequireEgressGuard && !string.IsNullOrWhiteSpace(options.Value.DesktopUrl))
         {
             _probeTimer = clock.CreateTimer(_ => Probe(), null, TimeSpan.Zero, ProbeEvery);
         }
@@ -53,7 +53,7 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure, IDisposable
     public ExposureReport Check()
     {
         var browser = _options.Value;
-        if (string.IsNullOrWhiteSpace(browser.CdpUrl) && string.IsNullOrWhiteSpace(browser.DesktopUrl))
+        if (string.IsNullOrWhiteSpace(browser.DesktopUrl))
         {
             return ExposureReport.None;
         }
