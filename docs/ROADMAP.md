@@ -57,9 +57,9 @@
 
 *Demo: a browser that a person signed in to Gemini in carries the extension (installed by its policy); within one round, the conversations of the page are in Mnemarr, turn by turn, and found by describing what they were about; a conversation added on the phone arrives with the next round; sign out of Gemini in that browser and the page says "sign in again".*
 
-- F-RDR-02..05 for the web reader, in the form of [ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md): the extension (`extension/`), its signed package served by Geminarr, the push route and its token, `extension-silent`, the candidates and positions of ADR 0014.
+- F-RDR-02..06 for the web reader (the masking of secrets before the outbox, with the samples shared with Mnemarr), in the form of [ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md): the extension (`extension/`), its signed package served by Geminarr, the push route and its token, `extension-silent`, the candidates and positions of ADR 0014.
 - Validated by the agent on the real target first (rule 13 of `CLAUDE.md`): a signed-in profile read through the policy-installed, signed package; and end to end in CI with a real Chromium, a fake assistant and a fake Mnemarr.
-- Not now: signing in from Geminarr's page (vertical 4), masking and backfill at a slow pace (vertical 5: until then the web reader relies on Mnemarr's masking alone, said in SECURITY.md and configuration.md), the voice conversations' text and a very long list (measured with the real use).
+- Not now: signing in from Geminarr's page (vertical 4), backfill at a slow pace (vertical 5), the voice conversations' text and a very long list (measured with the real use).
 
 ## Vertical 4 — Sign in from Geminarr's page
 
@@ -68,11 +68,11 @@
 - F-CON-01..04: the desktop of the browser relayed on an origin of its own behind a single-use ticket of the operator's session, the two containers (the browser and Geminarr) in the examples, the Connection page.
 - Not now: reading (vertical 3), the Takeout import.
 
-## Vertical 5 — Masking, backfill, the Runs page
+## Vertical 5 — Backfill, the Runs page
 
-*Demo: the first pass walks the older conversations at a slow pace until the end of the list; a secret typed in a conversation never reaches Mnemarr in the clear.*
+*Demo: the first pass walks the older conversations at a slow pace until the end of the list, and the Runs page shows what each pass did.*
 
-- F-RDR-04/07, F-VIEW-02/03: backfill, masking before the outbox, the Runs page.
+- F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page.
 
 ## Vertical 6 — The past, by Takeout
 

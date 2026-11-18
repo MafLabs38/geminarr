@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Geminarr.Core.Masking;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -42,14 +43,22 @@ public sealed partial class ExtensionService
         }
 
         var version = VersionOf(request.Version);
-        return request.Kind switch
+        try
         {
-            "state" => State(request, version),
-            "list" => List(request, version),
-            "conversation" => Conversation(request, version),
-            "broken" => Broken(request, version),
-            _ => ExtensionPushResult.Refused("Unknown kind."),
-        };
+            return request.Kind switch
+            {
+                "state" => State(request, version),
+                "list" => List(request, version),
+                "conversation" => Conversation(request, version),
+                "broken" => Broken(request, version),
+                _ => ExtensionPushResult.Refused("Unknown kind."),
+            };
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // A text that the masking could not finish is never kept: the next round brings it again.
+            return ExtensionPushResult.Refused("A text could not be masked in time.");
+        }
     }
 
     private ExtensionPushResult State(ExtensionPushRequest request, string? version)
@@ -183,7 +192,8 @@ public sealed partial class ExtensionService
                 return ExtensionPushResult.Refused("A conversation holds at most " + MaxConversationLength + " characters.");
             }
 
-            turns.Add(new Turn(turn.Role, null, turn.Text));
+            // Masked before anything of it is kept (the inbox, then the outbox): a person may have pasted a secret into a conversation.
+            turns.Add(new Turn(turn.Role, null, SecretMasker.Mask(turn.Text)));
         }
 
         _inbox.RecordConversation(request.Id!, Title(request.Title), turns, _clock.GetUtcNow(), version);
@@ -201,12 +211,12 @@ public sealed partial class ExtensionService
 
         if (title.Length <= MaxTitleLength)
         {
-            return title;
+            return SecretMasker.Mask(title);
         }
 
         // Never cut a character in two: a high surrogate at the end of the cut has lost its other half.
         var end = char.IsHighSurrogate(title[MaxTitleLength - 1]) ? MaxTitleLength - 1 : MaxTitleLength;
-        return title[..end];
+        return SecretMasker.Mask(title[..end]);
     }
 
     private static bool IsId(string? id) => id is not null && IdPattern().IsMatch(id);

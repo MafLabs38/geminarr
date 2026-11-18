@@ -389,6 +389,19 @@ public sealed class ExtensionServiceFixture : IDisposable
         _inbox.Session?.Broken.Should().BeNull("one was read after the first: they are not in a row");
     }
 
+    [Fact]
+    public void should_mask_a_secret_in_a_turn_before_the_inbox_keeps_it()
+    {
+        var key = "ghp_" + new string('a', 36);
+        AskFor("c1");
+
+        Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", "About " + key, null, [new PushedTurn("user", "export PASSWORD=hunter2hunter2 and " + key)], "1.0.0"));
+        var held = _inbox.Take("c1")!;
+
+        held.Single().Text.Should().Be("export PASSWORD=[masked] and [masked:github-token]");
+        held.Single().Text.Should().NotContain("hunter2").And.NotContain(key);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("not an id")]
