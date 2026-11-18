@@ -615,4 +615,39 @@ public sealed class ExtensionServiceFixture : IDisposable
         _clock.Advance(TimeSpan.FromMinutes(1));
         subject.Handle(hello).Round.Should().BeTrue("ten minutes: a round is due");
     }
+
+    [Fact]
+    public void should_mask_a_secret_in_a_title_that_straddles_the_cut_before_cutting()
+    {
+        // Built here: no file holds the shape of a token.
+        var secret = "gh" + "p_" + new string('a', 36);
+        var title = new string('x', ExtensionService.MaxTitleLength - 10) + " " + secret + " and more";
+
+        Subject().Handle(ListOf(Item("c1a2b3", title))).Accepted.Should().BeTrue();
+
+        var kept = _inbox.List().Single().Title!;
+        kept.Length.Should().BeLessThanOrEqualTo(ExtensionService.MaxTitleLength);
+        kept.Should().NotContain("gh" + "p_", "no head of the token stays when the cut falls in the middle of it");
+        kept.Should().Contain("[masked");
+    }
+
+    [Theory]
+    [InlineData(32, true)]
+    [InlineData(33, false)]
+    public void should_keep_a_version_of_at_most_the_longest_length(int length, bool kept)
+    {
+        var version = "1." + new string('0', length - 2);
+
+        Subject().Handle(new ExtensionPushRequest("state", true, null, null, null, null, version)).Accepted.Should().BeTrue();
+
+        (_inbox.Session!.Version is not null).Should().Be(kept);
+    }
+
+    [Fact]
+    public void should_take_a_null_label_for_no_label_and_read_the_one_that_follows()
+    {
+        Subject().Handle(new ExtensionPushRequest("list", null, null, null, [Item("c1a2b3")], null, "1.0.0", Labels: [null, "Google Account: Jane Doe (jane@example.org)"]));
+
+        _inbox.Session!.Account.Should().Be(new Geminarr.Core.Browser.AccountIdentity("Jane Doe", "jane@example.org"));
+    }
 }

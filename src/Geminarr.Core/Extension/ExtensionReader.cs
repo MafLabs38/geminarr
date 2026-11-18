@@ -26,7 +26,8 @@ public sealed class ExtensionReader : IConversationReader
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;
-        if (session is null || _clock.GetUtcNow() - session.At > TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes))
+        // Silent is no word at all, a heartbeat included, for a while; and nothing known of the session yet (a restart) is a reader that cannot say.
+        if (session is null || _inbox.LastHeard is not { } heard || _clock.GetUtcNow() - heard > TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes))
         {
             throw new ReaderException(ConnectionReasons.ExtensionSilent, "The extension of the browser has not said anything for a while: check that the browser runs and reaches Geminarr.");
         }

@@ -29,7 +29,11 @@ public sealed class ConnectionService
     public ConnectionRecord Current() => _tracker.Current();
 
     /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser by hand, so the extension is asked for rounds until it says that somebody is.</summary>
-    public void BeginSigningIn() => _inbox.BeginSigningIn(_clock.GetUtcNow());
+    public void BeginSigningIn()
+    {
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+        _tracker.GaveUpTheDisconnect();
+    }
 
     /// <summary>Whether a sign-in that the operator started is being waited for (and the session is not good yet).</summary>
     public bool SigningInAt(ConnectionRecord record) => record.State != ConnectionState.Connected && _inbox.SigningIn(_clock.GetUtcNow());

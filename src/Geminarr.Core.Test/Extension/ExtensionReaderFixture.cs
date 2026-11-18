@@ -108,4 +108,18 @@ public sealed class ExtensionReaderFixture
 
         (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.SignedOut, "somebody signed in since: a later sign-out is an expiry");
     }
+
+    [Fact]
+    public async Task should_not_take_an_extension_that_says_it_is_there_for_a_silent_one_even_when_it_has_nothing_new_of_the_session()
+    {
+        _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _clock.Advance(TimeSpan.FromMinutes(50));
+        _inbox.Heard(_clock.GetUtcNow());
+
+        (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.SignedIn, "a heartbeat is a word: the extension is alive");
+
+        _clock.Advance(TimeSpan.FromMinutes(46));
+        var silent = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
+        (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent);
+    }
 }

@@ -69,6 +69,7 @@ public sealed partial class ExtensionService
     /// <summary>The extension says that it is there: it is told whether to run a round now, and whether to sign the account out. Nothing is recorded of the session by it.</summary>
     private ExtensionPushResult Hello()
     {
+        _inbox.Heard(_clock.GetUtcNow());
         var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(_options.Value.RoundMinutes));
         return ExtensionPushResult.Hints(round, signOut);
     }
@@ -224,15 +225,13 @@ public sealed partial class ExtensionService
             return null;
         }
 
-        if (title.Length <= MaxTitleLength)
-        {
-            return SecretMasker.Mask(title);
-        }
-
-        // Never cut a character in two: a high surrogate at the end of the cut has lost its other half.
-        var end = char.IsHighSurrogate(title[MaxTitleLength - 1]) ? MaxTitleLength - 1 : MaxTitleLength;
-        return SecretMasker.Mask(title[..end]);
+        // Masked whole (up to a few times what is kept) and cut after: a secret that straddles the cut would keep its head in the title if the cut came first.
+        var masked = SecretMasker.Mask(title.Length > MaxTitleLength * 4 ? title[..SafeEnd(title, MaxTitleLength * 4)] : title);
+        return masked.Length > MaxTitleLength ? masked[..SafeEnd(masked, MaxTitleLength)] : masked;
     }
+
+    /// <summary>Where a text may be cut at most at this length without cutting a character in two: a high surrogate at the end of the cut has lost its other half.</summary>
+    private static int SafeEnd(string text, int length) => char.IsHighSurrogate(text[length - 1]) ? length - 1 : length;
 
     private static bool IsId(string? id) => id is not null && IdPattern().IsMatch(id);
 

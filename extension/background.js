@@ -116,10 +116,18 @@ async function sweep() {
   }
 }
 
+/** Whether the page was opened before the cookies were deleted: what it read is the session that was just ended, and is not handed over. */
+async function startedBeforeSignOut(tabId) {
+  const key = workTabKey(tabId);
+  const { [SIGN_OUT_KEY]: signedOutAt, [key]: startedAt } = await chrome.storage.session.get([SIGN_OUT_KEY, key]);
+  return typeof signedOutAt === 'number' && typeof startedAt === 'number' && startedAt < signedOutAt;
+}
+
 async function onMessage(message, sender) {
   try {
-    // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing.
-    const answer = message.kind === 'giveup' ? null : await push(message);
+    // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing. Neither has a page that was read before the account was signed out.
+    const stale = sender.tab ? await startedBeforeSignOut(sender.tab.id) : false;
+    const answer = message.kind === 'giveup' || stale ? null : await push(message);
     if (message.kind === 'list') {
       // What Geminarr answers is a list of ids; anything else asks for nothing.
       const ids = (Array.isArray(answer?.open) ? answer.open : [])

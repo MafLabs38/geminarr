@@ -79,6 +79,20 @@ public sealed class ConnectionTracker
         return record;
     });
 
+    /// <summary>The operator gave a pending sign-out up (by pressing *Sign in*): the record no longer says that a sign-out is asked, so that a restart does not ask for it again.</summary>
+    public ConnectionRecord GaveUpTheDisconnect() => Atomically(() =>
+    {
+        var current = _store.Get();
+        if (current.LastReason != ConnectionReasons.Disconnected)
+        {
+            return current;
+        }
+
+        var record = current with { LastReason = ConnectionReasons.NotConnected };
+        _store.Save(record);
+        return record;
+    });
+
     /// <summary>The session is good and the pass read what it came for.</summary>
     public ConnectionRecord Connected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.Connected, reason: null, failures: 0, ok: true)));
 

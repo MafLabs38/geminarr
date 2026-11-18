@@ -194,4 +194,18 @@ public sealed class ConnectionServiceFixture : IDisposable
         restored.SignOutPending.Should().BeTrue();
         ExtensionInbox.Restored(record with { LastReason = ConnectionReasons.NotConnected }).Disconnected.Should().BeFalse();
     }
+
+    [Fact]
+    public void should_forget_in_the_record_a_disconnect_that_the_operator_gave_up_by_pressing_sign_in()
+    {
+        var subject = Subject();
+        _tracker.Connected();
+        subject.Disconnect();
+        subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected);
+
+        subject.BeginSigningIn();
+
+        subject.Current().LastReason.Should().Be(ConnectionReasons.NotConnected, "a restart must not ask again for a sign-out that was given up");
+        _inbox.SignOutPending.Should().BeFalse();
+    }
 }

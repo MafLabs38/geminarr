@@ -383,4 +383,17 @@ describe('what the extension does when Geminarr asks', () => {
 
     assert.deepEqual(plain(calls.created), [{ url: `${ORIGIN}/app`, active: false }]);
   });
+
+  it('hands over nothing that a page read before the account was signed out', async () => {
+    const { calls, listeners, session } = await load();
+    listeners.startup();
+    await flush();
+    session.set('signOutAt', Date.now() + 60_000);
+
+    listeners.message({ kind: 'list', items: [{ id: 'abc', title: 'T' }] }, { tab: { id: 100 } });
+    await flush();
+
+    assert.equal(calls.fetch.length, 0, 'a round that began before the cookies were deleted is not pushed');
+    assert.deepEqual(plain(calls.removed), [100], 'and its page is closed');
+  });
 });
