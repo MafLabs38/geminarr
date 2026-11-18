@@ -68,6 +68,14 @@ spec:
             #   value: https://mnemarr.homelab.example
             # - name: GEMINARR__MNEMARR__KEYFILE            # the key that Mnemarr gave to this machine, from a secret (or GEMINARR__MNEMARR__ENROLMENTCODEFILE for a one-time code)
             #   value: /run/geminarr/mnemarr/key
+            # The reader: the extension of the browser that a person signed in to Gemini in (browser.example.yaml). The token is the same as in the policy of that browser; the name it
+            # reaches Geminarr by (the service) must be allowed.
+            # - name: GEMINARR__READER__KIND
+            #   value: Web
+            # - name: GEMINARR__EXTENSION__TOKENFILE
+            #   value: /run/geminarr/extension/token       # 32 characters or more, random, from a secret that holds the file `token`
+            # - name: GEMINARR__ALLOWEDHOSTNAMES
+            #   value: geminarr.homelab.example;geminarr.geminarr.svc
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
@@ -110,6 +118,9 @@ spec:
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
+            # - name: extension           # the token of the extension, from a secret that holds the file `token`
+            #   mountPath: /run/geminarr/extension
+            #   readOnly: true
       volumes:
         - name: operator
           secret:
@@ -122,6 +133,10 @@ spec:
         # - name: identity
         #   configMap:
         #     name: geminarr-identity
+        # - name: extension
+        #   secret:
+        #     secretName: geminarr-extension
+        #     defaultMode: 0440
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data
@@ -142,7 +157,7 @@ spec:
       port: 8282
       targetPort: http
 ---
-# Nothing but the ingress controller (and the platform's probes) may reach the pod: the single sign-on lives at the ingress, so a pod that
+# Nothing but the ingress controller, the browser of the reader (browser.example.yaml) and the platform's probes may reach the pod: the single sign-on lives at the ingress, so a pod that
 # could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -159,6 +174,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: <ingress-controller-namespace>
+      ports:
+        - protocol: TCP
+          port: 8282
+    # The browser of the reader, to hand over what the extension reads and to fetch the extension (the push route and the package, which are open to the sign-in but not to the token).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: geminarr-browser
       ports:
         - protocol: TCP
           port: 8282

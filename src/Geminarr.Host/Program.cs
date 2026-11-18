@@ -1,11 +1,14 @@
 using Geminarr.Api.V1;
 using Geminarr.Core;
 using Geminarr.Core.Access;
+using Geminarr.Core.Extension;
+using Geminarr.Core.Pipeline;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
 using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -48,9 +51,17 @@ if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operat
     app.Logger.LogWarning("Nobody can sign in ({Status}); everything but the probes stays closed. The reason codes are in docs/runbook.md.", operatorStatus);
 }
 
+// The reader is the extension but nothing it sends can be accepted without a token: the log says why, since the extension is only ever "silent" from the outside.
+if (app.Services.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind == ReaderKind.Web
+    && app.Services.GetRequiredService<IExtensionToken>().Status is var tokenStatus and not ExtensionTokenStatus.Ready)
+{
+    app.Logger.LogWarning("The extension cannot be heard ({Status}): set GEMINARR__EXTENSION__TOKENFILE to a file with a token of at least {Length} characters.", tokenStatus, ExtensionToken.MinLength);
+}
+
 app.UseExceptionHandler();
 app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
+app.UseMiddleware<ExtensionCorsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();

@@ -24,6 +24,7 @@ public static class HeartbeatContent
         _ => connection.LastReason switch
         {
             ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
+            ConnectionReasons.ExtensionSilent => "The browser's extension has not said anything for a while.",
             ConnectionReasons.RateLimited => "The assistant asked to slow down.",
             ConnectionReasons.Unreachable => "The assistant could not be reached.",
             _ => "The last pass failed.",
