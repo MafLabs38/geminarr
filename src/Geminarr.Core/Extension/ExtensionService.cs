@@ -207,7 +207,7 @@ public sealed partial class ExtensionService
                 return ExtensionPushResult.Refused("A conversation holds at most " + MaxConversationLength + " characters.");
             }
 
-            // Masked before anything of it is kept (the inbox, then the outbox): a person may have pasted a secret into a conversation.
+            // Masked before anything of it is kept (the inbox, then the outbox): a person may have pasted a secret into a conversation. The pass masks again (`PassRunner`, the one door to the outbox) on purpose: a reader that is not this one is masked too.
             turns.Add(new Turn(turn.Role, null, SecretMasker.Mask(turn.Text)));
         }
 

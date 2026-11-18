@@ -86,7 +86,14 @@ async function signOut() {
   const { [SIGN_OUT_KEY]: last } = await chrome.storage.session.get(SIGN_OUT_KEY);
   if (typeof last === 'number' && Date.now() - last < SIGN_OUT_EVERY_MS) return;
   await chrome.storage.session.set({ [SIGN_OUT_KEY]: Date.now() });
-  await chrome.browsingData.remove({ since: 0 }, { cookies: true });
+  try {
+    await chrome.browsingData.remove({ since: 0 }, { cookies: true });
+  } catch {
+    // The browser refused: Geminarr keeps asking, and the next time is in two minutes.
+    return;
+  }
+  // The cookies are gone: nobody is signed in, whatever the page shows next (this does not depend on a selector of the page). A round follows, to see what it shows.
+  await push({ kind: 'state', signedIn: false });
   await round();
 }
 

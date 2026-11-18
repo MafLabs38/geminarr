@@ -27,6 +27,27 @@ public sealed class ExtensionOptionsValidatorFixture
         result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__SILENTAFTERMINUTES");
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(15)]
+    [InlineData(1_440)]
+    public void should_accept_an_interval_of_the_rounds_inside_the_bounds(int minutes)
+    {
+        Validate(new ExtensionOptions { RoundMinutes = minutes }).Succeeded.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(1_441)]
+    public void should_refuse_an_interval_of_the_rounds_outside_the_bounds_and_name_the_setting(int minutes)
+    {
+        var result = Validate(new ExtensionOptions { RoundMinutes = minutes });
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__ROUNDMINUTES");
+    }
+
     [Fact]
     public void should_refuse_an_empty_package_folder_and_accept_the_defaults()
     {

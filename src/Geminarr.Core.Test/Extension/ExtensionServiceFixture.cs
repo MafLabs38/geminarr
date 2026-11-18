@@ -506,6 +506,23 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_give_up_a_pending_sign_out_when_the_operator_presses_sign_in()
+    {
+        var subject = Subject();
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _inbox.RequestSignOut();
+        subject.Handle(hello).SignOut.Should().BeTrue();
+
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+
+        subject.Handle(hello).SignOut.Should().BeFalse("a sign-out that never completes must not be a loop that nothing can stop");
+        _inbox.SignOutPending.Should().BeFalse();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _inbox.Disconnected.Should().BeFalse("somebody signed in");
+    }
+
+    [Fact]
     public void should_not_say_signing_in_after_the_operator_disconnected()
     {
         var subject = Subject();

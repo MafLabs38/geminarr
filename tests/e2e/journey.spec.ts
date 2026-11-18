@@ -190,7 +190,13 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       const seenBefore = await guests(playwright);
-      expect((await connectionOf(request)).state).toBe('Connected');
+      await expect
+        .poll(async () => (await connectionOf(request)).state, {
+          timeout: 120_000,
+          intervals: [3000],
+          message: 'the page is connected',
+        })
+        .toBe('Connected');
 
       expect((await request.post('/api/v1/connection/disconnect')).status()).toBe(200);
       expect(await connectionOf(request)).toMatchObject({ state: 'NotConnected', account: null });

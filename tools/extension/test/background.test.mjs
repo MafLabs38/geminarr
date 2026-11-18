@@ -48,7 +48,12 @@ async function load({
       },
       remove: async (id) => calls.removed.push(id),
     },
-    browsingData: { remove: async (options, types) => calls.cleared.push([options, types]) },
+    browsingData: {
+      remove: async (options, types) => {
+        if (calls.refuse) throw new Error('refused');
+        calls.cleared.push([options, types]);
+      },
+    },
     alarms: {
       get: async (name) => alarms[name],
       create: (name, info) => calls.alarmsCreated.push([name, info.periodInMinutes]),
@@ -325,6 +330,12 @@ describe('what the extension does when Geminarr asks', () => {
     await flush();
 
     assert.deepEqual(plain(calls.cleared), [[{ since: 0 }, { cookies: true }]]);
+    assert.ok(
+      calls.fetch.some(
+        (call) => JSON.parse(call.init.body).kind === 'state' && JSON.parse(call.init.body).signedIn === false,
+      ),
+      'it says that nobody is signed in once the cookies are gone',
+    );
     assert.deepEqual(
       plain(calls.created),
       [{ url: `${ORIGIN}/app`, active: false }],
@@ -351,5 +362,25 @@ describe('what the extension does when Geminarr asks', () => {
     await flush();
 
     assert.equal(calls.created.length, 0);
+  });
+
+  it('says nothing of a sign-out that did not happen when the browser refused to delete the cookies', async () => {
+    const { calls, listeners } = await load({ answer: answering({ open: [], round: false, signOut: true }) });
+    calls.refuse = true;
+
+    listeners.alarm({ name: 'hello' });
+    await flush();
+
+    assert.equal(calls.fetch.filter((call) => JSON.parse(call.init.body).kind === 'state').length, 0);
+    assert.equal(calls.created.length, 0, 'and no round follows');
+  });
+
+  it('starts a round when it is installed, like when the browser starts', async () => {
+    const { calls, listeners } = await load();
+
+    listeners.installed();
+    await flush();
+
+    assert.deepEqual(plain(calls.created), [{ url: `${ORIGIN}/app`, active: false }]);
   });
 });
