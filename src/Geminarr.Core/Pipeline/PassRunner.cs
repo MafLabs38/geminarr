@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Link;
 using Geminarr.Core.Masking;
@@ -244,7 +245,20 @@ public sealed class PassRunner
         }
 
         // The one door to the outbox: whatever the reader, nothing is kept that was not masked first (CLAUDE.md rule 7). The title hash stays that of the title as the reader shows it, which is what a rename is detected against.
-        turns = [.. turns.Select(turn => turn with { Text = SecretMasker.Mask(turn.Text) })];
+        string? title;
+        try
+        {
+            turns = [.. turns.Select(turn => turn with { Text = SecretMasker.Mask(turn.Text) })];
+            title = header.Title is null ? null : SecretMasker.Mask(header.Title);
+        }
+        catch (RegexMatchTimeoutException timeout)
+        {
+            // A text that the masking cannot finish is never kept, and only that conversation is left: the pass goes on to send what waits and to say how it is (the next pass takes it again).
+            // The exception holds its fixed message and a stack, never the text (that is its Input property, which is not logged).
+            _logger.LogWarning(timeout, "A conversation could not be masked in time and was left for the next pass.");
+            return;
+        }
+
         var now = _clock.GetUtcNow();
         var known = _conversations.Get(header.Id);
         // A conversation that was never seen here but that Mnemarr already holds (this database was lost, or another Geminarr sent it): it goes on from where Mnemarr stands.
@@ -256,7 +270,7 @@ public sealed class PassRunner
         var lines = new List<string>();
         if (sent == 0)
         {
-            lines.Add(ConversationLines.Meta(header.Id, header.Title is null ? null : SecretMasker.Mask(header.Title), _settings.Reader!.Source));
+            lines.Add(ConversationLines.Meta(header.Id, title, _settings.Reader!.Source));
         }
 
         lines.AddRange(turns.Skip(sent).Select(ConversationLines.TurnLine));
