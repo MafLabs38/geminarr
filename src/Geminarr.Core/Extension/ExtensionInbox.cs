@@ -28,10 +28,14 @@ public sealed class ExtensionInbox
     /// <summary>The text that waits for a pass, in characters, at most: the container is small, and what is dropped is brought again by the next round.</summary>
     public const int MaxHeldCharacters = 20_000_000;
 
+    /// <summary>How long what the extension handed over, or what it was asked for, is kept when no pass takes it: the next round brings it again.</summary>
+    public static readonly TimeSpan HeldFor = TimeSpan.FromHours(1);
+
     private readonly Lock _gate = new();
     private readonly int _maxHeldCharacters;
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
+    private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
@@ -59,6 +63,13 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             _session = new ExtensionSession(signedIn, version, now);
+            if (!signedIn)
+            {
+                // Nobody is signed in: what was read for the account that was is not kept for the next one.
+                _conversations.Clear();
+                _asked.Clear();
+                _list = [];
+            }
         }
     }
 
@@ -71,6 +82,40 @@ public sealed class ExtensionInbox
             _list = list;
             _session = new ExtensionSession(SignedIn: true, version, now);
             return wasNotWell;
+        }
+    }
+
+    /// <summary>The conversations that were asked of the extension: only these are taken when it hands them over, so that nothing that was not asked for is held.</summary>
+    public void Ask(IEnumerable<string> ids, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            Purge(now);
+            foreach (var id in ids)
+            {
+                _asked[id] = now;
+            }
+        }
+    }
+
+    public bool WasAsked(string id)
+    {
+        lock (_gate)
+        {
+            return _asked.ContainsKey(id);
+        }
+    }
+
+    private void Purge(DateTimeOffset now)
+    {
+        foreach (var old in _conversations.Where(pair => now - pair.Value.At > HeldFor).Select(pair => pair.Key).ToList())
+        {
+            _conversations.Remove(old);
+        }
+
+        foreach (var old in _asked.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
+        {
+            _asked.Remove(old);
         }
     }
 
@@ -95,6 +140,7 @@ public sealed class ExtensionInbox
     {
         lock (_gate)
         {
+            Purge(now);
             _conversations[id] = (title, turns, now);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())
@@ -127,6 +173,7 @@ public sealed class ExtensionInbox
     {
         lock (_gate)
         {
+            _asked.Remove(id);
             return _conversations.Remove(id, out var found) ? found.Turns : null;
         }
     }

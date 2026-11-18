@@ -96,6 +96,13 @@ async function readConversation(id) {
   return last === '[]' ? send({ kind: 'broken', step: 'turns' }) : undefined;
 }
 
-const conversation = ID_IN_LINK.exec(location.pathname);
-if (conversation) void readConversation(conversation[1]);
-else if (location.pathname === '/app') void readList();
+// Only the pages that the worker opened are read: a page that a person opened is theirs, and is neither scrolled nor read.
+async function start() {
+  const mine = await chrome.runtime.sendMessage({ kind: 'mine?' }).catch(() => false);
+  if (!mine) return;
+  const conversation = ID_IN_LINK.exec(location.pathname);
+  if (conversation) await readConversation(conversation[1]);
+  else if (location.pathname === '/app') await readList();
+}
+
+void start();

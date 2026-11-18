@@ -61,12 +61,14 @@ test.describe('the extension reads the assistant @smoke', () => {
           intervals: [3000],
           message: 'the conversations of the page reach Mnemarr',
         })
-        .toBeGreaterThanOrEqual(3);
+        .toBe(3);
+      // The fake assistant has three conversations of 2, 4 and 2 turns: a meta line and the turns of each, once (on a fresh stack, as the pipeline's).
+      expect(Object.values(await heldByMnemarr(playwright)).sort()).toEqual([3, 3, 5]);
 
       const connection = (await (await request.get('/api/v1/connection')).json()) as Connection;
       expect(connection).toMatchObject({ state: 'Connected', reader: 'Web' });
       const runs = ((await (await request.get('/api/v1/runs')).json()) as { runs: Run[] }).runs;
-      expect(runs.reduce((total, run) => total + run.turnsSent, 0)).toBeGreaterThanOrEqual(8);
+      expect(runs.reduce((total, run) => total + run.turnsSent, 0)).toBe(8);
       await request.dispose();
     },
   );

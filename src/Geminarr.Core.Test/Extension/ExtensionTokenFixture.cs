@@ -87,25 +87,3 @@ public sealed class ExtensionTokenFixture : IDisposable
         subject.Verify(second).Should().BeTrue();
     }
 }
-
-public sealed class ExtensionOptionsValidatorFixture
-{
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(1_441)]
-    public void should_refuse_a_silence_outside_the_bounds_and_name_the_setting(int minutes)
-    {
-        var result = new ExtensionOptionsValidator().Validate(null, new ExtensionOptions { SilentAfterMinutes = minutes });
-
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__SILENTAFTERMINUTES");
-    }
-
-    [Fact]
-    public void should_refuse_an_empty_package_folder_and_accept_the_defaults()
-    {
-        new ExtensionOptionsValidator().Validate(null, new ExtensionOptions { PackageFolder = " " }).Failed.Should().BeTrue();
-        new ExtensionOptionsValidator().Validate(null, new ExtensionOptions()).Succeeded.Should().BeTrue();
-    }
-}

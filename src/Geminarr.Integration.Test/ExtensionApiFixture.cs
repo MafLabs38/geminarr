@@ -10,7 +10,7 @@ namespace Geminarr.Integration.Test;
 /// <summary>A host whose reader is the extension (ADR 0015): a token in a file, and a package folder with a signed file (its content is not checked here, only served).</summary>
 public sealed class ExtensionFactory : GeminarrFactoryBase
 {
-    public const string Token = "0123456789abcdef0123456789abcdef-test";
+    public const string Token = "token-token-token-token-token-token-token";
     public const string ExtensionId = "abcdefghijklmnopabcdefghijklmnop";
     public const string FileName = "geminarr-reader-1.2.3.crx";
     public static readonly byte[] Package = [0x43, 0x72, 0x32, 0x34, 3, 0, 0, 0, 9, 9];
@@ -78,7 +78,7 @@ public sealed class ExtensionApiFixture
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not-the-token-0123456789abcdef0123456789")]
-    [InlineData("0123456789abcdef0123456789abcdef-tes")]
+    [InlineData("token-token-token-token-token-token-toke")]
     public async Task should_refuse_a_push_without_the_token(string? token)
     {
         using var factory = new ExtensionFactory();
@@ -175,7 +175,10 @@ public sealed class ExtensionApiFixture
     {
         using var factory = new ExtensionFactory();
 
-        var response = await factory.CreateClient().SendAsync(Push(new { kind = "conversation", id = "c1", turns = new[] { new { role = "tool", text = "a sentence that must not come back" } } }), CancellationToken);
+        using var client = factory.CreateClient();
+        await client.SendAsync(Push(new { kind = "list", items = new[] { new { id = "c1", title = "One" } } }), CancellationToken);
+
+        var response = await client.SendAsync(Push(new { kind = "conversation", id = "c1", turns = new[] { new { role = "tool", text = "a sentence that must not come back" } } }), CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync(CancellationToken)).Should().NotContain("sentence");

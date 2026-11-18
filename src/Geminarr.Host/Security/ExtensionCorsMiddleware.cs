@@ -9,7 +9,6 @@ namespace Geminarr.Host.Security;
 /// </summary>
 public sealed class ExtensionCorsMiddleware
 {
-    public const string PushPath = "/api/v1/extension/push";
     private const string AllowedHeaders = "authorization, content-type, x-geminarr-request";
     private const string PreflightMaxAgeSeconds = "600";
 
@@ -24,13 +23,15 @@ public sealed class ExtensionCorsMiddleware
 
     public Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Path.Equals(PushPath, StringComparison.OrdinalIgnoreCase) || !IsTheExtension(context.Request.Headers.Origin.ToString()))
+        var origin = OriginOfTheExtension();
+        if (origin is null || !context.Request.Path.Equals(ExtensionRoutes.PushPath, StringComparison.OrdinalIgnoreCase) || !string.Equals(context.Request.Headers.Origin.ToString(), origin, StringComparison.Ordinal))
         {
             return _next(context);
         }
 
+        // The header says the origin that the package gives, never what the request said it was.
         var headers = context.Response.Headers;
-        headers.AccessControlAllowOrigin = context.Request.Headers.Origin;
+        headers.AccessControlAllowOrigin = origin;
         headers.Append(HeaderNames.Vary, "Origin");
         if (!HttpMethods.IsOptions(context.Request.Method))
         {
@@ -49,9 +50,5 @@ public sealed class ExtensionCorsMiddleware
         return Task.CompletedTask;
     }
 
-    private bool IsTheExtension(string origin)
-    {
-        var package = _package.Current();
-        return package is not null && string.Equals(origin, $"chrome-extension://{package.Id}", StringComparison.Ordinal);
-    }
+    private string? OriginOfTheExtension() => _package.Current() is { } package ? $"chrome-extension://{package.Id}" : null;
 }

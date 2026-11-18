@@ -10,7 +10,7 @@ namespace Geminarr.Core.Extension;
 /// </summary>
 public sealed partial class ExtensionService
 {
-    public const int MaxListed = 500;
+    public const int MaxPushedItems = 500;
     public const int MaxTitleLength = 300;
     public const int MaxTurns = 2_000;
     public const int MaxTurnLength = 200_000;
@@ -85,10 +85,17 @@ public sealed partial class ExtensionService
 
     private ExtensionPushResult List(ExtensionPushRequest request, string? version)
     {
-        if (request.Items is not { Count: <= MaxListed } items)
+        if (request.Items is null)
         {
-            return ExtensionPushResult.Refused("A list has at most " + MaxListed + " conversations.");
+            return ExtensionPushResult.Refused("A list holds items.");
         }
+
+        if (request.Items.Count > MaxPushedItems)
+        {
+            return ExtensionPushResult.Refused("A list has at most " + MaxPushedItems + " conversations.");
+        }
+
+        var items = request.Items;
 
         var headers = new List<ConversationHeader>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -113,13 +120,14 @@ public sealed partial class ExtensionService
         }
 
         var waiting = _outbox.ConversationsWaiting();
-        // What is asked for is chosen among the conversations that a pass looks at (MaxListed), never deeper: the past is the backfill's.
+        // What is asked for is chosen among the conversations that a pass looks at (MaxPushedItems), never deeper: the past is the backfill's.
         var wanted = headers
             .Take(_reader.Value.MaxListed)
             .Where(header => !_inbox.Has(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
             .ToList();
+        _inbox.Ask(wanted, _clock.GetUtcNow());
         return ExtensionPushResult.Ok(wanted);
     }
 
@@ -128,6 +136,11 @@ public sealed partial class ExtensionService
         if (!IsId(request.Id))
         {
             return ExtensionPushResult.Refused("A conversation has an id of letters, digits, - and _ (64 at most).");
+        }
+
+        if (!_inbox.WasAsked(request.Id!))
+        {
+            return ExtensionPushResult.Refused("Geminarr did not ask for that conversation.");
         }
 
         if (request.Turns is not { Count: > 0 and <= MaxTurns } pushed)
@@ -166,7 +179,14 @@ public sealed partial class ExtensionService
             return null;
         }
 
-        return title.Length > MaxTitleLength ? title[..MaxTitleLength] : title;
+        if (title.Length <= MaxTitleLength)
+        {
+            return title;
+        }
+
+        // Never cut a character in two: a high surrogate at the end of the cut has lost its other half.
+        var end = char.IsHighSurrogate(title[MaxTitleLength - 1]) ? MaxTitleLength - 1 : MaxTitleLength;
+        return title[..end];
     }
 
     private static bool IsId(string? id) => id is not null && IdPattern().IsMatch(id);

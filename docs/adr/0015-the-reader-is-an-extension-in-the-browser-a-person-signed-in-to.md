@@ -30,5 +30,8 @@ The need (VISION): bring the history of Gemini into Mnemarr, read-only, robustly
 
 - Two containers in a deployment (the browser and Geminarr), which only need to reach each other over HTTP; **nothing of the session crosses that line**. Signing in to the browser's account is a person's act in that browser (the next vertical brings it to Geminarr's page).
 - A deployment needs three things from the maintainer: the signing key (a repository secret), the token (a secret of the deployment, in Geminarr and in the browser's policy), and the policy file.
+- **A long silence is a sentence, not a mail** (Q-13): a browser that is off for weeks shows as `failing` on Mnemarr's machines page with its sentence; only `needs-login` and `reader-broken` send the attention mail, and they are Mnemarr's closed list. Whether a silence should join them is Q-13, to decide with the first weeks of running.
+- The inbox holds only what Geminarr asked for (the answer to a list), for an hour at most, and nothing once nobody is signed in: the text of a conversation that no pass takes does not stay.
+- The extension reads **only the pages that it opened** (it asks its worker first): a page that a person opened is theirs.
 - After Geminarr restarts, the connection says `extension-silent` until the next round (at most `roundMinutes`); a browser that is off says it too, after `Extension:SilentAfterMinutes`.
 - The voice conversations, a very long list (the list is scrolled up to a bound) and the lifetime of the session are measured with the real use, not here (Q-04, Q-05).

@@ -153,6 +153,43 @@ describe('what the extension opens and closes', () => {
     assert.ok(!session.has('workTab:100'));
   });
 
+  it('opens at most ten conversations for one answer, whatever the answer says', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => `c${i}`);
+    const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({ open: many }) }) });
+    listeners.alarm({ name: 'round' });
+    await flush();
+    calls.created.length = 0;
+
+    listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    await flush();
+
+    assert.equal(calls.created.length, 10);
+  });
+
+  it('opens nothing, and still closes its page, when the answer asks for nothing', async () => {
+    const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({}) }) });
+    listeners.alarm({ name: 'round' });
+    await flush();
+    calls.created.length = 0;
+
+    listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    await flush();
+
+    assert.deepEqual([calls.created.length, calls.removed], [0, [100]]);
+  });
+
+  it('does not start a round while the last one is still reading', async () => {
+    const { calls, listeners } = await load();
+
+    listeners.alarm({ name: 'round' });
+    await flush();
+    listeners.alarm({ name: 'round' });
+    listeners.startup();
+    await flush();
+
+    assert.equal(calls.created.length, 1);
+  });
+
   it('closes a page that it opened once it has said what it had to say, whatever it said', async () => {
     for (const message of [
       { kind: 'conversation', id: 'abc', turns: [] },
@@ -200,6 +237,25 @@ describe('what the extension opens and closes', () => {
     await flush();
 
     assert.equal(calls.updateChecks, 1);
+  });
+});
+
+describe('which pages are its own', () => {
+  const ask = async (listeners, tab) => {
+    let answer;
+    const kept = listeners.message({ kind: 'mine?' }, { tab }, (value) => (answer = value));
+    await flush();
+    return [kept, answer];
+  };
+
+  it('says yes to a page that it opened, and no to any other, and keeps the channel open to answer', async () => {
+    const { listeners } = await load();
+    listeners.alarm({ name: 'round' });
+    await flush();
+
+    assert.deepEqual(await ask(listeners, { id: 100 }), [true, true]);
+    assert.deepEqual(await ask(listeners, { id: 7 }), [true, false]);
+    assert.deepEqual(await ask(listeners, undefined), [true, false]);
   });
 });
 

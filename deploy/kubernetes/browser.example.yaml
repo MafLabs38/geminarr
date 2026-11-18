@@ -24,6 +24,12 @@ spec:
           image: <chromium-image>@sha256:<digest>
           securityContext:
             allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            # What the usual Chromium images need to start as root and drop to their own user; try without, and keep the list as short as the image allows.
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
           resources:
             requests:
               cpu: 100m

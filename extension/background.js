@@ -9,6 +9,8 @@ const UPDATE_ALARM = 'update';
 const WORK_TAB_PREFIX = 'workTab:';
 // A page that has not answered after this long is closed: a hung tab must not pile up.
 const TAB_LIFETIME_MS = 3 * 60 * 1000;
+// At most this many conversations are opened for one answer, whatever the answer says: a tab is a page of the browser that holds the session.
+const MAX_TABS_PER_ANSWER = 10;
 
 async function settings() {
   const { geminarrUrl, token } = await chrome.storage.managed.get(['geminarrUrl', 'token']);
@@ -55,9 +57,14 @@ async function closeTab(tabId) {
   await chrome.tabs.remove(tabId).catch(() => {});
 }
 
+async function hasWorkTab() {
+  return Object.keys(await chrome.storage.session.get(null)).some((key) => key.startsWith(WORK_TAB_PREFIX));
+}
+
 /** A round: one page of the list. What it finds, and what Geminarr asks for, is done by the messages below. */
 async function round() {
-  if (await settings()) await openInBackground('/app');
+  // A round that finds the last one still reading (a slow page) waits: the sweep closes what hangs.
+  if ((await settings()) && !(await hasWorkTab())) await openInBackground('/app');
 }
 
 async function sweep() {
@@ -71,15 +78,24 @@ async function sweep() {
 async function onMessage(message, sender) {
   const answer = await push(message);
   if (message.kind === 'list') {
-    for (const id of (answer?.open ?? []).filter((candidate) => /^[A-Za-z0-9_-]{1,64}$/.test(candidate)))
-      await openInBackground(`/app/${id}`);
+    const ids = (answer?.open ?? [])
+      .filter((candidate) => /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
+      .slice(0, MAX_TABS_PER_ANSWER);
+    for (const id of ids) await openInBackground(`/app/${id}`);
   }
   // A page that this extension opened is done once it has said what it had to say. A page that a person opened is theirs, and stays.
   if (sender.tab && (await isWorkTab(sender.tab.id))) await closeTab(sender.tab.id);
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  // A page of the assistant asks whether this extension opened it: only the pages that it opened are read.
+  if (message.kind === 'mine?') {
+    void isWorkTab(sender.tab?.id).then(respond);
+    return true;
+  }
+
   void onMessage(message, sender);
+  return false;
 });
 chrome.runtime.onInstalled.addListener(() => void round());
 chrome.runtime.onStartup.addListener(() => void round());

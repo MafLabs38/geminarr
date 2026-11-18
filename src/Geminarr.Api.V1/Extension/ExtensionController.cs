@@ -14,7 +14,7 @@ public sealed record ExtensionPushResponse(IReadOnlyList<string> Open);
 /// its browser, so these routes are open to the sign-in and closed to anyone without the token. What a conversation said is never logged or sent back.
 /// </summary>
 [ApiController]
-[Route("api/v1/extension")]
+[Route(ExtensionRoutes.Base)]
 public sealed partial class ExtensionController : ControllerBase
 {
     /// <summary>A whole conversation is at most <see cref="ExtensionService.MaxConversationLength"/> characters; the body of a push is bounded a little above what that can be once it is JSON.</summary>
@@ -37,7 +37,7 @@ public sealed partial class ExtensionController : ControllerBase
     private partial void LogBroken(string step);
 
     /// <summary>What the extension read: that nobody is signed in, the list of conversations, one conversation, or that the page is not what it knows.</summary>
-    [HttpPost("push")]
+    [HttpPost(ExtensionRoutes.Push)]
     [AllowAnonymous]
     [RequireExtensionToken]
     [RequestSizeLimit(MaxBodyBytes)]

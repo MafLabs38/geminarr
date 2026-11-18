@@ -32,6 +32,9 @@ public sealed class ExtensionServiceFixture : IDisposable
 
     private static PushedItem Item(string? id, string? title = "T") => new(id, title);
 
+    /// <summary>Geminarr asks for a conversation by answering a list that holds it: only then does it take it.</summary>
+    private void AskFor(params string[] ids) => Subject().Handle(ListOf([.. ids.Select(id => Item(id))]));
+
     private static ExtensionPushRequest ListOf(params PushedItem[] items) => new("list", null, null, null, items, null, "1.0.0");
 
     private static ExtensionPushRequest ConversationOf(string? id, params PushedTurn[] turns) => new("conversation", null, id, "A title", null, turns, "1.0.0");
@@ -151,7 +154,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     public void should_refuse_a_list_that_is_missing_or_too_long()
     {
         Subject().Handle(new ExtensionPushRequest("list", null, null, null, null, null, null)).Accepted.Should().BeFalse();
-        Subject().Handle(ListOf([.. Enumerable.Range(0, ExtensionService.MaxListed + 1).Select(i => Item($"c{i}"))])).Accepted.Should().BeFalse();
+        Subject().Handle(ListOf([.. Enumerable.Range(0, ExtensionService.MaxPushedItems + 1).Select(i => Item($"c{i}"))])).Accepted.Should().BeFalse();
     }
 
     [Fact]
@@ -165,6 +168,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public async Task should_take_a_conversation_and_ask_for_a_pass_at_once()
     {
+        AskFor("c1");
         var result = Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi"), new PushedTurn("assistant", "hello")));
 
         result.Accepted.Should().BeTrue();
@@ -180,6 +184,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [InlineData("user", null)]
     public void should_refuse_a_turn_that_is_not_one(string? role, string? text)
     {
+        AskFor("c1");
         var result = Subject().Handle(ConversationOf("c1", new PushedTurn("user", "fine"), new PushedTurn(role, text)));
 
         result.Accepted.Should().BeFalse();
@@ -189,6 +194,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public void should_refuse_a_conversation_with_no_turns_too_many_or_too_long()
     {
+        AskFor("c1");
         Subject().Handle(ConversationOf("c1")).Accepted.Should().BeFalse();
         Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", null, null, null, null)).Accepted.Should().BeFalse();
         Subject().Handle(ConversationOf("c1", [.. Enumerable.Range(0, ExtensionService.MaxTurns + 1).Select(_ => new PushedTurn("user", "x"))])).Accepted.Should().BeFalse();
@@ -207,6 +213,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public void should_not_say_in_its_answer_what_it_was_told()
     {
+        AskFor("c1");
         var result = Subject().Handle(ConversationOf("c1", new PushedTurn("tool", "a secret sentence of a conversation")));
 
         result.Problem.Should().NotContain("secret").And.NotContain("c1");
@@ -265,9 +272,10 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public void should_take_a_list_a_turn_and_a_conversation_of_exactly_the_largest_size_that_is_allowed()
     {
+        AskFor("c1", "c2", "c3");
         var subject = Subject();
 
-        subject.Handle(ListOf([.. Enumerable.Range(0, ExtensionService.MaxListed).Select(i => Item($"c{i}"))])).Accepted.Should().BeTrue();
+        subject.Handle(ListOf([.. Enumerable.Range(0, ExtensionService.MaxPushedItems).Select(i => Item($"c{i}"))])).Accepted.Should().BeTrue();
         subject.Handle(ConversationOf("c1", new PushedTurn("user", new string('x', ExtensionService.MaxTurnLength)))).Accepted.Should().BeTrue();
         subject.Handle(ConversationOf("c2", [.. Enumerable.Range(0, ExtensionService.MaxTurns).Select(_ => new PushedTurn("user", "x"))])).Accepted.Should().BeTrue();
         var whole = Enumerable.Range(0, ExtensionService.MaxConversationLength / ExtensionService.MaxTurnLength).Select(_ => new PushedTurn("user", new string('x', ExtensionService.MaxTurnLength))).ToArray();
@@ -283,5 +291,69 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         Subject().Handle(ListOf(Item(id))).Accepted.Should().Be(accepted);
         Subject().Handle(ConversationOf(id, new PushedTurn("user", "x"))).Accepted.Should().Be(accepted);
+    }
+
+    [Fact]
+    public void should_refuse_a_conversation_that_it_did_not_ask_for_and_keep_nothing_of_it()
+    {
+        var result = Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi")));
+
+        result.Accepted.Should().BeFalse();
+        _inbox.Has("c1").Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_take_a_conversation_once_for_each_time_it_asked_for_it()
+    {
+        AskFor("c1");
+        Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi"))).Accepted.Should().BeTrue();
+        _inbox.Take("c1");
+
+        Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi"))).Accepted.Should().BeFalse("it was taken by the pass: the extension has to be asked again");
+    }
+
+    [Fact]
+    public void should_forget_what_it_asked_for_and_what_nobody_took_after_an_hour()
+    {
+        AskFor("c1", "c2");
+        Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi")));
+        _clock.Advance(ExtensionInbox.HeldFor + TimeSpan.FromMinutes(1));
+
+        Subject().Handle(ListOf(Item("c3")));
+
+        _inbox.Has("c1").Should().BeFalse("nothing took it in an hour");
+        _inbox.WasAsked("c2").Should().BeFalse();
+        _inbox.WasAsked("c3").Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_keep_nothing_of_the_conversations_when_nobody_is_signed_in_any_more()
+    {
+        AskFor("c1");
+        Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi")));
+
+        Subject().Handle(new ExtensionPushRequest("state", false, null, null, null, null, null));
+
+        _inbox.Has("c1").Should().BeFalse();
+        _inbox.WasAsked("c1").Should().BeFalse();
+        _inbox.List().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void should_not_cut_a_character_in_two_when_it_cuts_a_title_and_should_refuse_a_missing_list()
+    {
+        Subject().Handle(ListOf(Item("a", new string('t', ExtensionService.MaxTitleLength - 1) + "\U0001F600"))).Accepted.Should().BeTrue();
+        _inbox.List().Single().Title.Should().Be(new string('t', ExtensionService.MaxTitleLength - 1));
+
+        Subject().Handle(new ExtensionPushRequest("list", null, null, null, null, null, null)).Problem.Should().Be("A list holds items.");
+    }
+
+    [Fact]
+    public void should_take_a_conversation_whose_title_is_missing_or_too_long()
+    {
+        AskFor("c1", "c2");
+
+        Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", null, null, [new PushedTurn("user", "x")], null)).Accepted.Should().BeTrue();
+        Subject().Handle(new ExtensionPushRequest("conversation", null, "c2", new string('t', ExtensionService.MaxTitleLength + 50), null, [new PushedTurn("user", "x")], null)).Accepted.Should().BeTrue();
     }
 }

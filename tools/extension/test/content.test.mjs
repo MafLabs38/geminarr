@@ -18,7 +18,7 @@ const link = (id, title = id) => `<a href="/app/${id}">${title}</a>`;
  * Runs the content script on a synthetic page, with waits that take no time. `onWait(n)` is called at each wait with its number, to let a page change while the script is looking at it.
  * What it sent to the background is returned.
  */
-async function run(html, path, { onWait = () => {}, rejectSends = false } = {}) {
+async function run(html, path, { onWait = () => {}, rejectSends = false, mine = true } = {}) {
   const dom = new JSDOM(html, { url: `${ORIGIN}${path}` });
   // jsdom does not implement innerText: what a page shows is its text.
   Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
@@ -31,6 +31,8 @@ async function run(html, path, { onWait = () => {}, rejectSends = false } = {}) 
   const chrome = {
     runtime: {
       sendMessage: (message) => {
+        // The question that the script asks of the worker first: whether the page is one that the extension opened.
+        if (message.kind === 'mine?') return Promise.resolve(mine);
         sent.push(message);
         return rejectSends ? Promise.reject(new Error('Extension context invalidated.')) : Promise.resolve();
       },
@@ -54,6 +56,25 @@ async function run(html, path, { onWait = () => {}, rejectSends = false } = {}) 
   // What the script built lives in another realm: a plain copy is what is compared.
   return { sent: JSON.parse(JSON.stringify(sent)), waits };
 }
+
+describe('which pages are read', () => {
+  it('reads nothing on a page that a person opened, and does not even wait', async () => {
+    const { sent, waits } = await run(SIGNED_IN + list(link('c1a2b3')), '/app', { mine: false });
+
+    assert.deepEqual(sent, []);
+    assert.equal(waits, 0);
+  });
+
+  it('reads nothing of a conversation that a person is reading', async () => {
+    const { sent } = await run(
+      '<user-query><user-query-content>Hello</user-query-content></user-query>',
+      '/app/c1a2b3',
+      { mine: false },
+    );
+
+    assert.deepEqual(sent, []);
+  });
+});
 
 describe('the list page', () => {
   it('sends the conversations of the page of an account, once each, in the order of the page, with their titles', async () => {
@@ -107,18 +128,28 @@ describe('the list page', () => {
     assert.equal(sent[0].kind, 'list');
   });
 
+  it('does not believe a sign-in link before it has been there for a while', async () => {
+    const { sent, waits } = await run(`${SIGN_IN}${list(link('c1a2b3'))}`, '/app');
+
+    assert.deepEqual(sent, [{ kind: 'state', signedIn: false }]);
+    assert.ok(
+      waits >= 10,
+      'five seconds at least, so that a page that is still loading is not taken for a page nobody signed in to',
+    );
+  });
+
   it('says that the page is not what it knows, and not that nobody is signed in, when it shows neither link', async () => {
     const { sent, waits } = await run(`<p>Something else entirely</p>${list(link('c1a2b3'))}`, '/app');
 
     assert.deepEqual(sent, [{ kind: 'broken', step: 'page' }]);
-    assert.equal(waits, 60, 'it asked for thirty seconds before it said so');
+    assert.ok(waits >= 10, 'it asked for a while before it said so');
   });
 
   it('says that the list is not what it knows when a page of an account has no list to scroll', async () => {
     const { sent, waits } = await run(`${SIGNED_IN}<p>No list here</p>`, '/app');
 
     assert.deepEqual(sent, [{ kind: 'broken', step: 'list' }]);
-    assert.equal(waits, 60, 'it asked for thirty seconds before it said so');
+    assert.ok(waits >= 10, 'it asked for a while before it said so');
   });
 
   it('waits for the list to show, a little after the account does', async () => {

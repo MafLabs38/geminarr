@@ -92,7 +92,7 @@ services:
     <<: *node
     working_dir: /stack
     environment:
-      TOKEN: e2e-extension-token-0123456789abcdef0123456789abcdef
+      TOKEN: e2e-extension-token-e2e-extension-token
       GEMINARR_URL: http://geminarr-extension:8282
       ASSISTANT_ORIGIN: http://assistant:8081
     volumes:
@@ -123,7 +123,7 @@ configs:
   admin_password:
     content: e2e-admin-password
   extension_token:
-    content: e2e-extension-token-0123456789abcdef0123456789abcdef
+    content: e2e-extension-token-e2e-extension-token
   mnemarr_code:
     content: E2E-CODE
 volumes:

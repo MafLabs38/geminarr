@@ -75,31 +75,3 @@ public sealed class ExtensionPackageFixture : IDisposable
         Subject().Current().Should().BeNull();
     }
 }
-
-public sealed class ExtensionPublicUrlFixture
-{
-    [Theory]
-    [InlineData("https://geminarr.homelab.example")]
-    [InlineData("https://geminarr.homelab.example/")]
-    [InlineData("https://server-1:8282")]
-    [InlineData(null)]
-    [InlineData("")]
-    public void should_accept_an_address_without_a_path(string? url)
-    {
-        new ExtensionOptionsValidator().Validate(null, new ExtensionOptions { PublicUrl = url }).Succeeded.Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData("geminarr.homelab.example")]
-    [InlineData("ftp://geminarr.homelab.example")]
-    [InlineData("https://geminarr.homelab.example/path")]
-    [InlineData("https://geminarr.homelab.example/?a=b")]
-    [InlineData("https://user:secret@geminarr.homelab.example")]
-    public void should_refuse_what_is_not_an_address_to_build_on_and_name_the_setting(string url)
-    {
-        var result = new ExtensionOptionsValidator().Validate(null, new ExtensionOptions { PublicUrl = url });
-
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__PUBLICURL").And.NotContain("secret");
-    }
-}

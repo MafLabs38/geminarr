@@ -8,7 +8,7 @@ namespace Geminarr.Api.V1.Extension;
 
 /// <summary>Where the browser installs and updates the extension from (ADR 0015): the update manifest and the signed package. Public, since the browser asks without any session and the package holds no secret.</summary>
 [ApiController]
-[Route("api/v1/extension")]
+[Route(ExtensionRoutes.Base)]
 [AllowAnonymous]
 public sealed class ExtensionPackageController : ControllerBase
 {
