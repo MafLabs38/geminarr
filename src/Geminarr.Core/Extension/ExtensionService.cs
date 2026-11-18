@@ -46,7 +46,7 @@ public sealed partial class ExtensionService
         {
             "state" => State(request, version),
             "list" => List(request, version),
-            "conversation" => Conversation(request),
+            "conversation" => Conversation(request, version),
             "broken" => Broken(request, version),
             _ => ExtensionPushResult.Refused("Unknown kind."),
         };
@@ -151,7 +151,7 @@ public sealed partial class ExtensionService
         return ExtensionPushResult.Ok(wanted);
     }
 
-    private ExtensionPushResult Conversation(ExtensionPushRequest request)
+    private ExtensionPushResult Conversation(ExtensionPushRequest request, string? version)
     {
         if (!IsId(request.Id))
         {
@@ -186,7 +186,7 @@ public sealed partial class ExtensionService
             turns.Add(new Turn(turn.Role, null, turn.Text));
         }
 
-        _inbox.RecordConversation(request.Id!, Title(request.Title), turns, _clock.GetUtcNow());
+        _inbox.RecordConversation(request.Id!, Title(request.Title), turns, _clock.GetUtcNow(), version);
         // The pass takes it from here, without waiting for its hour.
         _trigger.Request();
         return ExtensionPushResult.Ok();

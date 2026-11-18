@@ -196,6 +196,33 @@ public sealed class ExtensionInboxFixture
     }
 
     [Fact]
+    public void should_ask_again_for_the_conversations_marked_during_a_broken_page_once_a_new_version_reads_one()
+    {
+        _subject.RecordSession(signedIn: true, null, Now);
+        foreach (var id in new[] { "v1", "v2", "v3", "v4" })
+        {
+            _subject.RecordUnreadable(id, "1.0.0", Now);
+        }
+
+        _subject.IsUnreadable(new ConversationHeader("v1", null, 4)).Should().BeFalse("a run of three says something about the page, not about its conversations");
+        _subject.IsUnreadable(new ConversationHeader("v4", null, 4)).Should().BeFalse("nor does one that came after the break");
+
+        _subject.RecordConversation("r0", "T", [new Turn("user", null, "hi")], Now, "1.0.1");
+
+        _subject.Session!.Broken.Should().BeNull();
+        new[] { "v1", "v2", "v3", "v4" }.Should().OnlyContain(id => !_subject.IsUnreadable(new ConversationHeader(id, null, 4)), "a fixed extension reads them again");
+    }
+
+    [Fact]
+    public void should_never_exclude_the_most_recent_conversation_whatever_it_showed()
+    {
+        _subject.RecordList([new ConversationHeader("c0", "Zero", 0)], null, Now);
+        _subject.RecordUnreadable("c0", null, Now);
+
+        _subject.IsUnreadable(new ConversationHeader("c0", "Zero", 0)).Should().BeFalse("it cannot move up, and a person may have added text to it");
+    }
+
+    [Fact]
     public void should_not_take_three_conversations_without_a_turn_for_a_page_that_changed_when_they_are_more_than_an_hour_apart()
     {
         _subject.RecordSession(signedIn: true, null, Now);
@@ -236,11 +263,13 @@ public sealed class ExtensionInboxFixture
         for (var i = 0; i < ExtensionInbox.MaxConversations + 5; i++)
         {
             _subject.RecordUnreadable($"c{i}", null, Now.AddSeconds(i));
+            // A conversation that is read in between: they are not three in a row, and each stays marked.
+            _subject.RecordConversation($"r{i}", "T", [new Turn("user", null, "hi")], Now.AddSeconds(i));
         }
 
         _subject.IsUnreadable(Header("c0")).Should().BeFalse();
         _subject.IsUnreadable(Header($"c{ExtensionInbox.MaxConversations + 4}")).Should().BeTrue();
     }
 
-    private static ConversationHeader Header(string id) => new(id, null, 0);
+    private static ConversationHeader Header(string id) => new(id, null, 1);
 }

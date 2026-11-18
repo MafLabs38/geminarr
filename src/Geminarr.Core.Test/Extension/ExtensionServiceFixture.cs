@@ -379,7 +379,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         AskFor("c1", "c3", "c4");
         NoTurns("c1");
 
-        Subject().Handle(ListOf(Item("c1"), Item("c2"))).Open.Should().Equal("c2");
+        Subject().Handle(ListOf(Item("c2"), Item("c1"))).Open.Should().Equal("c2");
 
         AskFor("c2");
         Subject().Handle(ConversationOf("c2", new PushedTurn("user", "hi")));
