@@ -8,6 +8,7 @@ import base64
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -17,12 +18,14 @@ PAGE = 100
 def call(host, token, path, **query):
     url = f"{host}/api/{path}?{urllib.parse.urlencode(query)}"
     request = urllib.request.Request(url, headers={"Authorization": "Basic " + base64.b64encode(f"{token}:".encode()).decode()})
-    with urllib.request.urlopen(request, timeout=30) as response:  # NOSONAR: the address is the project's own server
+    with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 
 
 def scope(pull_request, branch):
-    return {"pullRequest": pull_request} if pull_request else {"branch": branch} if branch else {}
+    if pull_request:
+        return {"pullRequest": pull_request}
+    return {"branch": branch} if branch else {}
 
 
 def gate_lines(host, token, key, where):
@@ -57,7 +60,9 @@ def main():
     for part in (gate_lines, issue_lines, hotspot_lines):
         try:
             lines += part(host, token, key, where)
-        except Exception as error:  # a part that cannot be read says so; the others are still told
+        except urllib.error.HTTPError as error:  # a part that cannot be read says so, and why; the others are still told
+            lines.append(f"{part.__name__}: could not be read (HTTP {error.code}: {error.read(300).decode('utf-8', 'replace')})")
+        except Exception as error:
             lines.append(f"{part.__name__}: could not be read ({type(error).__name__})")
     text = "\n".join(lines)
     print(text)

@@ -105,4 +105,5 @@ async function start() {
   else if (location.pathname === '/app') await readList();
 }
 
-void start();
+// A content script is not a module: it cannot await at the top level (S7785), so the start is not awaited.
+void start(); // NOSONAR

@@ -123,7 +123,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       break;
     case UPDATE_ALARM:
       // The browser looks for a new version of an extension that a policy installs only every few hours: the extension asks for it itself, every hour.
-      void chrome.runtime.requestUpdateCheck().catch(() => {});
+      chrome.runtime.requestUpdateCheck().catch(() => {});
       break;
     default:
   }
@@ -138,6 +138,7 @@ async function roundMinutes() {
   const { roundMinutes: wanted } = await chrome.storage.managed.get('roundMinutes');
   return Number.isInteger(wanted) && wanted >= 1 && wanted <= MAX_ROUND_MINUTES ? wanted : DEFAULT_ROUND_MINUTES;
 }
-void roundMinutes().then((minutes) => ensureAlarm(ROUND_ALARM, minutes));
-void ensureAlarm(SWEEP_ALARM, 1);
-void ensureAlarm(UPDATE_ALARM, 60);
+// A service worker is not a module: it cannot await at the top level (S7785), so these three calls start the alarms and are not awaited.
+void roundMinutes().then((minutes) => ensureAlarm(ROUND_ALARM, minutes)); // NOSONAR
+void ensureAlarm(SWEEP_ALARM, 1); // NOSONAR
+void ensureAlarm(UPDATE_ALARM, 60); // NOSONAR

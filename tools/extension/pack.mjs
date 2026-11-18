@@ -15,7 +15,7 @@ const TEXT_FILES = /\.(json|js)$/;
 /** The version that a browser accepts (up to four numbers, each below 65536) from the one of a build: "1.2.3.45" is kept, "1.2.3-rc.1" and "0.0.0-dev" give "1.2.3" and "0.0.0". */
 export function browserVersion(version) {
   const match = /^(\d{1,5})\.(\d{1,5})\.(\d{1,5})(?:\.(\d{1,5}))?(?![\d.])/.exec(version ?? '');
-  const numbers = match?.slice(1).filter((part) => part !== undefined);
+  const numbers = match?.slice(1).filter(Boolean);
   if (!numbers || numbers.some((part) => Number(part) > 65_535))
     throw new Error(`The version "${version}" does not start with three numbers below 65536.`);
   return numbers.join('.');

@@ -27,15 +27,18 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             # What the usual Chromium images need to start as root and drop to their own user; try without, and keep the list as short as the image allows.
-            capabilities:
+            # Documented exception to kubernetes:S5849 (marked on the line below): the list is the one that the image needs, as the comment above says.
+            capabilities: # NOSONAR
               drop: [ALL]
               add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
           resources:
             requests:
               cpu: 100m
               memory: 512Mi
+              ephemeral-storage: 1Gi
             limits:
               memory: 2Gi
+              ephemeral-storage: 4Gi
           volumeMounts:
             - name: profile            # the signed-in session of the DEDICATED account: a volume of its own, never backed up in the clear
               mountPath: /config
