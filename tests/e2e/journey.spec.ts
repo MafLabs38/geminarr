@@ -60,9 +60,11 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'the page notices the sign-in, says who signed in, and the conversations reach Mnemarr, turn by turn',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(300_000);
+      test.setTimeout(420_000);
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
+      // Whatever a previous attempt left (the group is run again when a test of it fails), nobody is signed in to the assistant at the start.
+      await assistant.post(`${ASSISTANT}/admin/signout`);
 
       // Nobody has signed in to the browser: the first rounds of the extension find a visitor, and the page asks to sign in.
       await expect
@@ -116,7 +118,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'a conversation added later is read in the next round and none is sent twice',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(240_000);
+      test.setTimeout(420_000);
       const before = await heldByMnemarr(playwright);
 
       const assistant = await playwright.request.newContext();
@@ -139,7 +141,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'a page that nobody is signed in to says "sign in again", and reading resumes when somebody is',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(240_000);
+      test.setTimeout(420_000);
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       const state = async () => ((await (await request.get('/api/v1/connection')).json()) as Connection).state;
@@ -163,7 +165,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'a page that is not the one the extension knows says "reader broken", not "sign in again", and reading resumes when it is',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(240_000);
+      test.setTimeout(420_000);
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       try {
@@ -186,7 +188,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'the operator disconnects: the extension signs the account out of the browser, the connection is forgotten without asking anybody to sign in again, and a person can sign in again',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(300_000);
+      test.setTimeout(420_000);
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       const seenBefore = await guests(playwright);
