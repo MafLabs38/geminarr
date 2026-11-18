@@ -103,7 +103,7 @@
     },
     {
       "name": "credentials in a connection string",
-      "input": "postgres://user:pa55word@db.example:5432/app",
+      "input": "postgres://user:<A:12>@db.example:5432/app",
       "expected": "postgres://[masked:credentials]@db.example:5432/app"
     }
   ]

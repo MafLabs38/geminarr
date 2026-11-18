@@ -71,8 +71,8 @@ public static partial class SecretMasker
     [GeneratedRegex(@"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, LimitMilliseconds)]
     private static partial Regex BearerToken();
 
-    // Any scheme: a connection string (postgres://, mongodb+srv://, redis://) holds a password as an address does.
-    [GeneratedRegex(@"(\b[a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, LimitMilliseconds)]
+    // Any scheme: a connection string (postgres://, mongodb+srv://, redis://) holds a password as an address does. A scheme is short: unbounded, a very long run of such characters would be scanned from every position.
+    [GeneratedRegex(@"(\b[a-z][a-z0-9+.-]{1,30}://)[^/\s:@]+:[^/\s@]+@", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, LimitMilliseconds)]
     private static partial Regex AddressCredentials();
 
     [GeneratedRegex(

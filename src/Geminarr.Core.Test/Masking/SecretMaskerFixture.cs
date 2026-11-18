@@ -42,6 +42,14 @@ public sealed partial class SecretMaskerFixture
     }
 
     [Fact]
+    public void should_finish_in_time_on_the_longest_text_made_of_the_characters_of_a_scheme()
+    {
+        var text = new string('a', Geminarr.Core.Extension.ExtensionService.MaxTurnLength);
+
+        SecretMasker.Mask(text).Should().Be(text);
+    }
+
+    [Fact]
     public void should_hide_a_private_key_on_several_lines()
     {
         // Built here, so that no file holds the shape of a key (a secret scanner would take it for one).
