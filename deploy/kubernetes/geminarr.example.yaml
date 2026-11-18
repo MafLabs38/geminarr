@@ -1,6 +1,7 @@
 # Geminarr on Kubernetes. Adjust the values marked <...>, then `kubectl apply -f` (or, better, let your GitOps tool apply it).
-# The page (and, from the reader vertical on, the live view where the dedicated account is signed in) must be behind a login:
-# publish it behind your single sign-on, and nothing else of it.
+# One pod, two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
+# The browser is for Geminarr alone: no Service, no ingress, no login of its own. Its web desktop listens in the pod, which the two containers share,
+# and Geminarr relays the desktop on a port of its own, behind a ticket of the operator's session: Geminarr's page and that origin are the only things that are published (behind your single sign-on if you have one).
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -19,6 +20,82 @@ spec:
     requests:
       storage: 2Gi
 ---
+# The configuration of the browser container, profile included: the signed-in session of the dedicated Google account. A volume of its own, never in a backup in the clear (ADR 0004, 0016).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geminarr-browser
+  namespace: geminarr
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# The rules of the egress guard (ADR 0020): the same as deploy/egress/rules.v4.example and rules.v6.example, filled in.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geminarr-egress
+  namespace: geminarr
+data:
+  # The same files as deploy/egress/rules.v4.example and rules.v6.example, filled in. Mnemarr's address changing is a change here and a restart of the pod.
+  rules.v4: |
+    *filter
+    :OUTPUT ACCEPT [0:0]
+    -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 3000 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p udp --dport 53 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <name-server-ip>/32 -p tcp --dport 53 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -d <mnemarr-ip>/32 -p tcp --dport <mnemarr-port> -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
+    -A OUTPUT -m owner --uid-owner 1654 -j REJECT
+    COMMIT
+  rules.v6: |
+    *filter
+    :OUTPUT ACCEPT [0:0]
+    -A OUTPUT -m owner --uid-owner 1654 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -o lo -p tcp -m multiport --dports 3000 -j ACCEPT
+    -A OUTPUT -m owner --uid-owner 1654 -p tcp -j REJECT --reject-with tcp-reset
+    -A OUTPUT -m owner --uid-owner 1654 -j REJECT
+    COMMIT
+---
+# The init script of the browser container: the same file as deploy/browser/loopback-only.sh (keep the two identical; the Compose example mounts the file itself).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geminarr-browser-init
+  namespace: geminarr
+data:
+  10-loopback-only.sh: |
+    #!/bin/sh
+    # Makes the web desktop of the browser reachable by Geminarr alone (ADR 0017), in two ways.
+    #
+    # 1. It listens on the loopback of the container's network namespace, and nowhere else. The image's nginx listens on every interface (3000 in clear, 3001 with a self-signed certificate), and the web desktop
+    #    has no sign-in of its own: without this, any other container of the same network (or any other pod of the cluster, if no network policy is enforced) could open a desktop that is signed in to a
+    #    Google account. Geminarr shares the namespace and reaches it as 127.0.0.1.
+    # 2. A request must be for the desktop by the loopback name, and a request that names an origin must name the one that Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads shares
+    #    the namespace and could otherwise reach the desktop on the loopback. A request that names none is not from a page. (The desktop's WebSocket also checks it: SELKIES_ALLOWED_ORIGINS.) A page of a name that
+    #    a hostile DNS points at 127.0.0.1 (DNS rebinding) names that name in its Host header, which only the loopback names pass.
+    #
+    # Mounted as /custom-cont-init.d/10-loopback-only.sh of the browser container (executable): the image runs these scripts at start, after it has built its nginx configuration and before nginx starts.
+    # Tested with the pinned image: after it, `ss -ltn` shows nothing off the loopback, and a request with another origin gets a 403. A different image or a different version of it needs the test again.
+    # If it does not do its job, Geminarr says so: it reads the sockets of the shared namespace and closes /browser/ (reason browser-exposed) while anything but its own port listens off the loopback.
+    set -eu
+    conf=/etc/nginx/sites-available/default
+    sed -i -e 's/^\([[:space:]]*\)listen 3000/\1listen 127.0.0.1:3000/' -e 's/^\([[:space:]]*\)listen 3001/\1listen 127.0.0.1:3001/' -e '/listen \[::\]/d' "$conf"
+    if grep -E '^[[:space:]]*listen' "$conf" | grep -v -q '127\.0\.0\.1'; then
+      echo "loopback-only: a listen directive is still not on the loopback" >&2
+      exit 1
+    fi
+    RULE='if ($host !~ "^(127\.0\.0\.1|localhost)$") { return 403; } if ($http_origin !~ "^(https://geminarr\.invalid)?$") { return 403; }' awk '{ print } /^[[:space:]]*listen 127\.0\.0\.1:/ { print "  " ENVIRON["RULE"] }' "$conf" > "$conf.new"
+    cat "$conf.new" > "$conf"
+    rm -f "$conf.new"
+    if [ "$(grep -c 'geminarr' "$conf")" != "$(grep -c -E '^[[:space:]]*listen 127' "$conf")" ]; then
+      echo "loopback-only: the origin rule is not in every server block" >&2
+      exit 1
+    fi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,7 +104,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate        # one writer to the database and, later, the one browser profile
+    type: Recreate        # one writer to the database and the one browser profile
   selector:
     matchLabels:
       app.kubernetes.io/name: geminarr
@@ -40,18 +117,55 @@ spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1654
-        runAsGroup: 1654
         fsGroup: 1654
         seccompProfile:
           type: RuntimeDefault
+      # The egress guard (ADR 0020): Geminarr and the browser share the pod's network namespace, so a network policy cannot tell them apart. These two init containers run once, with the one capability
+      # that they need, and set rules in that namespace that name Geminarr's own process by its user (uid 1654) and let it reach Mnemarr and nothing else. The browser keeps what the network
+      # policy allows. Geminarr has no capability and cannot change them. The namespace must allow NET_ADMIN for these two (Pod Security `privileged`, or an exemption for them); where it cannot, the
+      # same rules belong to the node's or the network plugin's policy. A third party's image (the Kubernetes project's, with iptables and no shell), pinned by digest.
+      initContainers:
+        - name: egress-guard
+          image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+          command: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          volumeMounts:
+            - name: egress
+              mountPath: /rules
+              readOnly: true
+            - name: run
+              mountPath: /run
+        - name: egress-guard-v6
+          image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+          command: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          volumeMounts:
+            - name: egress
+              mountPath: /rules
+              readOnly: true
+            - name: run
+              mountPath: /run
       containers:
         - name: geminarr
           image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
           ports:
             - name: http
               containerPort: 8282
+            # The desktop's own origin (ADR 0019): the same program, a second port, closed without the cookie that a ticket of the operator's session gives.
+            - name: desktop
+              containerPort: 8283
           env:
             - name: GEMINARR__DATAFOLDER
               value: /config
@@ -63,25 +177,30 @@ spec:
             # The name you reach the page by: its host is allowed, a request for any other name is refused (the probes are exempt).
             - name: GEMINARR__PUBLICURL
               value: https://geminarr.homelab.example
+            # The desktop of the browser has an origin of its own (ADR 0019): the address that your ingress publishes it by (a second host, here). Its host is allowed on that origin only.
+            # Without it the desktop is looked for on port 8283 of the page's host, which an ingress that serves 443 only does not answer (Geminarr says so in its log).
+            - name: GEMINARR__BROWSER__DESKTOPPUBLICURL
+              value: https://desktop.homelab.example
             # The Mnemarr to send to (https). Leave it out to give the address on the page and pair there; a one-time code or a key can be mounted as a file instead.
             # - name: GEMINARR__MNEMARR__URL
             #   value: https://mnemarr.homelab.example
             # - name: GEMINARR__MNEMARR__KEYFILE            # the key that Mnemarr gave to this machine, from a secret (or GEMINARR__MNEMARR__ENROLMENTCODEFILE for a one-time code)
             #   value: /run/geminarr/mnemarr/key
-            # The reader: the extension of the browser that a person signed in to Gemini in (browser.example.yaml). The token is the same as in the policy of that browser; the name it
-            # reaches Geminarr by (the service) must be allowed.
-            # - name: GEMINARR__READER__KIND
-            #   value: Web
-            # - name: GEMINARR__EXTENSION__TOKENFILE
-            #   value: /run/geminarr/extension/token       # 32 characters or more, random, from a secret that holds the file `token`
-            # - name: GEMINARR__ALLOWEDHOSTNAMES
-            #   value: geminarr.homelab.example;geminarr.geminarr.svc
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
             # - name: GEMINARR__IDENTITY__LOGOFILE
             #   value: /run/geminarr/identity/logo.png
+            # The browser container reads the session of the assistant: set the reader to Web (the default, None, reads nothing) and give the web desktop (on
+            # the loopback of the pod, nothing else is accepted). The person signs in by hand, in the desktop that Geminarr relays on a port of its own (8283, set with GEMINARR__BROWSER__DESKTOPPORT; give its public address with GEMINARR__BROWSER__DESKTOPPUBLICURL when your ingress gives it one); Geminarr never types a credential.
+            - name: GEMINARR__READER__KIND
+              value: Web
+            - name: GEMINARR__BROWSER__DESKTOPURL
+              value: http://127.0.0.1:3000
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -98,8 +217,8 @@ spec:
             periodSeconds: 15
           resources:
             requests:
-              cpu: 50m
-              memory: 96Mi
+              cpu: 100m
+              memory: 256Mi
               ephemeral-storage: 64Mi
             limits:
               memory: 256Mi
@@ -118,10 +237,75 @@ spec:
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
-            # - name: extension           # the token of the extension, from a secret that holds the file `token`
-            #   mountPath: /run/geminarr/extension
-            #   readOnly: true
+        # The browser container: an ordinary Chromium with a web desktop (a third party's image, pinned by digest: the choice of the image is the maintainer's, SPEC Q-18).
+        # It starts as root (its init sets the user from PUID and PGID); harden it further for the platform you run on, and test that Chromium still starts.
+        - name: browser
+          # Everything below that depends on the image (the paths of its web client that Geminarr relays, the nginx edits of the init script, the port of its TLS desktop) was tested with
+          # lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108. Another digest needs the same tests again: it is a different contract (SPEC Q-18).
+          image: lscr.io/linuxserver/chromium@sha256:<digest>   # pin by digest, never `latest`
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Etc/UTC   # your time zone
+            # The page the browser opens: the assistant, which
+            # sends a person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it, and it is no container port of the pod.
+            # The page the browser opens at start is the assistant's address.
+            - name: CHROME_CLI
+              value: https://gemini.google.com/app
+            # The web desktop is served under this path, where Geminarr relays it.
+            - name: SUBFOLDER
+              value: /browser/
+            # The only origin its WebSocket accepts: the one Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads can
+            # reach the desktop on the loopback, and is refused.
+            - name: SELKIES_ALLOWED_ORIGINS
+              value: https://geminarr.invalid
+          # Hardening, tried with Docker on 2026-11-15 (not yet on Kubernetes): the init of the image needs these few capabilities to set the user and the files, and nothing else.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL] # NOSONAR kubernetes:S5849: every capability is dropped first; these six are what the image's init needs (tested), and nothing else
+          # No readiness probe on purpose: a pod is Ready only when all its containers are, so a browser that is down would take Geminarr's own page, API and health out of the Service. The health of the
+          # browser is Geminarr's `browser` check (degraded, never unready), and the web desktop's own page says when it is not there.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 256Mi
+            limits:
+              memory: 2Gi   # Chromium with a page open
+              ephemeral-storage: 1Gi
+          volumeMounts:
+            - name: browser
+              mountPath: /config
+            - name: shm
+              mountPath: /dev/shm
+            # Makes the web desktop listen on the loopback of the pod and nowhere else (ADR 0017): it has no sign-in, so no other pod may reach it even where no network policy is enforced.
+            - name: browser-init
+              mountPath: /custom-cont-init.d
+              readOnly: true
       volumes:
+        - name: egress
+          configMap:
+            name: geminarr-egress
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: browser-init
+          configMap:
+            name: geminarr-browser-init
+            defaultMode: 0755
+        - name: browser
+          persistentVolumeClaim:
+            claimName: geminarr-browser
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi   # Chromium's shared memory
         - name: operator
           secret:
             defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
@@ -133,10 +317,6 @@ spec:
         # - name: identity
         #   configMap:
         #     name: geminarr-identity
-        # - name: extension
-        #   secret:
-        #     secretName: geminarr-extension
-        #     defaultMode: 0440
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data
@@ -156,9 +336,13 @@ spec:
     - name: http
       port: 8282
       targetPort: http
+    # The desktop's own origin (ADR 0019): publish it like the page (a second host or port of your ingress, HTTPS); it answers 401 without the cookie that a ticket gives.
+    - name: desktop
+      port: 8283
+      targetPort: desktop
 ---
-# Nothing but the ingress controller, the browser of the reader (browser.example.yaml) and the platform's probes may reach the pod: the single sign-on lives at the ingress, so a pod that
-# could call the service directly would skip it. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
+# Nothing but the ingress controller (and the platform's probes) may reach the pod, and only on Geminarr's ports (the page's, and the desktop's own origin): the web desktop of the browser (3000) has
+# no sign-in of their own, so no other pod may reach them, whatever listens in the pod. Adjust the namespace label to your ingress controller's. The egress policy is the next one.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -177,18 +361,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8282
-    # The browser of the reader, to hand over what the extension reads and to fetch the extension (the push route and the package, which are open to the sign-in but not to the token).
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: geminarr-browser
-      ports:
+        # The desktop's own origin (ADR 0019). The desktop itself (3000) stays on the loopback and are in no policy.
         - protocol: TCP
-          port: 8282
+          port: 8283
 ---
-# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to, and nothing else. The assistant's own origins are added with the
-# reader (vertical 4), and a new destination is a decision. Adjust the selectors to where DNS and Mnemarr run; for a Mnemarr outside the cluster use an
-# `ipBlock` with its address instead of the namespace selector.
+# What leaves the pod (SPEC §11.2, docs/network.md): DNS and the Mnemarr it sends to. Adjust the selectors to where DNS and Mnemarr run (the port is the one
+# of the Mnemarr's container, written here as an assumption); for a Mnemarr outside the cluster use an `ipBlock` with its address instead of the namespace selector.
+# The browser container (the same pod) also needs https to the assistant and to the account provider's sign-in pages, and whatever a Chromium reaches on its own (the list
+# of docs/network.md). A NetworkPolicy knows addresses, not names: with a network plugin that filters by name (Cilium `toFQDNs`) list those hosts; without one, allow
+# port 443 for this pod only. The exact list is the spike S1's (ROADMAP), and a new destination is a decision. The desktop of the browser is on the loopback: no policy
+# is needed for it, and none may open it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -222,3 +404,11 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # The browser container: https to the assistant and to the account provider (adjust to your plugin, see above).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - protocol: TCP
+          port: 443

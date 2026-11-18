@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Access;
@@ -28,6 +29,9 @@ public sealed class AuthOptions
 
     /// <summary>How long a session lasts, in hours, used or not: the operator signs in again after it.</summary>
     public int SessionHours { get; set; } = 12;
+
+    /// <summary>The shortest password of the operator that is accepted (<see cref="OperatorCredentials.DefaultMinPasswordLength"/> unless a sandbox lowers it: a machine that nobody else reaches).</summary>
+    public int MinPasswordLength { get; set; } = OperatorCredentials.DefaultMinPasswordLength;
 }
 
 public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
@@ -39,8 +43,25 @@ public sealed class AuthOptionsValidator : IValidateOptions<AuthOptions>
             return ValidateOptionsResult.Fail($"Auth:SessionHours (GEMINARR__AUTH__SESSIONHOURS) must be between 1 and {AuthOptions.MaxSessionHours}.");
         }
 
+        if (options.MinPasswordLength is < 1 or > 1_024)
+        {
+            return ValidateOptionsResult.Fail("Auth:MinPasswordLength (GEMINARR__AUTH__MINPASSWORDLENGTH) must be between 1 and 1024.");
+        }
+
         return string.IsNullOrWhiteSpace(options.AdminUser) == string.IsNullOrWhiteSpace(options.AdminPasswordFile)
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail("Auth:AdminUser and Auth:AdminPasswordFile (GEMINARR__AUTH__ADMINUSER, GEMINARR__AUTH__ADMINPASSWORDFILE) are set together or not at all.");
+    }
+}
+
+/// <summary>The operator's password is also the key to the browser's session (ADR 0017): with a browser configured, the minimum is not lightened below the strict default (ADR 0018). The container refuses to start rather than run a browser behind a weak password.</summary>
+public sealed class AuthOptionsBrowserValidator(IOptions<BrowserOptions> browser) : IValidateOptions<AuthOptions>
+{
+    public ValidateOptionsResult Validate(string? name, AuthOptions options)
+    {
+        var configured = !string.IsNullOrWhiteSpace(browser.Value.DesktopUrl);
+        return !configured || options.MinPasswordLength >= OperatorCredentials.DefaultMinPasswordLength
+            ? ValidateOptionsResult.Success
+            : ValidateOptionsResult.Fail($"Auth:MinPasswordLength (GEMINARR__AUTH__MINPASSWORDLENGTH) cannot be below {OperatorCredentials.DefaultMinPasswordLength} while a browser is configured (GEMINARR__BROWSER__DESKTOPURL): the operator's password is also the key to the browser's session.");
     }
 }

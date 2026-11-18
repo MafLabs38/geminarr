@@ -14,7 +14,7 @@ public sealed class ConnectionTrackerFixture : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     private ConnectionTracker Subject(int loginFailures = 3) =>
-        new(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = loginFailures }), _clock);
+        Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = loginFailures }), _clock);
 
     [Fact]
     public void should_be_not_connected_until_a_pass_has_read()
@@ -113,5 +113,74 @@ public sealed class ConnectionTrackerFixture : IDisposable
         second.ConsecutiveFailures.Should().Be(2);
         subject.NotConnected().State.Should().Be(ConnectionState.NotConnected);
         subject.Current().ConsecutiveFailures.Should().Be(0);
+    }
+
+    [Fact]
+    public void should_keep_the_moment_a_pause_ends_and_forget_it_when_it_is_resumed()
+    {
+        var store = new ConnectionStore(_workspace.Database, _clock);
+        var subject = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
+        var until = _clock.GetUtcNow().AddHours(1);
+
+        subject.Paused(until);
+
+        store.Get().Should().Match<ConnectionRecord>(record => record.State == ConnectionState.Paused && record.PausedUntil == until && record.LastReason == ConnectionReasons.Paused);
+        subject.Connected();
+        store.Get().State.Should().Be(ConnectionState.Paused, "a pass that ends does not undo a pause");
+        subject.Resumed();
+        store.Get().PausedUntil.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_let_a_pass_write_once_the_pause_has_ended_and_settle_the_state_on_the_next_read()
+    {
+        var subject = Subject();
+        subject.Connected();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        _clock.Advance(TimeSpan.FromHours(2));
+
+        subject.Failed(ConnectionReasons.Unreachable).State.Should().Be(ConnectionState.Degraded, "the pause is over: what the pass found is told");
+        subject.Current().State.Should().Be(ConnectionState.Degraded);
+    }
+
+    [Fact]
+    public void should_keep_what_was_known_before_the_first_pause_when_the_pause_is_asked_again()
+    {
+        var subject = Subject(loginFailures: 1);
+        subject.SignedOut();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        subject.Paused(until: null);
+
+        subject.Resumed().State.Should().Be(ConnectionState.NeedsLogin, "the second pause did not replace what the first one took over");
+    }
+
+    [Fact]
+    public void should_resume_only_what_is_paused()
+    {
+        var subject = Subject(loginFailures: 1);
+        subject.SignedOut();
+
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "nothing is paused: nothing changes");
+
+        subject.Paused(until: null);
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "the pause gives back what it took over");
+        subject.ResumedIfPaused().State.Should().Be(ConnectionState.NeedsLogin, "and a second resume changes nothing");
+    }
+
+    [Fact]
+    public void should_say_what_the_end_of_a_pause_gives_when_read_and_write_it_only_when_settled()
+    {
+        var store = new ConnectionStore(_workspace.Database, _clock);
+        var subject = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
+        subject.Connected();
+        subject.Paused(_clock.GetUtcNow().AddHours(1));
+        _clock.Advance(TimeSpan.FromHours(2));
+
+        subject.Current().State.Should().Be(ConnectionState.Connected, "the pause is over: this is what it gives");
+        store.Get().State.Should().Be(ConnectionState.Paused, "a read writes nothing");
+
+        subject.Settle().State.Should().Be(ConnectionState.Connected);
+        store.Get().State.Should().Be(ConnectionState.Connected, "settled: it is written");
+        subject.Settle().Should().Be(store.Get(), "settling what is settled changes nothing");
     }
 }

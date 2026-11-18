@@ -16,9 +16,12 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['not-connected', 'ReasonConnectionNotConnected'],
   ['needs-login', 'ReasonNeedsLogin'],
   ['reader-broken', 'ReasonReaderBroken'],
-  ['extension-silent', 'ReasonExtensionSilent'],
+  ['browser-failed', 'ReasonBrowserFailed'],
+  ['browser-exposed', 'ReasonBrowserExposed'],
+  ['egress-unguarded', 'ReasonEgressUnguarded'],
   ['rate-limited', 'ReasonRateLimited'],
   ['unreachable', 'ReasonUnreachable'],
+  ['paused', 'ReasonPaused'],
   ['mnemarr-not-linked', 'ReasonMnemarrNotLinked'],
   ['mnemarr-insecure-address', 'ReasonMnemarrInsecureAddress'],
   ['mnemarr-refused', 'ReasonMnemarrRefused'],
@@ -34,6 +37,7 @@ const checkNames: Readonly<Record<string, TranslationKey>> = {
   connection: 'CheckConnection',
   mnemarr: 'CheckMnemarr',
   outbox: 'CheckOutbox',
+  browser: 'CheckBrowser',
 };
 
 /** The sentence of a reason code (of a check, or of what the destination or the connection says), or nothing for a code this version does not know. */

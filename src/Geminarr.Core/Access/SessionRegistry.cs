@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Access;
@@ -30,7 +29,7 @@ public sealed class SessionRegistry
     /// <summary>Starts a session and gives its identifier (the part of the cookie that nobody can guess).</summary>
     public string Start()
     {
-        var id = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        var id = SecureToken.New();
         lock (_startGate)
         {
             Prune();

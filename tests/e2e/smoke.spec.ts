@@ -5,6 +5,14 @@ import { randomUUID } from 'node:crypto';
 /** The operator of the e2e stack (tests/e2e/stack/docker-compose.yml): a test-only value. */
 const OPERATOR = { name: 'e2e-operator', password: 'e2e-admin-password' };
 
+/** A value that a test needs and that the configuration must give: its absence is a failure of the setup, said as one. */
+function required<T>(value: T | undefined | null): T {
+  if (value === undefined || value === null) {
+    throw new Error('A value that the test needs is missing.');
+  }
+  return value;
+}
+
 /** A name that nobody else uses: the lockout counts per name, and the operator's must stay free for the other tests. */
 const unique = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 
@@ -180,13 +188,14 @@ test.describe('smoke @smoke', () => {
     expect((await request.get(src)).status()).toBe(401);
   });
 
-  test('the overview says it is not connected and not linked, shows the passes, and runs one on request', async ({
+  test('the overview says nobody has signed in to the browser and that nothing is linked, shows the passes, and runs one on request', async ({
     page,
   }) => {
     await signIn(page);
 
     const connection = page.getByRole('region', { name: 'Connection' });
-    await expect(connection.getByText('Not connected', { exact: true })).toBeVisible();
+    // Nobody has signed in to the browser: not connected before the first pass, degraded if that pass ran before the browser container was up, and asking for a sign-in once a pass has found nobody signed in.
+    await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
     await expect(connection.getByText('Not linked')).toBeVisible();
     // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
     const passes = page.getByRole('region', { name: 'Latest passes' });
@@ -230,6 +239,130 @@ test.describe('smoke @smoke', () => {
       expect((await request.get(path)).status(), path).toBe(401);
     }
     expect((await request.post('/api/v1/mnemarr/pairing')).status()).toBe(403);
+  });
+
+  test("the Connection page opens the browser's desktop, where a person signs in by hand", async ({
+    page,
+    playwright,
+    baseURL,
+    browserName,
+  }) => {
+    // One browser container and one server: the page is walked once, in one browser project.
+    test.skip(browserName !== 'chromium', 'one browser container, one server');
+    test.setTimeout(120_000);
+    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the desktop.
+    const api = await signedInRequest(playwright, required(baseURL));
+    expect((await api.delete('/api/v1/mnemarr')).status()).toBe(204);
+    await signIn(page);
+    await page.getByRole('link', { name: 'Connection' }).first().click();
+
+    // Nobody has signed in to the browser yet: the page says so, and its Sign in button opens the browser's desktop in a window of its own, on an origin of its own that a ticket of the operator's session opens
+    const signInButton = page.getByRole('button', { name: 'Sign in to the assistant' });
+    await expect(signInButton).toBeVisible({ timeout: 90_000 });
+    const [desktop] = await Promise.all([page.context().waitForEvent('page'), signInButton.click()]);
+    await expect(desktop).toHaveURL(/localhost:8283\/browser\/$/);
+    await expect(desktop).toHaveTitle(/Chromium|Selkies/, { timeout: 60_000 });
+    await desktop.close();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+
+  test(
+    'the connection is closed without a sign-in, and the pause is refused without the header',
+    { tag: '@browserless' },
+    async ({ request }) => {
+      expect((await request.get('/api/v1/connection')).status()).toBe(401);
+      expect((await request.post('/api/v1/connection/pause', { data: { hours: 1 } })).status()).toBe(403);
+    },
+  );
+
+  test("the web desktop of the browser is on an origin of its own, opened by a ticket of the operator's session @browserless", async ({
+    request,
+    playwright,
+    baseURL,
+  }) => {
+    const desktopOrigin = 'http://localhost:8283';
+    // Nothing of the desktop is reached without the cookie that a ticket gives, and a made-up ticket gives none.
+    expect((await request.get(`${desktopOrigin}/browser/`, { maxRedirects: 0 })).status()).toBe(401);
+    expect((await request.get(`${desktopOrigin}/browser/api/websockets`, { maxRedirects: 0 })).status()).toBe(401);
+    expect((await request.get(`${desktopOrigin}/enter?ticket=not-a-ticket`, { maxRedirects: 0 })).status()).toBe(401);
+
+    // The desktop is no port of the machine, and no other container of the network reaches it: it listens on the loopback of the namespace of the two containers, and it has no login of its own.
+    await expect(request.get('http://localhost:3000/', { timeout: 5_000 })).rejects.toThrow();
+    const reaches = async (port: number) =>
+      (
+        (await (await request.get(`http://localhost:8091/admin/reach?host=browser&port=${port}`)).json()) as {
+          open: boolean;
+        }
+      ).open;
+    expect(await reaches(8282), "the control: Geminarr's own port is open to the network").toBe(true);
+    expect(await reaches(8283), "the control: so is the desktop's origin, which is closed without its cookie").toBe(
+      true,
+    );
+    expect(await reaches(3000), 'the desktop itself is not').toBe(false);
+    expect(await reaches(3001), 'nor its TLS port').toBe(false);
+
+    // The operator's session asks for the address, with a ticket; it is worth one opening.
+    const api = await signedInRequest(playwright, required(baseURL));
+    const asked = await api.post('/api/v1/connection/desktop');
+    expect(asked.status()).toBe(200);
+    const ticketUrl = new URL(((await asked.json()) as { url: string }).url);
+    expect(ticketUrl.origin).toBe(desktopOrigin);
+    const desktop = await playwright.request.newContext({ baseURL: desktopOrigin });
+    const entered = await desktop.get(`${ticketUrl.pathname}${ticketUrl.search}`, { maxRedirects: 0 });
+    expect(entered.status()).toBe(302);
+    expect(entered.headers().location).toBe('/browser/');
+    expect(
+      (await request.get(`${desktopOrigin}${ticketUrl.pathname}${ticketUrl.search}`, { maxRedirects: 0 })).status(),
+    ).toBe(401);
+
+    const page = await desktop.get('/browser/');
+    expect(page.status()).toBe(200);
+    expect(await page.text()).toContain('Selkies');
+    expect(page.headers()['set-cookie']).toBeUndefined();
+    // The desktop's origin serves the desktop and nothing of Geminarr, and the interface's origin serves nothing of the desktop.
+    expect((await desktop.get('/api/v1/connection')).status()).toBe(404);
+    expect(await (await api.get('/browser/')).text()).not.toContain('Selkies');
+    // What the desktop's web server offers beyond its client (its files, its other services) is not relayed, by any spelling of the path: the server merges slashes and decodes before it routes.
+    for (const path of [
+      '/browser/api/files',
+      '/browser//api/files',
+      '/browser/api%2Ffiles',
+      '/browser/pelorus/',
+      '/browser/api/',
+    ]) {
+      expect((await desktop.get(path)).status(), path).toBe(404);
+    }
+    expect((await desktop.post('/browser/api/clipboard')).status()).toBe(404);
+    await desktop.dispose();
+  });
+
+  test("Geminarr's own process reaches nothing off the loopback, whatever the pod's policy allows for the browser (ADR 0020) @browserless", async ({
+    request,
+  }) => {
+    const probe = async (port: number, host: string, target: number) =>
+      (await (await request.get(`http://localhost:${port}/try?host=${host}&port=${target}`)).json()) as {
+        open: boolean;
+        uid: number;
+      };
+    const asGeminarr = await probe(9224, 'assistant', 8081);
+    const asBrowser = await probe(9225, 'assistant', 8081);
+
+    expect(asGeminarr.uid, "the probe is Geminarr's user").toBe(1654);
+    expect(asBrowser.uid, "the control is the browser's user").toBe(1000);
+    expect(asBrowser.open, 'the control: the browser reaches the assistant, as the pod allows').toBe(true);
+    expect(asGeminarr.open, "Geminarr's process does not, in the same namespace").toBe(false);
+    expect(
+      (await probe(9224, '127.0.0.1', 3000)).open,
+      'it still reaches the desktop of the browser, on the loopback',
+    ).toBe(true);
+    expect(
+      (await probe(9224, '127.0.0.1', 9222)).open,
+      'and nothing listens for a debugging port in the namespace',
+    ).toBe(false);
+    expect(
+      (await probe(9224, '127.0.0.1', 8282)).open,
+      'but not another port of the loopback (a proxy of a mesh would be there)',
+    ).toBe(false);
   });
 
   test('the system status page shows the version of the running build', async ({ page }) => {

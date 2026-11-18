@@ -12,11 +12,11 @@
 | Mnemarr's changes (M-1 to M-4 and the mail), see [mnemarr-changes.md](mnemarr-changes.md) | **Delivered** (Mnemarr 0.4.0; production runs 0.6.0) |
 | Vertical 1: operator access | **Built**, in review |
 | Vertical 1b: identity of the environment (name, picture, version in the menu; F-SYS-04) | **Built**, in review |
-| Spike S1: read Gemini from a container with a dedicated account | **Done**: the answer is an extension in the browser a person signed in to ([ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)); the debugging-port route was tried and rejected |
+| Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Vertical 2: the link to Mnemarr | **Built**, in review |
-| Vertical 3: Gemini is read by an extension | **Built**, in review |
-| Verticals 4 to 7 | Not started |
+| Vertical 3: the browser container and the connection to it ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)) | In progress: replaces the embedded browser (ADR 0015, pull request 23), which Google refuses at sign-in |
+| Verticals 4 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*
 
@@ -53,38 +53,33 @@
 - Built with the demonstration reader (a sandbox setting, `GEMINARR__READER__KIND=Demo`) and proved on a real Mnemarr (pairing, 3 000 lines, found by search). [ADR 0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md). **"Run now" and the list of passes are here** (they were planned for vertical 4: the demonstration needs them); the full *Runs* page is still vertical 4.
 - Not now: the browser, the real assistant, masking (nothing real is read yet).
 
-## Vertical 3 — Gemini is read by an extension *(built)*
+## Vertical 3 — The browser container and the connection to it
 
-*Demo: a browser that a person signed in to Gemini in carries the extension (installed by its policy); within one round, the conversations of the page are in Mnemarr, turn by turn, and found by describing what they were about; a conversation added on the phone arrives with the next round; sign out of Gemini in that browser and the page says "sign in again".*
+*Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected.*
 
-- F-RDR-02..06 for the web reader (the masking of secrets before the outbox, with the samples shared with Mnemarr), in the form of [ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md): the extension (`extension/`), its signed package served by Geminarr, the push route and its token, `extension-silent`, the candidates and positions of ADR 0014.
-- Validated by the agent on the real target first (rule 13 of `CLAUDE.md`): a signed-in profile read through the policy-installed, signed package; and end to end in CI with a real Chromium, a fake assistant and a fake Mnemarr.
-- Not now: signing in from Geminarr's page (vertical 4), backfill at a slow pace (vertical 5), the voice conversations' text and a very long list (measured with the real use).
+- ADR 0016. F-CON-01..04: the browser container and its web desktop relayed (`GEMINARR__BROWSER__DESKTOPURL`), the state machine, pause, the health of the browser. No debugging port (ADR 0021): the session state and *Disconnect* come with the extension reader.
+- **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; the browser has no sub-domain, no port and no login of its own: Geminarr relays its web desktop on an origin of its own (a second port of Geminarr, opened by a single-use ticket of the operator's session, no second password: ADR 0017, 0019).
+- Spike S1 starts here: the first read of Gemini on a throw-away account, then on the dedicated one.
+- Not now: reading conversations (vertical 4).
 
-## Vertical 4 — Sign in from Geminarr's page
+## Vertical 4 — Read the conversations
 
-*Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the dedicated account with the phone; the state is Connected; Disconnect and the session is gone.*
+*Demo: talk to Gemini on the phone, wait one pass, and find the conversation in Mnemarr by describing what it was about.*
 
-- F-CON-01..04: the desktop of the browser relayed on an origin of its own behind a single-use ticket of the operator's session, the two containers (the browser and Geminarr) in the examples, the Connection page.
-- Not now: reading (vertical 3), the Takeout import.
+- F-RDR-02..07, F-VIEW-02/03: the web reader, candidates, positions, backfill at a slow pace, `reader-broken` and `rate-limited` handling, masking, "run now".
+- Validated by the agent on the real target first (rule 13 of `CLAUDE.md`).
 
-## Vertical 5 — Backfill, the Runs page
-
-*Demo: the first pass walks the older conversations at a slow pace until the end of the list, and the Runs page shows what each pass did.*
-
-- F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page.
-
-## Vertical 6 — The past, by Takeout
+## Vertical 5 — The past, by Takeout
 
 *Demo: give Geminarr the archive; the conversations of the past appear in Mnemarr; give it again and nothing is duplicated.*
 
 - F-IMP-01/02, with the safety rules of SPEC §8.
 
-## Vertical 7 — Run it for real
+## Vertical 6 — Run it for real
 
 *Demo: the maintainer lets the session expire (or disconnects), receives the mail from Mnemarr, follows it to Mnemarr's Machines page and from there to Geminarr, signs in again, and the reading resumes by itself; Geminarr is reached at its address on the cluster behind the single sign-on.*
 
-- F-OPS-02/03: the runbook, the GitOps folder, the egress policy, the first release (0.1.0), registration in Portarr.
+- F-OPS-02/03: the runbook, the GitOps folder, the egress policy (the example holds DNS and Mnemarr; the assistant's hosts join it with the list that spike S1 measures), the first release (0.1.0), registration in Portarr.
 
 ## Not now (parked, not scope)
 

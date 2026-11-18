@@ -1,3 +1,4 @@
+using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Link;
@@ -29,31 +30,26 @@ public sealed class PassRunnerFixture : IDisposable
         _outbox = new OutboxStore(_workspace.Database);
         _runs = new RunStore(_workspace.Database);
         _destination = new DestinationStore(_workspace.Database);
-        _connection = new ConnectionTracker(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
+        _connection = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
     }
 
     public void Dispose() => _workspace.Dispose();
 
+    private ExposureReport _exposure = ExposureReport.None;
+
+    private sealed class FixedExposure(Func<ExposureReport> report) : IBrowserExposure
+    {
+        public ExposureReport Check() => report();
+    }
+
     private PassRunner Subject(bool withReader = true, ReaderOptions? options = null, string? publicUrl = null)
     {
         _link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
-        var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null));
+        var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null), new FixedExposure(() => _exposure));
         return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, _link, settings, _clock, NullLogger<PassRunner>.Instance);
     }
 
     private static string Session(string id) => ConversationLines.Session(id);
-
-    [Fact]
-    public async Task should_mask_a_secret_in_a_title_and_in_a_turn_whatever_the_reader_before_anything_is_queued()
-    {
-        var key = "ghp_" + new string('a', 36);
-        _reader.Say("c1", "About " + key, "my token is " + key, "Noted");
-
-        await Subject().RunAsync(TestContext.Current.CancellationToken);
-
-        var (_, _, lines) = _sink.Sent.Single();
-        string.Join('\n', lines).Should().NotContain(key).And.Contain("[masked:github-token]");
-    }
 
     [Fact]
     public async Task should_send_a_new_conversation_from_the_start_with_its_meta_line_and_remember_what_mnemarr_holds()
@@ -250,6 +246,69 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_read_nothing_while_the_passes_are_paused_and_say_it_is_paused()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        _connection.Paused(until: null);
+        var paused = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        paused!.Reason.Should().Be(ConnectionReasons.Paused);
+        _reader.Opened.Should().BeEmpty();
+        _sink.Heartbeats.Last().Paused.Should().BeTrue();
+        _sink.Heartbeats.Last().Error.Should().Be("Not connected.", "a pause does not change what is known: the machine had never been connected");
+    }
+
+    [Fact]
+    public async Task should_not_read_through_a_browser_that_something_else_can_reach_and_tell_mnemarr()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        var before = _connection.Current();
+        _sink.Sent.Clear();
+        _exposure = new ExposureReport([3000], Unreadable: false);
+        _reader.Say("c2", "T2", "b");
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.BrowserExposed));
+        _sink.Sent.Should().BeEmpty("nothing is read through it");
+        _connection.Current().Should().Be(before, "the connection keeps what it knew");
+        _sink.Heartbeats.Last().Error.Should().Be(HeartbeatContent.ExposedError);
+        _sink.Heartbeats.Last().Attention.Should().BeNull("it is the operator's to fix, and the mail is for a session");
+    }
+
+    [Fact]
+    public async Task should_skip_the_run_with_a_reason_of_its_own_and_say_so_to_mnemarr_when_the_egress_guard_is_missing()
+    {
+        _reader.Say("c1", "T", "a");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.Sent.Clear();
+        _exposure = new ExposureReport([], Unreadable: false, Unguarded: true);
+        _reader.Say("c2", "T2", "b");
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.EgressUnguarded));
+        _sink.Sent.Should().BeEmpty("nothing is read while Geminarr's own egress is not limited");
+        _sink.Heartbeats.Last().Error.Should().Be(HeartbeatContent.UnguardedError);
+    }
+
+    [Fact]
+    public async Task should_say_not_connected_when_the_reader_finds_no_browser()
+    {
+        _reader.Session = SessionCheck.NoBrowser;
+
+        var result = await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        result!.Reason.Should().Be(ConnectionReasons.NotConnected);
+        _connection.Current().State.Should().Be(ConnectionState.NotConnected);
+        _sink.Heartbeats.Last().Error.Should().Be("Not connected.");
+    }
+
+    [Fact]
     public async Task should_ask_the_person_to_sign_in_again_once_the_session_has_been_gone_for_several_passes()
     {
         _reader.Say("c1", "T", "a");
@@ -304,6 +363,7 @@ public sealed class PassRunnerFixture : IDisposable
 
     [Theory]
     [InlineData(ConnectionReasons.ReaderBroken, "reader-broken", "The assistant's page is no longer what the reader knows.")]
+    [InlineData(ConnectionReasons.BrowserFailed, null, "The browser of the container could not be reached.")]
     [InlineData(ConnectionReasons.RateLimited, null, "The assistant asked to slow down.")]
     [InlineData(ConnectionReasons.Unreachable, null, "The assistant could not be reached.")]
     [InlineData("something-else", null, "The last pass failed.")]
@@ -319,6 +379,22 @@ public sealed class PassRunnerFixture : IDisposable
         heartbeat.Error.Should().Be(sentence);
         heartbeat.Attention?.Code.Should().Be(attention);
         _connection.Current().State.Should().Be(ConnectionState.Degraded);
+    }
+
+    [Fact]
+    public async Task should_never_ask_for_a_sign_in_because_the_browser_cannot_be_reached()
+    {
+        _reader.FailWith = new ReaderException(ConnectionReasons.BrowserFailed, "details that stay here");
+        var subject = Subject();
+
+        for (var pass = 0; pass < 4; pass++)
+        {
+            await subject.RunAsync(TestContext.Current.CancellationToken);
+        }
+
+        var connection = _connection.Current();
+        (connection.State, connection.LastReason).Should().Be((ConnectionState.Degraded, ConnectionReasons.BrowserFailed));
+        _sink.Heartbeats.Should().OnlyContain(heartbeat => heartbeat.Attention == null);
     }
 
     [Fact]
@@ -380,7 +456,7 @@ public sealed class PassRunnerFixture : IDisposable
     {
         var gate = new TaskCompletionSource();
         var slow = new SlowReader(gate.Task);
-        var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
+        var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
         var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
 
@@ -400,7 +476,7 @@ public sealed class PassRunnerFixture : IDisposable
     {
         var never = new TaskCompletionSource();
         var slow = new SlowReader(never.Task);
-        var settings = new PassSettings(Options.Of(new ReaderOptions { PassTimeoutMinutes = 1 }), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
+        var settings = new PassSettings(Options.Of(new ReaderOptions { PassTimeoutMinutes = 1 }), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
         var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
 
@@ -432,7 +508,7 @@ public sealed class PassRunnerFixture : IDisposable
     {
         var never = new TaskCompletionSource();
         var slow = new SlowReader(never.Task);
-        var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow));
+        var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
         var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
         var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);

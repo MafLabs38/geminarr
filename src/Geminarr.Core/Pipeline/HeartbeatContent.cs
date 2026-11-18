@@ -15,31 +15,43 @@ public static class HeartbeatContent
         _ => DestinationProblems.Unreachable,
     };
 
+    /// <summary>What Mnemarr shows when the browser can be reached by something else than Geminarr: the most serious state, and it needs the operator.</summary>
+    public const string ExposedError = "The browser is not isolated: its desktop is closed.";
+
+    /// <summary>What Mnemarr shows when Geminarr's own egress is not limited by the guard (ADR 0020): the desktop and the reading are closed until it is back.</summary>
+    public const string UnguardedError = "Geminarr's own egress is not limited: its desktop is closed.";
+
     /// <summary>A short sentence with no path and no content: what Mnemarr shows next to the machine.</summary>
-    public static string? ErrorOf(ConnectionRecord connection) => connection.State switch
+    public static string? ErrorOf(ConnectionRecord connection)
     {
-        ConnectionState.Connected => null,
-        ConnectionState.NotConnected => "Not connected.",
-        ConnectionState.NeedsLogin => "The session has expired.",
-        _ => connection.LastReason switch
+        var effective = Effective(connection);
+        return effective.State switch
         {
-            ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
-            ConnectionReasons.ExtensionSilent => "The browser's extension has not said anything for a while.",
-            ConnectionReasons.RateLimited => "The assistant asked to slow down.",
-            ConnectionReasons.Unreachable => "The assistant could not be reached.",
-            _ => "The last pass failed.",
-        },
-    };
+            ConnectionState.Connected => null,
+            ConnectionState.Paused => null,
+            ConnectionState.NotConnected => "Not connected.",
+            ConnectionState.NeedsLogin => "The session has expired.",
+            _ => effective.LastReason switch
+            {
+                ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
+                ConnectionReasons.BrowserFailed => "The browser of the container could not be reached.",
+                ConnectionReasons.RateLimited => "The assistant asked to slow down.",
+                ConnectionReasons.Unreachable => "The assistant could not be reached.",
+                _ => "The last pass failed.",
+            },
+        };
+    }
 
     /// <summary>What a person is asked for: only the two codes Mnemarr knows. The address is where to answer, given only when Mnemarr would keep it (https, or loopback).</summary>
     public static Attention? AttentionOf(ConnectionRecord connection, string? publicUrl)
     {
+        var effective = Effective(connection);
         string? code = null;
-        if (connection.State == ConnectionState.NeedsLogin)
+        if (effective.State == ConnectionState.NeedsLogin)
         {
             code = ConnectionReasons.NeedsLogin;
         }
-        else if (connection.LastReason == ConnectionReasons.ReaderBroken)
+        else if (effective.LastReason == ConnectionReasons.ReaderBroken)
         {
             code = ConnectionReasons.ReaderBroken;
         }
@@ -51,4 +63,13 @@ public static class HeartbeatContent
 
         return new Attention(code, MnemarrAddress.AttentionLink(publicUrl));
     }
+
+    /// <summary>
+    /// What the connection is for Mnemarr: a pause does not change what is wrong (a heartbeat without the attention would end the episode that asked for the sign-in, and a mail could follow
+    /// when it comes back), so the state it took over is the one that is told.
+    /// </summary>
+    private static ConnectionRecord Effective(ConnectionRecord connection) =>
+        connection is { State: ConnectionState.Paused, Before: { } before }
+            ? connection with { State = before.State, LastReason = before.Reason, ConsecutiveFailures = before.Failures }
+            : connection;
 }

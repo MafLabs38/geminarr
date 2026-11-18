@@ -60,5 +60,7 @@ export async function apiSend<T = void>(method: 'POST' | 'PUT' | 'DELETE', path:
   if (!response.ok) {
     throw await failure(response);
   }
-  return (response.status === 204 ? undefined : await response.json()) as T;
+  // An answer with no body (204, or 202 for what runs in the background) is nothing, not a failure to read JSON.
+  const text = response.status === 204 ? '' : await response.text();
+  return (text.length > 0 ? JSON.parse(text) : undefined) as T;
 }

@@ -16,7 +16,7 @@ public enum OperatorStatus
     /// <summary>The password file cannot be read or is empty.</summary>
     PasswordUnreadable,
 
-    /// <summary>The password is shorter than <see cref="OperatorCredentials.MinPasswordLength"/>: it is refused rather than accepted.</summary>
+    /// <summary>The password is shorter than <see cref="AuthOptions.MinPasswordLength"/>: it is refused rather than accepted.</summary>
     PasswordWeak,
 }
 
@@ -37,7 +37,8 @@ public interface IOperatorCredentials
 /// </summary>
 public sealed class OperatorCredentials : IOperatorCredentials
 {
-    public const int MinPasswordLength = 12;
+    /// <summary>The shortest password that is accepted unless <see cref="AuthOptions.MinPasswordLength"/> says otherwise (a sandbox).</summary>
+    public const int DefaultMinPasswordLength = 12;
 
     /// <summary>A password file larger than this is not a password: it is refused unread.</summary>
     public const int MaxPasswordFileBytes = 4 * 1024;
@@ -66,7 +67,7 @@ public sealed class OperatorCredentials : IOperatorCredentials
                 return OperatorStatus.PasswordUnreadable;
             }
 
-            return password.Length < MinPasswordLength ? OperatorStatus.PasswordWeak : OperatorStatus.Ready;
+            return password.Length < _options.Value.MinPasswordLength ? OperatorStatus.PasswordWeak : OperatorStatus.Ready;
         }
     }
 
@@ -77,7 +78,7 @@ public sealed class OperatorCredentials : IOperatorCredentials
         // Both are compared as hashes, and both comparisons are always made: nothing says which one was wrong, or whether there is an operator at all.
         var nameMatches = CryptographicOperations.FixedTimeEquals(Hash(name), Hash(expectedName ?? string.Empty));
         var passwordMatches = CryptographicOperations.FixedTimeEquals(Hash(password), Hash(expectedPassword ?? string.Empty));
-        return nameMatches && passwordMatches && expectedName is not null && expectedPassword is { Length: >= MinPasswordLength };
+        return nameMatches && passwordMatches && expectedName is not null && expectedPassword is not null && expectedPassword.Length >= _options.Value.MinPasswordLength;
     }
 
     private static byte[] Hash(string value) => SHA256.HashData(Encoding.UTF8.GetBytes(value));

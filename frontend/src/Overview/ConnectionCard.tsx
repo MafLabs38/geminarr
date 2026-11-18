@@ -5,23 +5,16 @@ import Card from 'Components/Card';
 import Button from 'Components/Form/Button';
 import LoadingIndicator from 'Components/LoadingIndicator';
 import StatusLabel from 'Components/Status/StatusLabel';
-import { type Connection, useConnection } from 'Connection/useConnection';
-import { type Kind, kinds } from 'Helpers/Props/kinds';
+import { connectionStates } from 'Connection/connectionStates';
+import { useConnection } from 'Connection/useConnection';
+import { kinds } from 'Helpers/Props/kinds';
 import { hostOf } from 'Mnemarr/hostOf';
 import { useMnemarr } from 'Mnemarr/useMnemarr';
 import { useRunNow, useRuns } from 'Runs/useRuns';
-import type { TranslationKey } from 'Utilities/String/en';
 import translate from 'Utilities/String/translate';
 
 import styles from './ConnectionCard.module.css';
 import { reasonKeyOf } from './healthTexts';
-
-const states: Readonly<Record<Connection['state'], { kind: Kind; text: TranslationKey }>> = {
-  Connected: { kind: kinds.SUCCESS, text: 'ConnectionConnected' },
-  NeedsLogin: { kind: kinds.DANGER, text: 'ConnectionNeedsLogin' },
-  Degraded: { kind: kinds.WARNING, text: 'ConnectionDegraded' },
-  NotConnected: { kind: kinds.INFO, text: 'ConnectionNotConnected' },
-};
 
 /** Where Geminarr stands: connected to an assistant or not, linked to a Mnemarr or not, and a button to run a pass now. */
 export default function ConnectionCard() {
@@ -29,7 +22,7 @@ export default function ConnectionCard() {
   const mnemarr = useMnemarr();
   const runs = useRuns();
   const runNow = useRunNow();
-  const state = connection.data ? states[connection.data.state] : undefined;
+  const state = connection.data ? connectionStates[connection.data.state] : undefined;
   const reason = reasonKeyOf(connection.data?.reason ?? null);
 
   return (

@@ -64,7 +64,28 @@ public sealed class OperatorCredentialsFixture : IDisposable
     [Fact]
     public void should_say_the_password_is_weak_when_it_is_shorter_than_the_minimum()
     {
-        Subject("operator-name", File(new string('x', OperatorCredentials.MinPasswordLength - 1))).Status.Should().Be(OperatorStatus.PasswordWeak);
+        Subject("operator-name", File(new string('x', OperatorCredentials.DefaultMinPasswordLength - 1))).Status.Should().Be(OperatorStatus.PasswordWeak);
+    }
+
+    [Fact]
+    public void should_accept_a_short_password_only_where_the_setting_lowers_the_minimum()
+    {
+        var file = File("admin");
+        var sandbox = new OperatorCredentials(Options.Of(new AuthOptions { AdminUser = "admin", AdminPasswordFile = file, MinPasswordLength = 5 }));
+
+        sandbox.Status.Should().Be(OperatorStatus.Ready);
+        sandbox.Verify("admin", "admin").Should().BeTrue();
+        sandbox.Verify("admin", "other").Should().BeFalse();
+        Subject("admin", file).Status.Should().Be(OperatorStatus.PasswordWeak, "the default minimum stays");
+        Subject("admin", file).Verify("admin", "admin").Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1_025)]
+    public void should_refuse_a_minimum_that_is_not_a_length(int length)
+    {
+        new AuthOptionsValidator().Validate(null, new AuthOptions { MinPasswordLength = length }).Failed.Should().BeTrue();
     }
 
     [Theory]

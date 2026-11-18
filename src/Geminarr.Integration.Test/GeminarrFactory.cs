@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Geminarr.Core.Access;
 using Geminarr.Core.Link;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -50,6 +51,9 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
     {
     }
 
+    /// <summary>What the host takes for the ports that listen off the loopback of the namespace it shares with the browser: none.</summary>
+    public Support.FakeExposure Exposure { get; } = new();
+
     /// <summary>A clock the test moves, for the tests of lifetimes; none by default (the real one).</summary>
     public FakeTimeProvider? Clock { get; protected init; }
 
@@ -74,6 +78,8 @@ public abstract class GeminarrFactoryBase : WebApplicationFactory<Program>
         {
             // The tests run passes themselves, when they want one: a scheduler running behind them would make them depend on the clock of the machine.
             services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
+            // What listens on the machine that runs the tests is not what a test is about: nothing is exposed unless a test says so.
+            services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure>(Exposure);
             ConfigureServices(services);
             if (Clock is { } clock)
             {
@@ -254,5 +260,135 @@ public sealed class MnemarrFactory : GeminarrFactoryBase
         {
             services.AddSingleton(new Geminarr.Core.Pipeline.ReaderProvider(Blocker));
         }
+    }
+}
+
+/// <summary>A host whose reader is the browser (a fake one, in memory), as a deployment with the browser container is.</summary>
+public sealed class BrowserFactory : GeminarrFactoryBase
+{
+    public BrowserFactory()
+        : base(createFolder: true)
+    {
+        Browser = new Support.FakeBrowserHost();
+    }
+
+    public Support.FakeBrowserHost Browser { get; }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        settings["Reader:Kind"] = "Web";
+        settings["Browser:DesktopUrl"] = "http://127.0.0.1:3000";
+    }
+
+    protected override void ConfigureServices(IServiceCollection services) =>
+        services.AddSingleton<Geminarr.Core.Browser.IBrowserHost>(Browser);
+}
+
+/// <summary>
+/// A host that serves the web desktop of a browser (a fake one, started by the test) on an origin of its own, a port apart from the interface's (ADR 0019). The in-memory host has no port: a request says which one it arrived
+/// on by a header that the test adds, as a real listener would say it.
+/// </summary>
+public sealed class RelayFactory : GeminarrFactoryBase
+{
+    public const string LocalPortHeader = "X-Test-Local-Port";
+
+    private readonly string _desktopUrl;
+    private readonly string? _allowedHostNames;
+    private readonly string? _desktopPublicUrl;
+
+    private readonly bool _secureCookie;
+
+    public RelayFactory(string desktopUrl, string? allowedHostNames = null, bool movableClock = false, string? desktopPublicUrl = null, bool secureCookie = false)
+        : base(createFolder: true)
+    {
+        _secureCookie = secureCookie;
+        _desktopUrl = desktopUrl;
+        _allowedHostNames = allowedHostNames;
+        _desktopPublicUrl = desktopPublicUrl;
+        DesktopPort = FreePort();
+        if (movableClock)
+        {
+            Clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
+        }
+    }
+
+    protected override CookieSecurityMode CookieSecurity => _secureCookie ? CookieSecurityMode.Always : CookieSecurityMode.SameAsRequest;
+
+    /// <summary>The port of the desktop's origin.</summary>
+    public int DesktopPort { get; }
+
+    private static int FreePort()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        return ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    protected override void AddSettings(Dictionary<string, string?> settings)
+    {
+        settings["Browser:DesktopUrl"] = _desktopUrl;
+        settings["Browser:DesktopPort"] = DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_desktopPublicUrl is not null)
+        {
+            settings["Browser:DesktopPublicUrl"] = _desktopPublicUrl;
+        }
+
+        if (_allowedHostNames is not null)
+        {
+            settings["AllowedHostNames"] = _allowedHostNames;
+        }
+
+        settings["Reader:Kind"] = "Web";
+    }
+
+    protected override void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<Geminarr.Core.Browser.IBrowserHost>(new Support.FakeBrowserHost());
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter>(new LocalPortFilter());
+    }
+
+    /// <summary>The operator signs in, asks for the address of the desktop, and the ticket in it is returned.</summary>
+    public static async Task<string> TicketAsync(HttpClient signedIn)
+    {
+        using var response = await signedIn.PostAsync("/api/v1/connection/desktop", content: null, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var url = (await response.Content.ReadFromJsonAsync<Geminarr.Api.V1.Connection.DesktopResource>(TestContext.Current.CancellationToken))!.Url;
+        return System.Web.HttpUtility.ParseQueryString(new Uri(url).Query)["ticket"]!;
+    }
+
+    /// <summary>A client of the desktop's origin: it has exchanged a ticket of a signed-in operator for the cookie of that origin, as the window that the person opens does. It follows no redirect.</summary>
+    public async Task<HttpClient> DesktopClientAsync(HttpClient? operatorClient = null)
+    {
+        using var own = operatorClient is null ? await SignedInClientAsync() : null;
+        var ticket = await TicketAsync(operatorClient ?? own!);
+        var desktop = Anonymous();
+        using var entered = await desktop.GetAsync($"/enter?ticket={Uri.EscapeDataString(ticket)}", TestContext.Current.CancellationToken);
+        entered.StatusCode.Should().Be(System.Net.HttpStatusCode.Redirect);
+        return desktop;
+    }
+
+    /// <summary>A client of the desktop's origin that has no cookie of it.</summary>
+    public HttpClient Anonymous()
+    {
+        var client = CreateClient(new() { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add(LocalPortHeader, DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return client;
+    }
+
+    private sealed class LocalPortFilter : Microsoft.AspNetCore.Hosting.IStartupFilter
+    {
+        public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) => app =>
+        {
+            app.Use((context, following) =>
+            {
+                if (int.TryParse(context.Request.Headers[LocalPortHeader], out var port))
+                {
+                    context.Connection.LocalPort = port;
+                }
+
+                return following(context);
+            });
+            next(app);
+        };
     }
 }

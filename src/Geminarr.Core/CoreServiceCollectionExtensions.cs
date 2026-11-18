@@ -1,7 +1,7 @@
 using Geminarr.Core.Access;
+using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
-using Geminarr.Core.Extension;
 using Geminarr.Core.Identity;
 using Geminarr.Core.Link;
 using Geminarr.Core.Pipeline;
@@ -24,9 +24,11 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ISystemStatusService, SystemStatusService>();
         services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsBrowserValidator>();
         services.AddOptions<AuthOptions>().Bind(configuration.GetSection("Auth")).ValidateOnStart();
         services.AddSingleton<IOperatorCredentials, OperatorCredentials>();
         services.AddSingleton<LoginThrottle>();
+        services.AddSingleton<DesktopAccess>();
         services.AddSingleton<SessionRegistry>();
         services.AddSingleton<SignInService>();
         services.AddSingleton<AllowedHostList>();
@@ -49,30 +51,31 @@ public static class CoreServiceCollectionExtensions
         // No redirect is followed (a key must not follow one to another host), and a call is bounded.
         services.AddHttpClient(MnemarrClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddHttpClient(nameof(DesktopBrowserHost)).ConfigurePrimaryHttpMessageHandler(DesktopBrowserHost.NewHandler);
         services.AddSingleton<MnemarrClient>();
         services.AddSingleton<LinkService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
+        services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
+        services.AddSingleton<IValidateOptions<BrowserOptions>, DesktopOriginValidator>();
+        services.AddOptions<BrowserOptions>().Bind(configuration.GetSection(BrowserOptions.SectionName)).ValidateOnStart();
+        services.TryAddSingleton<IBrowserHost, DesktopBrowserHost>();
+        services.TryAddSingleton<IBrowserExposure, NoBrowserExposure>();
         services.AddSingleton<ConnectionTracker>();
+        services.AddSingleton<ConnectionService>();
         // The kind is read when the reader is first needed, not when the services are registered: the configuration is final by then.
-        services.AddSingleton<IValidateOptions<ExtensionOptions>, ExtensionOptionsValidator>();
-        services.AddOptions<ExtensionOptions>().Bind(configuration.GetSection(ExtensionOptions.SectionName)).ValidateOnStart();
-        services.AddSingleton<IExtensionToken, ExtensionToken>();
-        services.AddSingleton<IExtensionPackage, ExtensionPackage>();
-        services.AddSingleton<ExtensionInbox>();
-        services.AddSingleton<ExtensionService>();
-        services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch
-        {
-            ReaderKind.Demo => ActivatorUtilities.CreateInstance<DemoReader>(provider),
-            ReaderKind.Web => ActivatorUtilities.CreateInstance<ExtensionReader>(provider),
-            _ => null,
-        }));
+        services.AddSingleton(provider => new ReaderProvider(NewReader(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind, provider)));
         services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();
-        services.AddSingleton<ISettingsSection, ExtensionSettingsSection>();
-        services.AddSingleton<ISettingsSection, RetentionSettingsSection>();
         services.AddSingleton<EffectiveSettings>();
         return services;
     }
+
+    private static IConversationReader? NewReader(ReaderKind kind, IServiceProvider provider) => kind switch
+    {
+        ReaderKind.Demo => ActivatorUtilities.CreateInstance<DemoReader>(provider),
+        ReaderKind.Web => ActivatorUtilities.CreateInstance<WebReader>(provider),
+        _ => null,
+    };
 }

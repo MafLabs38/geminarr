@@ -37,7 +37,7 @@ public static partial class IdentityRules
     /// <summary>The formats a logo may have, by extension.</summary>
     public static IReadOnlyList<string> Extensions { get; } = [.. Formats.Select(format => format.Extension)];
 
-    [GeneratedRegex("^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\z")]
+    [GeneratedRegex("^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\z", RegexOptions.None, matchTimeoutMilliseconds: 200)]
     private static partial Regex HexPattern();
 
     /// <summary>The format an extension (with or without its dot, any case) stands for, or null.</summary>

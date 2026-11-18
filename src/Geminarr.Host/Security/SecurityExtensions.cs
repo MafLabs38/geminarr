@@ -30,11 +30,11 @@ public static class SecurityExtensions
     private static void ConfigureCookie(CookieAuthenticationOptions cookie, AuthOptions auth)
     {
         var always = auth.CookieSecurity == CookieSecurityMode.Always;
-        // The __Host- prefix makes the browser refuse a cookie of that name set by a sibling host or with a Domain: it needs Secure.
+        // The __Host- prefix makes the browser refuse a cookie of that name set by a sibling host or with a Domain: it needs Secure. It does not stop another port of the same host (ADR 0019).
         cookie.Cookie.Name = always ? "__Host-geminarr.session" : "geminarr.session";
         cookie.Cookie.HttpOnly = true;
         cookie.Cookie.SameSite = SameSiteMode.Strict;
-        cookie.Cookie.SecurePolicy = always ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+        cookie.Cookie.SecurePolicy = always ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest; // NOSONAR S2092: SameAsRequest is the explicit sandbox setting (ADR 0018), Always by default
         cookie.ExpireTimeSpan = TimeSpan.FromHours(auth.SessionHours);
         cookie.SlidingExpiration = false;
         cookie.Events.OnValidatePrincipal = ValidateSession;

@@ -8,7 +8,15 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['_output/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'reports/**'] },
+  {
+    ignores: [
+      '_output/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      'reports/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.strict,
   // The rules of the SonarQube server, in the editor and in `yarn lint`: SonarJS is its engine (S3776, S5852, S5332, S1313...).
@@ -44,7 +52,9 @@ export default tseslint.config(
           groups: [
             [String.raw`^\u0000`],
             [String.raw`^@?\w`],
-            ['^(__tests__|App|Components|Connection|Helpers|Identity|Login|Mnemarr|Overview|Runs|Session|Settings|Styles|System|Utilities)(/|$)'],
+            [
+              '^(__tests__|App|Components|Connection|Helpers|Identity|Login|Mnemarr|Overview|Runs|Session|Settings|Styles|System|Utilities)(/|$)',
+            ],
             [String.raw`^\.`],
           ],
         },
@@ -60,18 +70,8 @@ export default tseslint.config(
     },
   },
   {
-    // The extension runs in the browser (a service worker and a content script), where `chrome` is a global; the packing tool and its tests run in Node.
-    files: ['extension/**/*.js'],
-    languageOptions: { sourceType: 'script', globals: { ...globals.browser, ...globals.serviceworker, chrome: 'readonly' } },
-  },
-  {
-    // The scripts of the e2e stack run in Node, in the containers of the stack.
-    files: ['tests/e2e/stack/**/*.mjs', 'tools/extension/**/*.mjs'],
-    languageOptions: { globals: globals.node },
-  },
-  {
     // Test inputs use example addresses and fakes keep mutable statics, as the repository's rules ask.
-    files: ['**/__tests__/**', '**/*.test.{ts,tsx,mjs}', 'tests/**'],
+    files: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'tests/**'],
     rules: {
       'sonarjs/no-hardcoded-ip': 'off',
       'sonarjs/no-clear-text-protocols': 'off',
@@ -79,8 +79,17 @@ export default tseslint.config(
     },
   },
   {
-    // SonarQube reads the scripts of the stack like any other source: the rules that the override above relaxes for tests stay on for them.
-    files: ['tests/e2e/stack/**/*.mjs'],
-    rules: { 'sonarjs/no-hardcoded-ip': 'error', 'sonarjs/no-clear-text-protocols': 'error' },
+    // The fake assistant and the probes of the end-to-end stack are not test files for SonarQube (it reads them as code, and reports a security hotspot for each cleartext address): they are linted
+    // with the same rules, and an exception is written where it is made, with its reason.
+    files: ['tests/e2e/stack/**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+    rules: {
+      'sonarjs/no-clear-text-protocols': 'error',
+      // Plain Node scripts run as they are by the stack's containers: CommonJS.
+      '@typescript-eslint/no-require-imports': 'off',
+    },
   },
 );

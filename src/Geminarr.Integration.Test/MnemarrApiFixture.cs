@@ -12,7 +12,7 @@ namespace Geminarr.Integration.Test;
 /// <summary>The link to Mnemarr through the API, with a Mnemarr in memory: the address, the pairing by asking, the enrolment with a code, unlinking.</summary>
 public sealed class MnemarrApiFixture
 {
-    private static readonly CancellationToken Token = TestContext.Current.CancellationToken;
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Theory]
     [InlineData("/api/v1/mnemarr")]
