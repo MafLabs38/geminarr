@@ -348,7 +348,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
-    public void should_take_a_conversation_whose_title_is_missing_or_too_long()
+    public void should_take_a_conversation_whose_title_is_missing_or_too_long_without_telling_it_apart()
     {
         AskFor("c1", "c2");
 
@@ -361,6 +361,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public async Task should_not_call_the_reader_broken_for_one_conversation_without_a_turn_but_for_three_in_a_row()
     {
+        AskFor("c1", "c2", "c3");
         NoTurns("c1").Accepted.Should().BeTrue();
         NoTurns("c2").Accepted.Should().BeTrue();
         _inbox.Session?.Broken.Should().BeNull("a conversation with nothing to read is not a page that changed");
@@ -375,12 +376,14 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public void should_stop_asking_for_a_conversation_that_has_nothing_to_read_and_forget_that_a_conversation_was_read_in_between()
     {
+        AskFor("c1", "c3", "c4");
         NoTurns("c1");
 
         Subject().Handle(ListOf(Item("c1"), Item("c2"))).Open.Should().Equal("c2");
 
         AskFor("c2");
         Subject().Handle(ConversationOf("c2", new PushedTurn("user", "hi")));
+        AskFor("c3", "c4");
         NoTurns("c3");
         NoTurns("c4");
         _inbox.Session?.Broken.Should().BeNull("one was read after the first: they are not in a row");
@@ -392,5 +395,38 @@ public sealed class ExtensionServiceFixture : IDisposable
     public void should_refuse_a_conversation_without_a_turn_whose_id_is_not_one(string? id)
     {
         NoTurns(id).Accepted.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_refuse_the_word_that_a_conversation_has_no_turn_when_it_was_not_asked_for()
+    {
+        NoTurns("c1").Accepted.Should().BeFalse();
+        NoTurns("c2").Accepted.Should().BeFalse();
+        NoTurns("c3").Accepted.Should().BeFalse();
+
+        _inbox.Session.Should().BeNull("made-up conversations cannot make the reader broken");
+    }
+
+    [Fact]
+    public void should_keep_the_turns_broken_when_a_good_list_comes_after_and_say_it_is_no_news()
+    {
+        AskFor("c1", "c2", "c3");
+        NoTurns("c1");
+        NoTurns("c2");
+        NoTurns("c3");
+
+        Subject().Handle(ListOf(Item("c1"), Item("c4")));
+
+        _inbox.Session!.Broken.Should().Be(ExtensionBrokenSteps.Turns, "a list says nothing of the turns");
+    }
+
+    [Fact]
+    public void should_refuse_a_list_or_a_conversation_that_holds_a_null_and_keep_nothing()
+    {
+        Subject().Handle(new ExtensionPushRequest("list", null, null, null, [Item("a"), null], null, null)).Accepted.Should().BeFalse();
+        AskFor("c1");
+        Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", null, null, [new PushedTurn("user", "x"), null], null)).Accepted.Should().BeFalse();
+
+        _inbox.Has("c1").Should().BeFalse();
     }
 }

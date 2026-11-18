@@ -63,7 +63,7 @@ test.describe('the extension reads the assistant @smoke', () => {
         })
         .toBe(3);
       // The fake assistant has three conversations of 2, 4 and 2 turns: a meta line and the turns of each, once (on a fresh stack, as the pipeline's).
-      expect(Object.values(await heldByMnemarr(playwright)).sort()).toEqual([3, 3, 5]);
+      expect(Object.values(await heldByMnemarr(playwright)).sort((a, b) => a - b)).toEqual([3, 3, 5]);
 
       const connection = (await (await request.get('/api/v1/connection')).json()) as Connection;
       expect(connection).toMatchObject({ state: 'Connected', reader: 'Web' });
@@ -105,11 +105,15 @@ test.describe('the extension reads the assistant @smoke', () => {
       const assistant = await playwright.request.newContext();
       const state = async () => ((await (await request.get('/api/v1/connection')).json()) as Connection).state;
 
-      await assistant.post(`${ASSISTANT}/admin/signout`);
-      await expect
-        .poll(state, { timeout: 200_000, intervals: [5000], message: 'the page asks to sign in again' })
-        .toBe('NeedsLogin');
-      await assistant.post(`${ASSISTANT}/admin/signin`);
+      try {
+        await assistant.post(`${ASSISTANT}/admin/signout`);
+        await expect
+          .poll(state, { timeout: 200_000, intervals: [5000], message: 'the page asks to sign in again' })
+          .toBe('NeedsLogin');
+      } finally {
+        // Whatever happened, the fake assistant is signed in again for what comes next.
+        await assistant.post(`${ASSISTANT}/admin/signin`);
+      }
       await expect.poll(state, { timeout: 200_000, intervals: [5000], message: 'reading resumes' }).toBe('Connected');
       await assistant.dispose();
       await request.dispose();

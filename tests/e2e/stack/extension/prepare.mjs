@@ -12,7 +12,9 @@ mkdirSync('/policy', { recursive: true });
 writeFileSync(
   '/policy/geminarr.json',
   JSON.stringify({
+    // The only extension is Geminarr's reader; nobody opens the developer tools or starts a debugging port in a browser that holds a session; the pages it may load are the assistant's.
     ExtensionSettings: {
+      '*': { installation_mode: 'blocked' },
       [packed.id]: { installation_mode: 'force_installed', update_url: `${GEMINARR_URL}/api/v1/extension/update.xml` },
     },
     '3rdparty': { extensions: { [packed.id]: { geminarrUrl: GEMINARR_URL, token: TOKEN, roundMinutes: 1 } } },

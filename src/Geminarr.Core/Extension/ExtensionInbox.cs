@@ -78,14 +78,16 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account); says whether the session was signed out or broken before (news worth a pass).</summary>
+    /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account); says whether the session was signed out or broken at the page or the list before (news worth a pass); a list does not mend the turns.</summary>
     public bool RecordList(IReadOnlyList<ConversationHeader> list, string? version, DateTimeOffset now)
     {
         lock (_gate)
         {
-            var wasNotWell = _session is { SignedIn: false } or { Broken: not null };
+            // A good list proves that the page and the list are what the extension knows, not that the turns are: that is for a conversation that is read.
+            var turnsBroken = _session?.Broken == ExtensionBrokenSteps.Turns;
+            var wasNotWell = _session is { SignedIn: false } or { Broken: ExtensionBrokenSteps.Page or ExtensionBrokenSteps.List };
             _list = list;
-            _session = new ExtensionSession(SignedIn: true, version, now);
+            _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null);
             return wasNotWell;
         }
     }
@@ -125,6 +127,11 @@ public sealed class ExtensionInbox
             Purge(now);
             _asked.Remove(id);
             _unreadable[id] = now;
+            foreach (var oldest in _unreadable.OrderBy(pair => pair.Value).Select(pair => pair.Key).Take(Math.Max(_unreadable.Count - MaxConversations, 0)).ToList())
+            {
+                _unreadable.Remove(oldest);
+            }
+
             if (_unreadable.Count < UnreadableToBreak)
             {
                 return false;
@@ -186,13 +193,15 @@ public sealed class ExtensionInbox
             _unreadable.Clear();
             _conversations[id] = (title, turns, now);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
+            var held = HeldCharacters();
             foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())
             {
-                if (_conversations.Count <= MaxConversations && HeldCharacters() <= _maxHeldCharacters)
+                if (_conversations.Count <= MaxConversations && held <= _maxHeldCharacters)
                 {
                     break;
                 }
 
+                held -= CharactersOf(_conversations[oldest].Turns);
                 _conversations.Remove(oldest);
             }
 
@@ -201,7 +210,9 @@ public sealed class ExtensionInbox
         }
     }
 
-    private long HeldCharacters() => _conversations.Values.Sum(held => held.Turns.Sum(turn => (long)turn.Text.Length));
+    private long HeldCharacters() => _conversations.Values.Sum(held => CharactersOf(held.Turns));
+
+    private static long CharactersOf(IReadOnlyList<Turn> turns) => turns.Sum(turn => (long)turn.Text.Length);
 
     public bool Has(string id)
     {

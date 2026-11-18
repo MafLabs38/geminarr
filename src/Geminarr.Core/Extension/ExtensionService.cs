@@ -87,6 +87,11 @@ public sealed partial class ExtensionService
                 return ExtensionPushResult.Refused("A conversation has an id of letters, digits, - and _ (64 at most).");
             }
 
+            if (!_inbox.WasAsked(request.Id!))
+            {
+                return ExtensionPushResult.Refused("Geminarr did not ask for that conversation.");
+            }
+
             if (_inbox.RecordUnreadable(request.Id!, version, now))
             {
                 _trigger.Request();
@@ -112,12 +117,11 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A list has at most " + MaxPushedItems + " conversations.");
         }
 
-
         var headers = new List<ConversationHeader>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in request.Items)
         {
-            if (!IsId(item.Id))
+            if (item is null || !IsId(item.Id))
             {
                 return ExtensionPushResult.Refused("A conversation has an id of letters, digits, - and _ (64 at most).");
             }
@@ -168,7 +172,7 @@ public sealed partial class ExtensionService
         var total = 0;
         foreach (var turn in pushed)
         {
-            if (turn.Role is not ("user" or "assistant") || string.IsNullOrWhiteSpace(turn.Text) || turn.Text.Length > MaxTurnLength)
+            if (turn is null || turn.Role is not ("user" or "assistant") || string.IsNullOrWhiteSpace(turn.Text) || turn.Text.Length > MaxTurnLength)
             {
                 return ExtensionPushResult.Refused("A turn is spoken by the user or the assistant, and holds a text of at most " + MaxTurnLength + " characters.");
             }

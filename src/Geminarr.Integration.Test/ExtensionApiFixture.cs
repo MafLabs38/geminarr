@@ -131,6 +131,17 @@ public sealed class ExtensionApiFixture
     }
 
     [Fact]
+    public async Task should_answer_400_and_not_500_to_a_list_or_a_conversation_that_holds_a_null()
+    {
+        using var factory = new ExtensionFactory();
+        using var client = factory.CreateClient();
+        await client.SendAsync(Push(new { kind = "list", items = new[] { new { id = "c1", title = "One" } } }), CancellationToken);
+
+        (await client.SendAsync(Push(new { kind = "list", items = new object?[] { null } }), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await client.SendAsync(Push(new { kind = "conversation", id = "c1", turns = new object?[] { null } }), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task should_take_the_word_that_the_page_is_broken()
     {
         using var factory = new ExtensionFactory();

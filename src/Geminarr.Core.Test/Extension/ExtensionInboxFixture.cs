@@ -177,4 +177,31 @@ public sealed class ExtensionInboxFixture
         _subject.WasAsked("c0").Should().BeFalse("the oldest questions go first, whatever the order they were put in");
         _subject.WasAsked($"c{ExtensionInbox.MaxConversations + 4}").Should().BeTrue();
     }
+
+    [Fact]
+    public void should_not_mend_the_turns_with_a_list_but_mend_the_page_and_the_list_with_one()
+    {
+        _subject.RecordBroken(ExtensionBrokenSteps.Turns, null, Now);
+        _subject.RecordList([], null, Now).Should().BeFalse("a list is no news about the turns");
+        _subject.Session!.Broken.Should().Be(ExtensionBrokenSteps.Turns);
+
+        _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi")], Now);
+        _subject.Session!.Broken.Should().BeNull("a conversation that was read mends them");
+
+        _subject.RecordBroken(ExtensionBrokenSteps.List, null, Now);
+        _subject.RecordList([], null, Now).Should().BeTrue();
+        _subject.Session!.Broken.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_hold_as_many_unreadable_ones_as_conversations_and_no_more()
+    {
+        for (var i = 0; i < ExtensionInbox.MaxConversations + 5; i++)
+        {
+            _subject.RecordUnreadable($"c{i}", null, Now.AddSeconds(i));
+        }
+
+        _subject.IsUnreadable("c0").Should().BeFalse();
+        _subject.IsUnreadable($"c{ExtensionInbox.MaxConversations + 4}").Should().BeTrue();
+    }
 }

@@ -83,17 +83,22 @@ async function sweep() {
 }
 
 async function onMessage(message, sender) {
-  // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing.
-  const answer = message.kind === 'giveup' ? null : await push(message);
-  if (message.kind === 'list') {
-    // What Geminarr answers is a list of ids; anything else asks for nothing.
-    const ids = (Array.isArray(answer?.open) ? answer.open : [])
-      .filter((candidate) => typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
-      .slice(0, MAX_TABS_PER_ANSWER);
-    for (const id of ids) await openInBackground(`/app/${id}`);
+  try {
+    // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing.
+    const answer = message.kind === 'giveup' ? null : await push(message);
+    if (message.kind === 'list') {
+      // What Geminarr answers is a list of ids; anything else asks for nothing.
+      const ids = (Array.isArray(answer?.open) ? answer.open : [])
+        .filter((candidate) => typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
+        .slice(0, MAX_TABS_PER_ANSWER);
+      for (const id of ids) await openInBackground(`/app/${id}`);
+    }
+  } catch {
+    // The browser could not open a page (or keep what it opened): the next round asks again.
+  } finally {
+    // A page that this extension opened is done once it has said what it had to say. A page that a person opened is theirs, and stays.
+    if (sender.tab && (await isWorkTab(sender.tab.id))) await closeTab(sender.tab.id);
   }
-  // A page that this extension opened is done once it has said what it had to say. A page that a person opened is theirs, and stays.
-  if (sender.tab && (await isWorkTab(sender.tab.id))) await closeTab(sender.tab.id);
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
