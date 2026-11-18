@@ -1,8 +1,6 @@
 using Geminarr.Core.Access;
-using Geminarr.Core.Browser;
 using Geminarr.Core.Identity;
 using Geminarr.Core.Link;
-using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Configuration;
@@ -23,8 +21,7 @@ public sealed class EffectiveSettings
     private readonly IOperatorCredentials _credentials;
     private readonly IOptions<IdentityOptions> _identity;
     private readonly IOptions<MnemarrOptions> _mnemarr;
-    private readonly PassSettings _pass;
-    private readonly IOptions<BrowserOptions> _browser;
+    private readonly IReadOnlyList<ISettingsSection> _sections;
 
     public EffectiveSettings(
         IOptions<GeminarrOptions> geminarr,
@@ -32,19 +29,23 @@ public sealed class EffectiveSettings
         IOperatorCredentials credentials,
         IOptions<IdentityOptions> identity,
         IOptions<MnemarrOptions> mnemarr,
-        IOptions<BrowserOptions> browser,
-        PassSettings pass)
+        IEnumerable<ISettingsSection> sections)
     {
-        _browser = browser;
-        _pass = pass;
         _geminarr = geminarr;
         _auth = auth;
         _credentials = credentials;
         _identity = identity;
         _mnemarr = mnemarr;
+        _sections = [.. sections];
     }
 
     public IReadOnlyList<SettingValue> Read() =>
+    [
+        .. Own(),
+        .. _sections.SelectMany(section => section.Read()),
+    ];
+
+    private SettingValue[] Own() =>
     [
         new("GEMINARR__DATAFOLDER", _geminarr.Value.DataFolder, false),
         new("GEMINARR__PUBLICURL", _geminarr.Value.PublicUrl ?? NotSet, false),
@@ -63,24 +64,5 @@ public sealed class EffectiveSettings
         new("GEMINARR__MNEMARR__KEYFILE", string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) ? "default" : "set", false),
         new("GEMINARR__MNEMARR__ENROLMENTCODEFILE", string.IsNullOrWhiteSpace(_mnemarr.Value.EnrolmentCodeFile) ? NotSet : "set", false),
         new("GEMINARR__MNEMARR__ALLOWINSECUREHTTP", _mnemarr.Value.AllowInsecureHttp ? "true" : "false", false),
-        new("GEMINARR__READER__KIND", _pass.Reading.Kind.ToString(), false),
-        new("GEMINARR__READER__POLLMINUTES", _pass.Reading.PollMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__MAXLISTED", _pass.Reading.MaxListed.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__PASSTIMEOUTMINUTES", _pass.Reading.PassTimeoutMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__MAXBACKOFFMINUTES", _pass.Reading.MaxBackoffMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__LOGINFAILURES", _pass.Reading.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__DEMOGROWSECONDS", _pass.Reading.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__READER__MAXOPENPERPASS", _pass.Reading.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        .. BrowserSettings(),
-        new("GEMINARR__RETENTION__RUNSDAYS", _pass.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-    ];
-
-    private SettingValue[] BrowserSettings() =>
-    [
-        new("GEMINARR__BROWSER__DESKTOPURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? NotSet : "set", false),
-        new("GEMINARR__BROWSER__DESKTOPPORT", _browser.Value.DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__BROWSER__DESKTOPPUBLICURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopPublicUrl) ? NotSet : _browser.Value.DesktopPublicUrl, false),
-        new("GEMINARR__BROWSER__ALLOWEDOPENPORTS", string.IsNullOrWhiteSpace(_browser.Value.AllowedOpenPorts) ? NotSet : _browser.Value.AllowedOpenPorts, false),
-        new("GEMINARR__BROWSER__REQUIREEGRESSGUARD", _browser.Value.RequireEgressGuard ? "true" : "false", false),
     ];
 }

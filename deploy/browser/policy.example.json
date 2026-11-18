@@ -1,0 +1,32 @@
+{
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "blocked"
+    },
+    "<extension-id>": {
+      "installation_mode": "force_installed",
+      "update_url": "http://127.0.0.1:8282/api/v1/extension/update.xml"
+    }
+  },
+  "3rdparty": {
+    "extensions": {
+      "<extension-id>": {
+        "geminarrUrl": "http://127.0.0.1:8282",
+        "token": "<the content of GEMINARR__EXTENSION__TOKENFILE>",
+        "roundMinutes": 15
+      }
+    }
+  },
+  "PasswordManagerEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "DeveloperToolsAvailability": 2,
+  "RemoteDebuggingAllowed": false,
+  "URLBlocklist": [
+    "*"
+  ],
+  "URLAllowlist": [
+    "https://gemini.google.com",
+    "https://accounts.google.com"
+  ]
+}

@@ -1,5 +1,6 @@
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
+using Geminarr.Core.Extension;
 using Geminarr.Core.Pipeline;
 using Geminarr.Core.Test.Access;
 using Geminarr.Core.Test.Support;
@@ -11,7 +12,7 @@ public sealed class ConnectionServiceFixture : IDisposable
 {
     private readonly TestDatabase _workspace = new();
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 13, 9, 0, 0, TimeSpan.Zero));
-    private readonly FakeBrowser _browser = new();
+    private readonly ExtensionInbox _inbox = new();
     private readonly ConnectionTracker _tracker;
 
     public ConnectionServiceFixture()
@@ -21,7 +22,7 @@ public sealed class ConnectionServiceFixture : IDisposable
 
     public void Dispose() => _workspace.Dispose();
 
-    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _browser, Options.Of(new ReaderOptions { Kind = kind }), _clock);
+    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _inbox, Options.Of(new ReaderOptions { Kind = kind }), _clock);
 
     [Theory]
     [InlineData(ReaderKind.None)]
@@ -110,39 +111,54 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_clear_the_session_of_the_browser_and_forget_the_connection_when_the_operator_disconnects()
+    public void should_ask_the_extension_to_sign_the_account_out_and_forget_the_connection_when_the_operator_disconnects()
     {
         var subject = Subject();
         _tracker.Connected();
 
-        await subject.DisconnectAsync(TestContext.Current.CancellationToken);
+        subject.Disconnect();
 
-        _browser.Disconnected.Should().Be(1);
+        _inbox.Disconnected.Should().BeTrue();
+        _inbox.TakeHints(_clock.GetUtcNow()).SignOut.Should().BeTrue("the extension is asked the next time that it says that it is there");
         subject.Current().State.Should().Be(ConnectionState.NotConnected);
         subject.Current().LastOkAt.Should().BeNull();
     }
 
     [Fact]
-    public async Task should_change_nothing_when_the_browser_cannot_be_reached_and_say_so()
+    public void should_say_signing_in_from_the_press_of_the_button_until_the_session_is_good()
     {
         var subject = Subject();
+        subject.SigningInAt(subject.Current()).Should().BeFalse();
+
+        subject.BeginSigningIn();
+        subject.SigningInAt(subject.Current()).Should().BeTrue("the operator pressed Sign in");
+
         _tracker.Connected();
-        _browser.FailDisconnect = new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
-
-        var disconnect = () => subject.DisconnectAsync(TestContext.Current.CancellationToken);
-
-        await disconnect.Should().ThrowAsync<ReaderException>();
-        subject.Current().State.Should().Be(ConnectionState.Connected, "the session is still in the browser: saying that it is gone would be false");
+        subject.SigningInAt(subject.Current()).Should().BeFalse("the session is good");
     }
 
     [Fact]
-    public async Task should_not_let_a_pass_that_began_before_a_disconnect_say_what_it_found_afterwards()
+    public void should_show_who_the_browser_is_signed_in_as_only_while_the_connection_is_one()
+    {
+        var subject = Subject();
+        _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow(), ["Google Account: Jane Doe (jane@example.org)"]);
+        _tracker.Connected();
+
+        subject.AccountAt(subject.Current()).Should().Be(new AccountIdentity("Jane Doe", "jane@example.org"));
+
+        _tracker.Disconnected();
+
+        subject.AccountAt(subject.Current()).Should().BeNull("the page must not say signed in beside not connected");
+    }
+
+    [Fact]
+    public void should_not_let_a_pass_that_began_before_a_disconnect_say_what_it_found_afterwards()
     {
         var subject = Subject();
         _tracker.Connected();
         using var pass = _tracker.BeginPass();
 
-        await subject.DisconnectAsync(TestContext.Current.CancellationToken);
+        subject.Disconnect();
         _tracker.Connected();
         _tracker.NotConnected();
 
@@ -151,11 +167,11 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_stay_not_connected_through_a_pause_and_a_resume_after_a_disconnect()
+    public void should_stay_not_connected_through_a_pause_and_a_resume_after_a_disconnect()
     {
         var subject = Subject();
         _tracker.Connected();
-        await subject.DisconnectAsync(TestContext.Current.CancellationToken);
+        subject.Disconnect();
 
         subject.Pause(null);
         subject.Resume();

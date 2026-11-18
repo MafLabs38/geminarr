@@ -2,6 +2,7 @@ using Geminarr.Core.Access;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
+using Geminarr.Core.Extension;
 using Geminarr.Core.Identity;
 using Geminarr.Core.Link;
 using Geminarr.Core.Pipeline;
@@ -63,19 +64,27 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ConnectionTracker>();
         services.AddSingleton<ConnectionService>();
         // The kind is read when the reader is first needed, not when the services are registered: the configuration is final by then.
-        services.AddSingleton(provider => new ReaderProvider(NewReader(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind, provider)));
+        services.AddSingleton<IValidateOptions<ExtensionOptions>, ExtensionOptionsValidator>();
+        services.AddOptions<ExtensionOptions>().Bind(configuration.GetSection(ExtensionOptions.SectionName)).ValidateOnStart();
+        services.AddSingleton<IExtensionToken, ExtensionToken>();
+        services.AddSingleton<IExtensionPackage, ExtensionPackage>();
+        services.AddSingleton<ExtensionInbox>();
+        services.AddSingleton<ExtensionService>();
+        services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch
+        {
+            ReaderKind.Demo => ActivatorUtilities.CreateInstance<DemoReader>(provider),
+            ReaderKind.Web => ActivatorUtilities.CreateInstance<ExtensionReader>(provider),
+            _ => null,
+        }));
         services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();
+        services.AddSingleton<ISettingsSection, ReaderSettingsSection>();
+        services.AddSingleton<ISettingsSection, BrowserSettingsSection>();
+        services.AddSingleton<ISettingsSection, ExtensionSettingsSection>();
+        services.AddSingleton<ISettingsSection, RetentionSettingsSection>();
         services.AddSingleton<EffectiveSettings>();
         return services;
     }
-
-    private static IConversationReader? NewReader(ReaderKind kind, IServiceProvider provider) => kind switch
-    {
-        ReaderKind.Demo => ActivatorUtilities.CreateInstance<DemoReader>(provider),
-        ReaderKind.Web => ActivatorUtilities.CreateInstance<WebReader>(provider),
-        _ => null,
-    };
 }

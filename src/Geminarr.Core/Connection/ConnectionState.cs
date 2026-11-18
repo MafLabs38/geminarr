@@ -29,14 +29,17 @@ public static class ConnectionReasons
     public const string Unreachable = "unreachable";
     public const string Paused = "paused";
 
-    /// <summary>The browser container could not be reached (not started, the debugging address wrong, a limit): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
+    /// <summary>The browser container could not be reached (not started, its desktop address wrong, a limit): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
     public const string BrowserFailed = "browser-failed";
 
-    /// <summary>A port of the namespace that Geminarr shares with the browser listens off the loopback: the web desktop or the debugging port could be reached by something else than Geminarr (ADR 0017), so the desktop stays closed.</summary>
+    /// <summary>A port of the namespace that Geminarr shares with the browser listens off the loopback: the web desktop could be reached by something else than Geminarr (ADR 0017), so the desktop stays closed.</summary>
     public const string BrowserExposed = "browser-exposed";
 
     /// <summary>Geminarr's own process is not limited by the egress guard (ADR 0020).</summary>
     public const string EgressUnguarded = "egress-unguarded";
+
+    /// <summary>The extension of the browser has not said anything for a while (ADR 0022): the browser is not running it, or it cannot reach Geminarr.</summary>
+    public const string ExtensionSilent = "extension-silent";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>

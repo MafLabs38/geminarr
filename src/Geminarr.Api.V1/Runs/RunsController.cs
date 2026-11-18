@@ -1,3 +1,4 @@
+using Geminarr.Core.Extension;
 using Geminarr.Core.Pipeline;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -23,12 +24,14 @@ public sealed class RunsController : ControllerBase
     private readonly IRunStore _runs;
     private readonly PassRunner _runner;
     private readonly PassTrigger _trigger;
+    private readonly ExtensionInbox _inbox;
 
-    public RunsController(IRunStore runs, PassRunner runner, PassTrigger trigger)
+    public RunsController(IRunStore runs, PassRunner runner, PassTrigger trigger, ExtensionInbox inbox)
     {
         _runs = runs;
         _runner = runner;
         _trigger = trigger;
+        _inbox = inbox;
     }
 
     /// <summary>The latest runs, newest first, and whether one is running now.</summary>
@@ -48,6 +51,8 @@ public sealed class RunsController : ControllerBase
             return Problem(statusCode: StatusCodes.Status409Conflict, title: "A pass is running.");
         }
 
+        // The operator asked to look now: the extension of the browser is asked for a round too, the next time that it says that it is there.
+        _inbox.RequestRound();
         _trigger.Request();
         return Accepted();
     }

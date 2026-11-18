@@ -52,6 +52,18 @@ public sealed class PassRunnerFixture : IDisposable
     private static string Session(string id) => ConversationLines.Session(id);
 
     [Fact]
+    public async Task should_mask_a_secret_in_a_title_and_in_a_turn_whatever_the_reader_before_anything_is_queued()
+    {
+        var key = "ghp_" + new string('a', 36);
+        _reader.Say("c1", "About " + key, "my token is " + key, "Noted");
+
+        await Subject().RunAsync(TestContext.Current.CancellationToken);
+
+        var (_, _, lines) = _sink.Sent.Single();
+        string.Join('\n', lines).Should().NotContain(key).And.Contain("[masked:github-token]");
+    }
+
+    [Fact]
     public async Task should_send_a_new_conversation_from_the_start_with_its_meta_line_and_remember_what_mnemarr_holds()
     {
         _reader.Say("c1", "About bread", "How do I feed a starter?", "Weekly.", "Thanks");

@@ -186,6 +186,11 @@ spec:
             #   value: https://mnemarr.homelab.example
             # - name: GEMINARR__MNEMARR__KEYFILE            # the key that Mnemarr gave to this machine, from a secret (or GEMINARR__MNEMARR__ENROLMENTCODEFILE for a one-time code)
             #   value: /run/geminarr/mnemarr/key
+            # The extension of the browser reads the assistant and hands it over (ADR 0022). The token is the same as in the policy of the browser (below).
+            - name: GEMINARR__EXTENSION__TOKENFILE
+              value: /run/geminarr/extension/token       # 32 characters or more, random, from a secret that holds the file `token`
+            # - name: GEMINARR__ALLOWEDHOSTNAMES
+            #   value: geminarr.homelab.example;geminarr.geminarr.svc
             # Optional, who this environment is at the bottom of the menu: a name, and a picture (a png, webp or svg of at most 1 MiB) mounted from a ConfigMap or a volume.
             # - name: GEMINARR__IDENTITY__NAME
             #   value: My lab
@@ -237,6 +242,9 @@ spec:
             # - name: identity            # the picture of the menu, from a ConfigMap that holds the file `logo.png`
             #   mountPath: /run/geminarr/identity
             #   readOnly: true
+            - name: extension           # the token of the extension, from a secret that holds the file `token`
+              mountPath: /run/geminarr/extension
+              readOnly: true
         # The browser container: an ordinary Chromium with a web desktop (a third party's image, pinned by digest: the choice of the image is the maintainer's, SPEC Q-18).
         # It starts as root (its init sets the user from PUID and PGID); harden it further for the platform you run on, and test that Chromium still starts.
         - name: browser
@@ -287,6 +295,10 @@ spec:
             - name: browser-init
               mountPath: /custom-cont-init.d
               readOnly: true
+            # The policy that installs the extension, gives it the address of Geminarr (the loopback of the pod) and its token, and keeps the browser to the assistant's pages.
+            - name: browser-policy
+              mountPath: /etc/chromium/policies/managed
+              readOnly: true
       volumes:
         - name: egress
           configMap:
@@ -317,6 +329,13 @@ spec:
         # - name: identity
         #   configMap:
         #     name: geminarr-identity
+        - name: extension
+          secret:
+            secretName: geminarr-extension   # the file `token`: kubectl -n geminarr create secret generic geminarr-extension --from-file=token=...
+            defaultMode: 0440
+        - name: browser-policy
+          secret:
+            secretName: geminarr-browser-policy   # the file `geminarr.json`, made by your tooling from deploy/browser/policy.example.json (it holds the token)
         - name: data
           persistentVolumeClaim:
             claimName: geminarr-data

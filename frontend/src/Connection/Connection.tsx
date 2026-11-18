@@ -31,11 +31,16 @@ export const PAUSE_HOURS = 6;
 /** The states in which a person may have to sign in: a paused connection keeps what it was, and a connected one has nothing to ask. */
 const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConnected', 'NeedsLogin', 'Degraded']);
 
-/** What the page says of the session: signed in, signed out or ended, in words and not only in a color. Who the account is comes with the extension of the browser (ADR 0021). */
+/** Who the browser is signed in as, or that nobody is: the first thing the page says, in words and not only in a color. */
 function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
+  const { account } = connection;
   let headline = translate('NotSignedIn');
-  if (connection.state === 'Connected') {
+  if (account) {
+    headline = translate('SignedInAs', { who: account.name ?? account.email });
+  } else if (connection.state === 'Connected') {
     headline = translate('SignedInUnknownAccount');
+  } else if (connection.signingIn) {
+    headline = translate('SigningInNow');
   } else if (connection.state === 'NeedsLogin') {
     headline = translate('SessionEnded');
   }
@@ -43,6 +48,7 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
   return (
     <div className={styles.identity}>
       <p className={styles.who}>{headline}</p>
+      {account?.name && <p className={styles.email}>{account.email}</p>}
     </div>
   );
 }
@@ -50,8 +56,9 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
 /** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
 function SignIn({
   hasDesktop,
+  signingIn,
   windowRef,
-}: Readonly<{ hasDesktop: boolean; windowRef: MutableRefObject<Window | null> }>) {
+}: Readonly<{ hasDesktop: boolean; signingIn: boolean; windowRef: MutableRefObject<Window | null> }>) {
   const runNow = useRunNow();
   const runs = useRuns();
   const desktop = useOpenDesktop();
@@ -80,7 +87,7 @@ function SignIn({
 
   return (
     <div className={styles.block}>
-      <p>{translate('SignInInTheBrowser')}</p>
+      <p>{translate(signingIn ? 'SigningInHint' : 'SignInInTheBrowser')}</p>
       <p>{translate('SignInDedicated')}</p>
       {hasDesktop && !secure && (
         <>
@@ -221,7 +228,7 @@ export default function Connection() {
               )}
               {!data.hasBrowser && <Alert>{translate('NoBrowserNotice')}</Alert>}
               {data.hasBrowser && SIGN_IN_STATES.has(data.state) && (
-                <SignIn hasDesktop={data.hasDesktop} windowRef={browserWindow} />
+                <SignIn hasDesktop={data.hasDesktop} signingIn={data.signingIn} windowRef={browserWindow} />
               )}
               {data.hasBrowser && <Actions connection={data} />}
             </>

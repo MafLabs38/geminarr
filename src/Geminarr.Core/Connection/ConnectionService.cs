@@ -1,4 +1,5 @@
 using Geminarr.Core.Browser;
+using Geminarr.Core.Extension;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -10,14 +11,14 @@ namespace Geminarr.Core.Connection;
 public sealed class ConnectionService
 {
     private readonly ConnectionTracker _tracker;
-    private readonly IBrowserHost _browser;
+    private readonly ExtensionInbox _inbox;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly TimeProvider _clock;
 
-    public ConnectionService(ConnectionTracker tracker, IBrowserHost browser, IOptions<ReaderOptions> reader, TimeProvider clock)
+    public ConnectionService(ConnectionTracker tracker, ExtensionInbox inbox, IOptions<ReaderOptions> reader, TimeProvider clock)
     {
         _tracker = tracker;
-        _browser = browser;
+        _inbox = inbox;
         _reader = reader;
         _clock = clock;
     }
@@ -27,13 +28,22 @@ public sealed class ConnectionService
 
     public ConnectionRecord Current() => _tracker.Current();
 
+    /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser by hand, so the extension is asked for rounds until it says that somebody is.</summary>
+    public void BeginSigningIn() => _inbox.BeginSigningIn(_clock.GetUtcNow());
+
+    /// <summary>Whether a sign-in that the operator started is being waited for (and the session is not good yet).</summary>
+    public bool SigningInAt(ConnectionRecord record) => record.State != ConnectionState.Connected && _inbox.SigningIn(_clock.GetUtcNow());
+
+    /// <summary>Who the browser is signed in as, as the extension read it (the operator's to see, never logged); nobody while the connection is not one.</summary>
+    public AccountIdentity? AccountAt(ConnectionRecord record) => record.State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _inbox.Session?.Account;
+
     /// <summary>
-    /// Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. It is all or nothing: a browser that cannot be reached is said, and nothing changes
-    /// (the session is still in it, so the connection and the account are still what they were, and the operator tries again when it is back).
+    /// Signs the account out of the browser, by the extension (it opens the account provider's sign-out page in a tab of its own: no debugging port, no cookie read), and forgets the connection: the person signs in
+    /// again by hand. What waits for Mnemarr stays. The extension is asked the next time that it says that it is there.
     /// </summary>
-    public async Task DisconnectAsync(CancellationToken cancellationToken)
+    public void Disconnect()
     {
-        await _browser.DisconnectAsync(cancellationToken);
+        _inbox.RequestSignOut(_clock.GetUtcNow());
         _tracker.Disconnected();
     }
 

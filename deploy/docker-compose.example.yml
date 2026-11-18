@@ -28,6 +28,9 @@ services:
       - browser-config:/config
       # Makes the web desktop listen on the loopback of the namespace and nowhere else: it has no sign-in, so nothing but Geminarr may reach it (ADR 0017). Executable, from this repository.
       - ./browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
+      # The policy that installs the extension of Geminarr (the reader, ADR 0022), gives it the address of Geminarr (the loopback of the namespace) and its token, and keeps the browser to the assistant's pages. It holds the
+      # token: a secret that your tooling makes from browser/policy.example.json (the id of the extension is in the update manifest of Geminarr), never committed.
+      - ./geminarr-browser-policy.json:/etc/chromium/policies/managed/geminarr.json:ro
     ports:
       # Geminarr's own page, on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
       - "127.0.0.1:8282:8282"
@@ -111,6 +114,8 @@ services:
       # GEMINARR__MNEMARR__URL: https://mnemarr.homelab.example
       # GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/secrets/geminarr_mnemarr_code   # a one-time code, exchanged at start
       # GEMINARR__MNEMARR__KEYFILE: /run/secrets/geminarr_mnemarr_key             # or the key itself, if Mnemarr gave it to you
+      # The extension of the browser reads the assistant and hands it over (ADR 0022): the token is the same as in the policy of the browser (above).
+      GEMINARR__EXTENSION__TOKENFILE: /run/secrets/geminarr_extension_token   # 32 characters or more, random
       # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
@@ -121,6 +126,7 @@ services:
       # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
     secrets:
       - geminarr_operator_password
+      - geminarr_extension_token
     # Hardening: nothing writes outside the data folder and a temporary folder.
     read_only: true
     tmpfs:
@@ -137,6 +143,8 @@ services:
 secrets:
   geminarr_operator_password:
     file: ./geminarr-operator-password   # one line, at least 12 characters; not in git
+  geminarr_extension_token:
+    file: ./geminarr-extension-token   # one line, 32 characters or more, random; the same as in the policy of the browser; not in git
 
 volumes:
   geminarr-data:

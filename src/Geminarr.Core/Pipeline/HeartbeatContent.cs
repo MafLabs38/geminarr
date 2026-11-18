@@ -34,6 +34,7 @@ public static class HeartbeatContent
             _ => effective.LastReason switch
             {
                 ConnectionReasons.ReaderBroken => "The assistant's page is no longer what the reader knows.",
+                ConnectionReasons.ExtensionSilent => "The browser's extension has not said anything for a while.",
                 ConnectionReasons.BrowserFailed => "The browser of the container could not be reached.",
                 ConnectionReasons.RateLimited => "The assistant asked to slow down.",
                 ConnectionReasons.Unreachable => "The assistant could not be reached.",

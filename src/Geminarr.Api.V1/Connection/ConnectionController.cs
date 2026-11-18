@@ -11,7 +11,10 @@ using Microsoft.Extensions.Options;
 namespace Geminarr.Api.V1.Connection;
 
 /// <summary>The connection to the assistant: its state (SPEC §7.2), since when, the last pass that worked, why it is not simply connected, which reader reads, whether a browser reads, and until when the passes are paused.</summary>
-public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, bool HasDesktop);
+public sealed record ConnectionResource(string State, DateTimeOffset Since, DateTimeOffset? LastOkAt, string? Reason, string Reader, bool HasBrowser, DateTimeOffset? PausedUntil, bool HasDesktop, AccountResource? Account, bool SigningIn);
+
+/// <summary>The account that the browser is signed in as: an address, and a name when the page says one. For the operator's page only.</summary>
+public sealed record AccountResource(string? Name, string Email);
 
 /// <summary>Where to open the desktop of the browser: its own origin, with a ticket that is worth one opening (ADR 0019).</summary>
 public sealed record DesktopResource(string Url);
@@ -47,7 +50,7 @@ public sealed class ConnectionController : ControllerBase
     public ConnectionResource Get()
     {
         var record = _connection.Current();
-        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, !string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl));
+        return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, !string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl), _connection.AccountAt(record) is { } account ? new AccountResource(account.Name, account.Email) : null, _connection.SigningInAt(record));
     }
 
     /// <summary>
@@ -68,6 +71,9 @@ public sealed class ConnectionController : ControllerBase
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "The session is not one that is open any more: sign in again.");
         }
+
+        // A person is about to sign in by hand in that desktop: the extension is asked to look often until it sees somebody signed in.
+        _connection.BeginSigningIn();
 
         var origin = DesktopAddress.Origin(_browser.Value, _app.Value.PublicUrl, Request.Scheme, Request.Host.Host);
         return new DesktopResource($"{origin}/enter?ticket={Uri.EscapeDataString(ticket)}");
@@ -104,28 +110,12 @@ public sealed class ConnectionController : ControllerBase
         return Get();
     }
 
-    /// <summary>Clears the session that the browser holds: the state is not connected, and a person signs in again by hand. What waits for Mnemarr stays. Refused (400) by a Geminarr that has no debugging port to the browser (ADR 0021).</summary>
+    /// <summary>Signs the account out of the browser and forgets the connection: the state is not connected, and a person signs in again by hand. What waits for Mnemarr stays. The extension of the browser does it, the next time that it says that it is there (nothing else of the browser is touched).</summary>
     [HttpPost("disconnect")]
     [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    public async Task<ActionResult<ConnectionResource>> Disconnect(CancellationToken cancellationToken)
+    public ConnectionResource Disconnect()
     {
-        try
-        {
-            await _connection.DisconnectAsync(cancellationToken);
-        }
-        catch (ConnectionRefusedException ex)
-        {
-            // This version cannot clear the session (ADR 0021: that comes with the extension reader): the sentence is ours and nothing changed.
-            return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
-        }
-        catch (ReaderException)
-        {
-            // Nothing changed: the session is still in the browser (the sentence is ours, never an address).
-            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The browser container could not be reached: nothing was disconnected. Try again when it is back.");
-        }
-
+        _connection.Disconnect();
         return Get();
     }
 }

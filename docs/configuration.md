@@ -23,12 +23,16 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 | `GEMINARR__MNEMARR__KEYFILE` | `<data folder>/mnemarr/key` | Where the key of the machine is kept: a file only the container's user can read. A key that was given as a file (mounted from a sealed secret) is used as it is. **The key is never in the database, a log or an answer of the API.** |
 | `GEMINARR__MNEMARR__ENROLMENTCODEFILE` | none | A file with a one-time code from Mnemarr (a deployment as code): exchanged for the key at start, when there is none. |
 | `GEMINARR__MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only: talk to Mnemarr over plain http to a host that is not the loopback. |
-| `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so); `Web` (the browser container: the session is checked; **the conversations are read by the next vertical**); or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
+| `GEMINARR__READER__KIND` | **`None`** | `None` (not connected to any assistant: a pass sends what waits and says so), `Web`: the extension of the browser reads Gemini and hands it over ([ADR 0022](adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)), or `Demo`: three invented conversations that grow, **for a sandbox only**. The page says when it is on. |
 | `GEMINARR__READER__POLLMINUTES` | **`20`** | Minutes between two readings (a random 20 % either way is added; doubled for each pass that failed in a row, up to `MAXBACKOFFMINUTES`). |
 | `GEMINARR__READER__MAXLISTED`, `…MAXOPENPERPASS` | **`40`**, **`5`** | How many conversations of the list are looked at, and how many are opened in a pass. |
 | `GEMINARR__READER__PASSTIMEOUTMINUTES`, `…MAXBACKOFFMINUTES` | **`5`**, **`360`** | Reading never lasts longer than the first; a failing reader is read again after at most the second. Whatever the poll interval, the machine says it is alive at least every 10 minutes. |
 | `GEMINARR__READER__LOGINFAILURES` | **`3`** | Passes in a row that find nobody signed in before the state is `needs-login`. |
 | `GEMINARR__READER__DEMOGROWSECONDS` | **`60`** | The demonstration reader only: seconds between two new turns. |
+| `GEMINARR__EXTENSION__TOKENFILE` | none | The file that holds the token the extension presents (a mounted secret, at least 32 random characters, read at each call: rotating it needs no restart, and the policy of the browser changes with it). **Without it nothing the extension sends is accepted** (the health says nothing, the push answers 401). |
+| `GEMINARR__EXTENSION__PACKAGEFOLDER` | **`extension`** | The folder with the signed package and its `extension.json`, relative to the application. The image carries one; a deployment can mount another. |
+| `GEMINARR__EXTENSION__PUBLICURL` | none | The address by which **the browser** reaches Geminarr (`https://geminarr.homelab.example`, no path), when the address of the request is not it: the update manifest names the package by it. |
+| `GEMINARR__EXTENSION__SILENTAFTERMINUTES` | **`45`** | Minutes without a word from the extension after which the connection says `extension-silent` (1 to 1 440). |
 | `GEMINARR__RETENTION__RUNSDAYS` | **`90`** | How many days the runs are kept. |
 | `GEMINARR__BROWSER__DESKTOPURL` | none | The web desktop of the browser container, where a person signs in by hand: a **loopback** address of the namespace the two containers share (`http://127.0.0.1:3000`; anything else refuses the start). Geminarr relays it on an origin of its own (`DESKTOPPORT`), behind a cookie that a ticket of the operator's session gives (ADR 0019); the page *Connection* opens it. Without it nothing is relayed and the port is not opened. |
 | `GEMINARR__BROWSER__DESKTOPPORT` | **`8283`** | The port of the desktop's own origin: a second port of Geminarr that answers for the desktop and nothing else. It is not the page's port. Publish it like the page's (Service, ingress, network policy). |
@@ -40,6 +44,16 @@ Geminarr is configured **only by environment variables and files**, so that a wh
 The `GEMINARR__*` names are the supported contract (they are read after `appsettings.json`, so they win over it); the command line is not a channel for settings, and a secret, or the path of one, never goes there (arguments are visible to every process of the host).
 
 **Sessions are in memory**, with the keys that sign the cookies: a restart signs everybody out, and a lockout is forgotten (restarting is the way to lift one early). The page *Settings* shows what the container runs with, read only.
+
+### The settings of the extension itself
+
+They are not Geminarr's: they are the **policy of the browser** (`3rdparty.extensions.<id>`, see [DEPLOYMENT.md](DEPLOYMENT.md#the-extension-and-the-browser)).
+
+| Policy key | Default | Purpose |
+|---|---|---|
+| `geminarrUrl` | none | Where the extension sends what it reads, for example `http://geminarr:8282` (the name the browser reaches Geminarr by; it must be one of `GEMINARR__ALLOWEDHOSTNAMES`). Without it the extension does nothing. |
+| `token` | none | The token, the same as the content of `GEMINARR__EXTENSION__TOKENFILE`. |
+| `roundMinutes` | **`15`** | Minutes between two readings of the assistant (1 to 1 440). Keep it well below `GEMINARR__EXTENSION__SILENTAFTERMINUTES`. |
 
 ## From the next verticals
 

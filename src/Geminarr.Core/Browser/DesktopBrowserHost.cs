@@ -1,12 +1,10 @@
-using Geminarr.Core.Connection;
-using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Browser;
 
 /// <summary>
-/// The browser container as Geminarr sees it from outside, with no debugging port: it only knows whether the web desktop of the browser answers, which is where a person signs in by hand. What the session is (signed in or
-/// not, as whom) is not known from here: the extension of the browser says it (ADR 0015), and until it does the connection is "not connected". Nothing is attached, opened, typed or cleared.
+/// The browser container as Geminarr sees it from outside, with no debugging port (ADR 0021): it only looks whether the web desktop answers, which is where a person signs in by hand. What the session is (signed in or
+/// not, as whom) is the word of the extension of the browser (ADR 0022). Nothing is attached, opened, typed or cleared.
 /// </summary>
 public sealed class DesktopBrowserHost : IBrowserHost
 {
@@ -25,13 +23,13 @@ public sealed class DesktopBrowserHost : IBrowserHost
     /// <summary>The handler of the one call that this host makes: no redirect is followed, no proxy of the environment is used, no cookie is kept (a browser container is a third party's image).</summary>
     public static HttpMessageHandler NewHandler() => new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false };
 
-    public BrowserState State() => new(!string.IsNullOrWhiteSpace(_options.Value.DesktopUrl), _reachable switch { 1 => true, 0 => false, _ => null });
+    public BrowserState State() => new(!string.IsNullOrWhiteSpace(_options.Value.DesktopUrl), Volatile.Read(ref _reachable) switch { 1 => true, 0 => false, _ => null });
 
-    public async Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
+    public async Task<bool> ProbeAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.Value.DesktopUrl))
         {
-            return SessionCheck.NoBrowser;
+            return true;
         }
 
         try
@@ -39,16 +37,13 @@ public sealed class DesktopBrowserHost : IBrowserHost
             using var client = _http.CreateClient(nameof(DesktopBrowserHost));
             client.Timeout = Timeout;
             using var response = await client.GetAsync(_options.Value.DesktopUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            _reachable = 1;
-            return SessionCheck.NoBrowser;
+            Volatile.Write(ref _reachable, 1);
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            _reachable = 0;
-            throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.");
+            Volatile.Write(ref _reachable, 0);
+            return false;
         }
     }
-
-    public Task DisconnectAsync(CancellationToken cancellationToken) =>
-        throw new ConnectionRefusedException("Disconnecting comes with the extension of the browser: this version cannot clear the session.");
 }

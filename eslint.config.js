@@ -70,8 +70,18 @@ export default tseslint.config(
     },
   },
   {
+    // The extension runs in the browser (a service worker and a content script), where `chrome` is a global; the packing tool and its tests run in Node.
+    files: ['extension/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser, ...globals.serviceworker, chrome: 'readonly' } },
+  },
+  {
+    // The scripts of the e2e stack run in Node, in the containers of the stack.
+    files: ['tests/e2e/stack/**/*.mjs', 'tools/extension/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
     // Test inputs use example addresses and fakes keep mutable statics, as the repository's rules ask.
-    files: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'tests/**'],
+    files: ['**/__tests__/**', '**/*.test.{ts,tsx,mjs}', 'tests/**'],
     rules: {
       'sonarjs/no-hardcoded-ip': 'off',
       'sonarjs/no-clear-text-protocols': 'off',
@@ -91,5 +101,10 @@ export default tseslint.config(
       // Plain Node scripts run as they are by the stack's containers: CommonJS.
       '@typescript-eslint/no-require-imports': 'off',
     },
+  },
+  {
+    // SonarQube reads the scripts of the stack like any other source: the rules that the override above relaxes for tests stay on for them.
+    files: ['tests/e2e/stack/**/*.mjs'],
+    rules: { 'sonarjs/no-hardcoded-ip': 'error', 'sonarjs/no-clear-text-protocols': 'error' },
   },
 );

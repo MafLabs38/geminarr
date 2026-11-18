@@ -100,16 +100,22 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
-    public async Task should_refuse_to_disconnect_with_a_sentence_when_the_browser_cannot_clear_its_session()
+    public async Task should_say_that_a_sign_in_is_under_way_from_the_press_of_the_button_and_who_is_signed_in_once_the_extension_says_it()
     {
         using var factory = new BrowserFactory();
         using var client = await factory.SignedInClientAsync();
-        factory.Browser.DisconnectRefused = true;
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.SigningIn.Should().BeFalse();
 
-        var refused = await client.PostAsync("/api/v1/connection/disconnect", content: null, Token);
+        (await client.PostAsync("/api/v1/connection/desktop", content: null, Token)).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.SigningIn.Should().BeTrue();
 
-        refused.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
-        (await refused.Content.ReadAsStringAsync(Token)).Should().Contain("This version cannot clear the session.");
+        var inbox = factory.Services.GetRequiredService<Geminarr.Core.Extension.ExtensionInbox>();
+        inbox.RecordSession(signedIn: true, "1.0.0", DateTimeOffset.UtcNow, ["Google Account: Jane Doe (jane@example.org)"]);
+        factory.Services.GetRequiredService<Geminarr.Core.Connection.ConnectionTracker>().Connected();
+        var after = (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!;
+
+        after.SigningIn.Should().BeFalse();
+        after.Account.Should().Be(new AccountResource("Jane Doe", "jane@example.org"));
     }
 
     [Fact]
@@ -156,20 +162,6 @@ public sealed class ConnectionApiFixture
         untilResumed!.PausedUntil.Should().BeNull();
         var disconnected = await (await client.PostAsync("/api/v1/connection/disconnect", content: null, Token)).Content.ReadFromJsonAsync<ConnectionResource>(Token);
         disconnected!.State.Should().Be("NotConnected");
-        factory.Browser.Disconnected.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task should_tell_the_operator_that_the_browser_could_not_be_reached_and_forget_the_connection_all_the_same()
-    {
-        using var factory = new BrowserFactory();
-        using var client = await factory.SignedInClientAsync();
-        factory.Browser.Unreachable = true;
-
-        var response = await client.PostAsync("/api/v1/connection/disconnect", content: null, Token);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-        (await response.Content.ReadAsStringAsync(Token)).Should().Contain("could not be reached");
-        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.State.Should().Be("NotConnected");
+        factory.Services.GetRequiredService<Geminarr.Core.Extension.ExtensionInbox>().Disconnected.Should().BeTrue("the extension is asked to sign the account out");
     }
 }

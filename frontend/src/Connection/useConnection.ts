@@ -19,6 +19,10 @@ export interface Connection {
   pausedUntil: string | null;
   /** A desktop of the browser is there, where a person signs in by hand (ADR 0017, 0019): it is opened by an address that is asked for, not a path of this page. */
   hasDesktop: boolean;
+  /** Who the browser is signed in as (an address, and a name when the assistant's page gives one), or null when nobody is or when no check has found out yet. */
+  account: { name: string | null; email: string } | null;
+  /** A person is signing in right now: a tab of the browser is on the sign-in page of the account provider. */
+  signingIn: boolean;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
