@@ -5,6 +5,8 @@ x-node: &node
   image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
 services:
   geminarr:
+    # Two instances of the one image: this one has no reader and no Mnemarr (what a fresh deployment is), the other reads through the extension.
+    image: geminarr-e2e:ci
     build:
       context: ../../..
     ports:
@@ -12,11 +14,6 @@ services:
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
       - /config:uid=1654,gid=1654
-    volumes:
-      - package:/extension:ro
-    depends_on:
-      prepare:
-        condition: service_completed_successfully
     # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
     environment:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
@@ -25,8 +22,33 @@ services:
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg
+    configs:
+      - source: logo
+        target: /run/logo.svg
+        mode: 0444
+      - source: admin_password
+        target: /run/admin-password
+        mode: 0444
+  geminarr-extension:
+    image: geminarr-e2e:ci
+    pull_policy: never
+    ports:
+      - '8283:8282'
+    tmpfs:
+      - /config:uid=1654,gid=1654
+    volumes:
+      - package:/extension:ro
+    depends_on:
+      geminarr:
+        condition: service_started
+      prepare:
+        condition: service_completed_successfully
+    environment:
+      GEMINARR__AUTH__ADMINUSER: e2e-operator
+      GEMINARR__AUTH__ADMINPASSWORDFILE: /run/admin-password
+      GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
       # The browser reaches Geminarr by the name of its container: that name is allowed, like any other that a deployment uses.
-      GEMINARR__ALLOWEDHOSTNAMES: localhost;127.0.0.1;geminarr
+      GEMINARR__ALLOWEDHOSTNAMES: localhost;127.0.0.1;geminarr-extension
       # The reader is the extension, with its token in a file and its package in the folder that the preparation wrote.
       GEMINARR__READER__KIND: Web
       # One pass that finds nobody signed in is enough to say "sign in again" (three by default), so that a test does not wait for three rounds.
@@ -38,9 +60,6 @@ services:
       GEMINARR__MNEMARR__ALLOWINSECUREHTTP: 'true'
       GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/mnemarr-code
     configs:
-      - source: logo
-        target: /run/logo.svg
-        mode: 0444
       - source: admin_password
         target: /run/admin-password
         mode: 0444
@@ -74,7 +93,7 @@ services:
     working_dir: /stack
     environment:
       TOKEN: e2e-extension-token-0123456789abcdef0123456789abcdef
-      GEMINARR_URL: http://geminarr:8282
+      GEMINARR_URL: http://geminarr-extension:8282
       ASSISTANT_ORIGIN: http://assistant:8081
     volumes:
       - ./extension/prepare.mjs:/stack/tests/e2e/stack/extension/prepare.mjs:ro
@@ -94,7 +113,7 @@ services:
     volumes:
       - policy:/etc/chromium/policies/managed:ro
     depends_on:
-      geminarr:
+      geminarr-extension:
         condition: service_started
       assistant:
         condition: service_started

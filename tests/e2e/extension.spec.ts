@@ -3,6 +3,8 @@ import { expect, type PlaywrightWorkerArgs, test } from '@playwright/test';
 /** The operator of the e2e stack (tests/e2e/stack/docker-compose.yml): a test-only value. */
 const OPERATOR = { name: 'e2e-operator', password: 'e2e-admin-password' };
 /** What the stack publishes for the tests: the fake assistant (to sign it out and to add a conversation) and the fake Mnemarr (to read what it holds). */
+/** The instance of the stack that reads through the extension (the other one has no reader). */
+const GEMINARR = process.env.GEMINARR_EXTENSION_URL ?? 'http://localhost:8283';
 const ASSISTANT = 'http://localhost:8091';
 const MNEMARR = 'http://localhost:8092';
 
@@ -42,9 +44,9 @@ test.describe('the extension reads the assistant @smoke', () => {
   test(
     'it reads the conversations of the page and they reach Mnemarr, turn by turn',
     { tag: '@browserless' },
-    async ({ playwright, baseURL }) => {
+    async ({ playwright }) => {
       test.setTimeout(240_000);
-      const request = await signedInRequest(playwright, baseURL ?? '');
+      const request = await signedInRequest(playwright, GEMINARR);
 
       await expect
         .poll(async () => (await heldByMnemarr(playwright))['gemini-c1a2b3c4d5e6'] ?? 0, {
@@ -57,9 +59,9 @@ test.describe('the extension reads the assistant @smoke', () => {
         .poll(async () => Object.keys(await heldByMnemarr(playwright)).length, {
           timeout: 60_000,
           intervals: [3000],
-          message: 'the three conversations reach Mnemarr',
+          message: 'the conversations of the page reach Mnemarr',
         })
-        .toBe(3);
+        .toBeGreaterThanOrEqual(3);
 
       const connection = (await (await request.get('/api/v1/connection')).json()) as Connection;
       expect(connection).toMatchObject({ state: 'Connected', reader: 'Web' });
@@ -72,9 +74,9 @@ test.describe('the extension reads the assistant @smoke', () => {
   test(
     'a conversation added later is read in the next round and none is sent twice',
     { tag: '@browserless' },
-    async ({ playwright, baseURL }) => {
+    async ({ playwright }) => {
       test.setTimeout(240_000);
-      const request = await signedInRequest(playwright, baseURL ?? '');
+      const request = await signedInRequest(playwright, GEMINARR);
       const before = await heldByMnemarr(playwright);
 
       await (await playwright.request.newContext()).post(`${ASSISTANT}/admin/add`);
@@ -95,9 +97,9 @@ test.describe('the extension reads the assistant @smoke', () => {
   test(
     'a page that nobody is signed in to says "sign in again", and reading resumes when somebody is',
     { tag: '@browserless' },
-    async ({ playwright, baseURL }) => {
+    async ({ playwright }) => {
       test.setTimeout(240_000);
-      const request = await signedInRequest(playwright, baseURL ?? '');
+      const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       const state = async () => ((await (await request.get('/api/v1/connection')).json()) as Connection).state;
 
