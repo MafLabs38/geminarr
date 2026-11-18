@@ -1,6 +1,7 @@
 # 0018 — A guard may be lightened in a sandbox by an explicit setting; strict by default
 
 - **Status**: decided by the maintainer in the conversation of 2026-11-17; amended the same day after the architecture review (R-24-109): the minimum is not lightened while a browser is configured
+- **Amended by**: [0021](0021-geminarr-has-no-debugging-port-to-the-browser.md): Geminarr has no debugging port to the browser any more, so whatever this record says of `CDPURL`, the debugging address, attaching to the browser or driving it no longer holds; the rest stands.
 - **Date**: 2026-11-17
 - **Spec**: D-26, `GEMINARR__AUTH__MINPASSWORDLENGTH`
 

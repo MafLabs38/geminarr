@@ -53,7 +53,7 @@ public sealed class ConnectionController : ControllerBase
         return new ConnectionResource(record.State.ToString(), record.Since, record.LastOkAt, record.LastReason, _reader.Value.Kind.ToString(), _connection.HasBrowser, record.PausedUntil, !string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl), _connection.AccountAt(record) is { } account ? new AccountResource(account.Name, account.Email) : null, _connection.SigningInAt(record));
     }
 
-    /// <summary>Opens the sign-in page of the account provider in the browser container: the person signs in there by hand (any way the provider offers), and the connection notices when it is done.</summary>
+    /// <summary>Asks the browser to open its sign-in page. A Geminarr that has no debugging port to the browser opens nothing (ADR 0021): the person opens the desktop (<c>POST /connection/desktop</c>), where the browser is on the assistant, and signs in there by hand.</summary>
     [HttpPost("sign-in")]
     [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -130,15 +130,21 @@ public sealed class ConnectionController : ControllerBase
         return Get();
     }
 
-    /// <summary>Clears the session that the browser holds: the state is not connected, and a person signs in again by hand. What waits for Mnemarr stays.</summary>
+    /// <summary>Clears the session that the browser holds: the state is not connected, and a person signs in again by hand. What waits for Mnemarr stays. Refused (400) by a Geminarr that has no debugging port to the browser (ADR 0021).</summary>
     [HttpPost("disconnect")]
     [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     public async Task<ActionResult<ConnectionResource>> Disconnect(CancellationToken cancellationToken)
     {
         try
         {
             await _connection.DisconnectAsync(cancellationToken);
+        }
+        catch (ConnectionRefusedException ex)
+        {
+            // This version cannot clear the session (ADR 0021: that comes with the extension reader): the sentence is ours and nothing changed.
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
         }
         catch (ReaderException)
         {

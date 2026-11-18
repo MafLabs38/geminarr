@@ -1,6 +1,7 @@
 # 0020 — Geminarr's own egress is limited by its user, in the namespace that it shares with the browser
 
 - **Status**: decided on 2026-11-17, after the review's finding R-24-2 (and its repeats) and the maintainer's refusal to accept it: "fix it"; it ends the cost that ADR 0016 accepted **for the path that Geminarr takes by itself**, and says what it leaves
+- **Amended by**: [0021](0021-geminarr-has-no-debugging-port-to-the-browser.md): Geminarr has no debugging port to the browser any more, so whatever this record says of `CDPURL`, the debugging address, attaching to the browser or driving it no longer holds; the rest stands.
 - **Date**: 2026-11-17
 - **Spec**: D-28
 

@@ -115,6 +115,19 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
+    public async Task should_refuse_to_disconnect_with_a_sentence_when_the_browser_cannot_clear_its_session()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        factory.Browser.DisconnectRefused = true;
+
+        var refused = await client.PostAsync("/api/v1/connection/disconnect", content: null, Token);
+
+        refused.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+        (await refused.Content.ReadAsStringAsync(Token)).Should().Contain("This version cannot clear the session.");
+    }
+
+    [Fact]
     public async Task should_open_the_sign_in_page_of_the_browser_when_asked_and_say_so_when_the_browser_is_gone()
     {
         using var factory = new BrowserFactory();

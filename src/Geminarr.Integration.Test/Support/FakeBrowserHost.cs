@@ -13,6 +13,8 @@ public sealed class FakeBrowserHost : IBrowserHost
 
     public int Disconnected { get; private set; }
 
+    public bool DisconnectRefused { get; set; }
+
     public AccountIdentity? Account { get; set; }
 
     public bool SigningIn { get; set; }
@@ -45,6 +47,11 @@ public sealed class FakeBrowserHost : IBrowserHost
     public Task DisconnectAsync(CancellationToken cancellationToken)
     {
         Disconnected++;
+        if (DisconnectRefused)
+        {
+            throw new Geminarr.Core.Connection.ConnectionRefusedException("This version cannot clear the session.");
+        }
+
         return Unreachable ? throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.") : Task.CompletedTask;
     }
 }

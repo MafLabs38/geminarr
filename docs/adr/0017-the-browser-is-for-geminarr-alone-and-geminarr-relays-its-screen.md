@@ -3,6 +3,7 @@
 > **Amended by [ADR 0019](0019-the-desktop-has-an-origin-of-its-own-opened-by-a-ticket.md) (2026-11-17)**: the relay is no longer under `/browser/` of Geminarr's own origin but on an origin of its own, opened by a ticket of the operator's session. What the relay forwards, and what it keeps apart, stands.
 
 - **Status**: accepted by the maintainer in the conversation of 2026-11-15
+- **Amended by**: [0021](0021-geminarr-has-no-debugging-port-to-the-browser.md): Geminarr has no debugging port to the browser any more, so whatever this record says of `CDPURL`, the debugging address, attaching to the browser or driving it no longer holds; the rest stands.
 - **Date**: 2026-11-15
 - **Supersedes**: the parts of [0016](0016-the-browser-is-a-container-of-its-own.md) that gave the browser's web desktop an address of its own, a login of its own and a place behind the proxy's single sign-on (decisions 1 and 7 in part, the consequence "a sub-domain for the browser's page")
 - **Spec**: D-25, F-CON-01, F-LGN; applies ADR 0004 (a dedicated account) and D-08
