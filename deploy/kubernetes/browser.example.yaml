@@ -27,10 +27,10 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             # What the usual Chromium images need to start as root and drop to their own user; try without, and keep the list as short as the image allows.
-            # Documented exception to kubernetes:S5849 (marked on the line below): the list is the one that the image needs, as the comment above says.
-            capabilities: # NOSONAR
+            # Documented exception to kubernetes:S5849 (marked on the `add` line): the list is the one that the image needs, as the comment above says.
+            capabilities:
               drop: [ALL]
-              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL] # NOSONAR
           resources:
             requests:
               cpu: 100m
