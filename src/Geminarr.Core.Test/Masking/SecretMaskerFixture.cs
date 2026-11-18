@@ -59,4 +59,25 @@ public sealed partial class SecretMaskerFixture
 
         SecretMasker.Mask(text).Should().Be("my key:\n[masked:private-key]\nthanks");
     }
+
+    [Fact]
+    public void should_hide_a_private_key_whose_last_line_the_page_does_not_show()
+    {
+        var kind = "RSA " + "PRIVATE KEY";
+        var body = string.Join('\n', Enumerable.Repeat(new string('a', 64), 3));
+        var text = $"my key:\n-----BEGIN {kind}-----\n{body}\n\nthanks";
+
+        var masked = SecretMasker.Mask(text);
+
+        masked.Should().Be("my key:\n[masked:private-key]\n\nthanks");
+        masked.Should().NotContain("aaaaaaaa");
+    }
+
+    [Fact]
+    public void should_hide_the_first_line_of_a_private_key_that_is_the_last_thing_shown()
+    {
+        var kind = "OPENSSH " + "PRIVATE KEY";
+
+        SecretMasker.Mask($"here: -----BEGIN {kind}-----").Should().Be("here: [masked:private-key]");
+    }
 }

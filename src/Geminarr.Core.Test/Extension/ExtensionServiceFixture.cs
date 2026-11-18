@@ -653,4 +653,20 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         _inbox.Session!.Account.Should().Be(new Geminarr.Core.Browser.AccountIdentity("Jane Doe", "jane@example.org"));
     }
+
+    [Fact]
+    public void should_ask_for_nothing_and_take_nothing_while_the_operators_disconnect_stands()
+    {
+        var subject = Subject();
+        subject.Handle(ListOf(Item("c1a2b3")));
+        AskFor("c1a2b3");
+        _inbox.RequestSignOut();
+
+        var list = subject.Handle(ListOf(Item("c1a2b3"), Item("d2b3c4")));
+
+        list.Accepted.Should().BeTrue();
+        list.Open.Should().BeEmpty("the page that is shown is not a session that is read, whatever it shows");
+        AskFor("c1a2b3");
+        subject.Handle(ConversationOf("c1a2b3", new PushedTurn("user", "Hello"))).Accepted.Should().BeFalse("a conversation that arrives after the disconnect is refused");
+    }
 }

@@ -165,9 +165,11 @@ public sealed partial class ExtensionService
         }
 
         var waiting = _outbox.ConversationsWaiting();
+        // Nothing is asked for while the operator's disconnect stands (the sign-out is pending, or nobody has signed in since): what the page shows is not a session that is read.
+        var disconnected = _inbox.Disconnected;
         // What is asked for is chosen among the conversations that a pass looks at (`MaxListed`), never deeper: the past is the backfill's.
         var wanted = headers
-            .Take(_reader.Value.MaxListed)
+            .Take(disconnected ? 0 : _reader.Value.MaxListed)
             .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
@@ -183,7 +185,7 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A conversation has an id of letters, digits, - and _ (64 at most).");
         }
 
-        if (!_inbox.WasAsked(request.Id!))
+        if (!_inbox.WasAsked(request.Id!) || _inbox.Disconnected)
         {
             return ExtensionPushResult.Refused("Geminarr did not ask for that conversation.");
         }

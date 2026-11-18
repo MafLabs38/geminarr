@@ -40,7 +40,9 @@ public static partial class SecretMasker
     [GeneratedRegex(@"\\[nrtbf]", RegexOptions.CultureInvariant, LimitMilliseconds)]
     private static partial Regex Escapes();
 
-    [GeneratedRegex("-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.CultureInvariant | RegexOptions.Singleline, LimitMilliseconds)]
+    // A key as it was pasted (the first alternative: up to its last line), or as far as the page shows it when the last line is not there (the second: the lines of base64 that follow stay in the mask). A message that the page
+    // shortens until it is expanded leaves a key without its end.
+    [GeneratedRegex("-----BEGIN [A-Z ]*PRIVATE KEY-----(?:(?s:.*?)-----END [A-Z ]*PRIVATE KEY-----|(?:(?:[\\r\\n]|\\\\[nr]\u0001?)+[A-Za-z0-9+/=]{8,}[ \\t]*)*)", RegexOptions.CultureInvariant, LimitMilliseconds)]
     private static partial Regex PrivateKey();
 
     [GeneratedRegex(@"\bgithub_pat_[A-Za-z0-9_]{40,}", RegexOptions.CultureInvariant, LimitMilliseconds)]
