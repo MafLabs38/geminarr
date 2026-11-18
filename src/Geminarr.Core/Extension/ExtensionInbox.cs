@@ -39,9 +39,10 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
-    // Two jobs, two structures: the mark of each conversation that showed nothing (not asked for again for an hour, a read does not clear it), and the run of them since the last read (three break the reader).
-    private readonly Dictionary<string, DateTimeOffset> _unreadable = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _unreadableRun = new(StringComparer.Ordinal);
+    // Two jobs, two structures. The mark of each conversation that showed nothing lasts as long as that conversation stays as it was (same title, not moved up the list): a read does not clear it, an hour does not either,
+    // or an account with a few conversations of images or voice would have them opened again every hour. The run of them since the last read (three in the same hour break the reader) is the other.
+    private readonly Dictionary<string, UnreadableMark> _unreadable = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _unreadableRun = new(StringComparer.Ordinal);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
@@ -129,9 +130,10 @@ public sealed class ExtensionInbox
         {
             Purge(now);
             _asked.Remove(id);
-            _unreadable[id] = now;
-            _unreadableRun.Add(id);
-            foreach (var oldest in _unreadable.OrderBy(pair => pair.Value).Select(pair => pair.Key).Take(Math.Max(_unreadable.Count - MaxConversations, 0)).ToList())
+            var header = _list.FirstOrDefault(candidate => candidate.Id == id);
+            _unreadable[id] = new UnreadableMark(now, header?.Title, header?.Rank ?? 0);
+            _unreadableRun[id] = now;
+            foreach (var oldest in _unreadable.OrderBy(pair => pair.Value.At).Select(pair => pair.Key).Take(Math.Max(_unreadable.Count - MaxConversations, 0)).ToList())
             {
                 _unreadable.Remove(oldest);
                 _unreadableRun.Remove(oldest);
@@ -147,13 +149,16 @@ public sealed class ExtensionInbox
         }
     }
 
-    public bool IsUnreadable(string id)
+    /// <summary>Whether this conversation showed nothing and is still as it was: the same title, and not moved up the list (a conversation that was continued comes back to the top).</summary>
+    public bool IsUnreadable(ConversationHeader header)
     {
         lock (_gate)
         {
-            return _unreadable.ContainsKey(id);
+            return _unreadable.TryGetValue(header.Id, out var mark) && mark.Title == header.Title && header.Rank >= mark.Rank;
         }
     }
+
+    private sealed record UnreadableMark(DateTimeOffset At, string? Title, int Rank);
 
     private void Purge(DateTimeOffset now)
     {
@@ -167,9 +172,9 @@ public sealed class ExtensionInbox
             _asked.Remove(old);
         }
 
-        foreach (var old in _unreadable.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
+        // Only the run expires: three conversations that showed nothing hours apart are not a page that changed.
+        foreach (var old in _unreadableRun.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
         {
-            _unreadable.Remove(old);
             _unreadableRun.Remove(old);
         }
     }

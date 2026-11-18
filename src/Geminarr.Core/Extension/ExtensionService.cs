@@ -143,7 +143,7 @@ public sealed partial class ExtensionService
         // What is asked for is chosen among the conversations that a pass looks at (`MaxListed`), never deeper: the past is the backfill's.
         var wanted = headers
             .Take(_reader.Value.MaxListed)
-            .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
+            .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
             .ToList();

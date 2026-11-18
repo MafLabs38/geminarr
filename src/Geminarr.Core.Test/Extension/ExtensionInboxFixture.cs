@@ -167,7 +167,7 @@ public sealed class ExtensionInboxFixture
 
         // Round two, a quarter of an hour later: the three are not asked for again, so nothing can break the page again.
         var later = Now.AddMinutes(15);
-        new[] { "v1", "v2", "v3" }.Should().OnlyContain(id => _subject.IsUnreadable(id));
+        new[] { "v1", "v2", "v3" }.Should().OnlyContain(id => _subject.IsUnreadable(Header(id)));
         _subject.RecordConversation("r0", "T", readable, later);
         _subject.Session!.Broken.Should().BeNull();
 
@@ -176,19 +176,34 @@ public sealed class ExtensionInboxFixture
     }
 
     [Fact]
-    public void should_forget_the_unreadable_ones_after_an_hour_and_when_nobody_is_signed_in_but_not_when_a_conversation_is_read()
+    public void should_keep_an_unreadable_one_while_it_is_as_it_was_and_forget_it_when_it_changes_and_when_nobody_is_signed_in()
     {
+        _subject.RecordList([new ConversationHeader("c0", "Zero", 0), new ConversationHeader("c1", "One", 3)], null, Now);
         _subject.RecordUnreadable("c1", null, Now);
         _subject.RecordConversation("c9", "T", [new Turn("user", null, "hi")], Now);
-        _subject.IsUnreadable("c1").Should().BeTrue("a conversation that shows nothing is not asked for again for an hour, whatever was read since");
 
-        _subject.RecordUnreadable("c3", null, Now);
-        _subject.RecordUnreadable("c4", null, Now.Add(ExtensionInbox.HeldFor).AddMinutes(1));
-        _subject.IsUnreadable("c3").Should().BeFalse("an hour passed");
-        _subject.IsUnreadable("c4").Should().BeTrue();
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 3)).Should().BeTrue("a read does not clear it");
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 7)).Should().BeTrue("further down the list is still as it was");
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 0)).Should().BeFalse("moved up: it was continued");
+        _subject.IsUnreadable(new ConversationHeader("c1", "Renamed", 3)).Should().BeFalse("renamed");
+        _subject.IsUnreadable(new ConversationHeader("c2", "One", 3)).Should().BeFalse("another conversation");
+
+        _subject.RecordConversation("c8", "T", [new Turn("user", null, "hi")], Now.Add(ExtensionInbox.HeldFor).AddMinutes(1));
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 3)).Should().BeTrue("an hour is not a reason to open it again");
 
         _subject.RecordSession(signedIn: false, null, Now);
-        _subject.IsUnreadable("c4").Should().BeFalse();
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 3)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_not_take_three_conversations_without_a_turn_for_a_page_that_changed_when_they_are_more_than_an_hour_apart()
+    {
+        _subject.RecordSession(signedIn: true, null, Now);
+
+        _subject.RecordUnreadable("v1", null, Now).Should().BeFalse();
+        _subject.RecordUnreadable("v2", null, Now.AddMinutes(40)).Should().BeFalse();
+        _subject.RecordUnreadable("v3", null, Now.Add(ExtensionInbox.HeldFor).AddMinutes(5)).Should().BeFalse("the first one is more than an hour old");
+        _subject.Session!.Broken.Should().BeNull();
     }
 
     [Fact]
@@ -223,7 +238,9 @@ public sealed class ExtensionInboxFixture
             _subject.RecordUnreadable($"c{i}", null, Now.AddSeconds(i));
         }
 
-        _subject.IsUnreadable("c0").Should().BeFalse();
-        _subject.IsUnreadable($"c{ExtensionInbox.MaxConversations + 4}").Should().BeTrue();
+        _subject.IsUnreadable(Header("c0")).Should().BeFalse();
+        _subject.IsUnreadable(Header($"c{ExtensionInbox.MaxConversations + 4}")).Should().BeTrue();
     }
+
+    private static ConversationHeader Header(string id) => new(id, null, 0);
 }

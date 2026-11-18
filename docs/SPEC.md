@@ -363,7 +363,7 @@ Priority: **M** must (the MVP) · **S** should · **C** could. Vertical: see [RO
 | F-RDR-03 | Incremental passes: candidates, positions, outbox, batches | M | 4 |
 | F-RDR-04 | Backfill of the whole history at a slow pace (§6.3) | S | 4 |
 | F-RDR-05 | `reader-broken` and `rate-limited` handling, backoff (§6.4) | M | 4 |
-| F-RDR-06 | Masking of secrets before the outbox | M | 4 |
+| F-RDR-06 | Masking of secrets before the outbox | M | 5 (the web reader of vertical 3 goes live with Mnemarr's masking alone; [SECURITY.md](../SECURITY.md)) |
 | F-RDR-07 | "Run now" | S | 4 |
 | **F-IMP** | **The Takeout import** | | |
 | F-IMP-01 | Upload or drop an archive; safe reading; mapping to conversations (§8) | M | 5 |
