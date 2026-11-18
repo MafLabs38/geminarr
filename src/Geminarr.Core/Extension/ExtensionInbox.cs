@@ -39,7 +39,9 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
+    // Two jobs, two structures: the mark of each conversation that showed nothing (not asked for again for an hour, a read does not clear it), and the run of them since the last read (three break the reader).
     private readonly Dictionary<string, DateTimeOffset> _unreadable = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _unreadableRun = new(StringComparer.Ordinal);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
@@ -73,6 +75,7 @@ public sealed class ExtensionInbox
                 _conversations.Clear();
                 _asked.Clear();
                 _unreadable.Clear();
+                _unreadableRun.Clear();
                 _list = [];
             }
         }
@@ -127,12 +130,14 @@ public sealed class ExtensionInbox
             Purge(now);
             _asked.Remove(id);
             _unreadable[id] = now;
+            _unreadableRun.Add(id);
             foreach (var oldest in _unreadable.OrderBy(pair => pair.Value).Select(pair => pair.Key).Take(Math.Max(_unreadable.Count - MaxConversations, 0)).ToList())
             {
                 _unreadable.Remove(oldest);
+                _unreadableRun.Remove(oldest);
             }
 
-            if (_unreadable.Count < UnreadableToBreak)
+            if (_unreadableRun.Count < UnreadableToBreak)
             {
                 return false;
             }
@@ -165,6 +170,7 @@ public sealed class ExtensionInbox
         foreach (var old in _unreadable.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
         {
             _unreadable.Remove(old);
+            _unreadableRun.Remove(old);
         }
     }
 
@@ -190,7 +196,8 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             Purge(now);
-            _unreadable.Clear();
+            // A conversation was read: the run of unreadable ones starts again, but each of them stays marked for its hour (it is not asked for again).
+            _unreadableRun.Clear();
             _conversations[id] = (title, turns, now);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             var held = HeldCharacters();

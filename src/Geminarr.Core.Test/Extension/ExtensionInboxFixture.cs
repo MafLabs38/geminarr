@@ -153,12 +153,34 @@ public sealed class ExtensionInboxFixture
     }
 
     [Fact]
-    public void should_forget_the_unreadable_ones_when_a_conversation_is_read_and_after_an_hour_and_when_nobody_is_signed_in()
+    public void should_not_flip_the_page_between_broken_and_known_when_three_textless_conversations_come_with_a_readable_one()
+    {
+        _subject.RecordSession(signedIn: true, null, Now);
+        var readable = new[] { new Turn("user", null, "hi") };
+
+        // Round one: the three textless ones answer first, then the readable one.
+        _subject.RecordUnreadable("v1", null, Now).Should().BeFalse();
+        _subject.RecordUnreadable("v2", null, Now).Should().BeFalse();
+        _subject.RecordUnreadable("v3", null, Now).Should().BeTrue();
+        _subject.RecordConversation("r0", "T", readable, Now);
+        _subject.Session!.Broken.Should().BeNull();
+
+        // Round two, a quarter of an hour later: the three are not asked for again, so nothing can break the page again.
+        var later = Now.AddMinutes(15);
+        new[] { "v1", "v2", "v3" }.Should().OnlyContain(id => _subject.IsUnreadable(id));
+        _subject.RecordConversation("r0", "T", readable, later);
+        _subject.Session!.Broken.Should().BeNull();
+
+        // A new textless conversation alone is one, not three in a row.
+        _subject.RecordUnreadable("v4", null, later).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_forget_the_unreadable_ones_after_an_hour_and_when_nobody_is_signed_in_but_not_when_a_conversation_is_read()
     {
         _subject.RecordUnreadable("c1", null, Now);
-        _subject.RecordUnreadable("c2", null, Now);
         _subject.RecordConversation("c9", "T", [new Turn("user", null, "hi")], Now);
-        _subject.IsUnreadable("c1").Should().BeFalse("a conversation was read: the page is the one that is known");
+        _subject.IsUnreadable("c1").Should().BeTrue("a conversation that shows nothing is not asked for again for an hour, whatever was read since");
 
         _subject.RecordUnreadable("c3", null, Now);
         _subject.RecordUnreadable("c4", null, Now.Add(ExtensionInbox.HeldFor).AddMinutes(1));

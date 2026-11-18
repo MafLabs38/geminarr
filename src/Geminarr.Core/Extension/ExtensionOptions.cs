@@ -12,7 +12,7 @@ public sealed class ExtensionOptions
     /// <summary>The file that holds the token that the extension presents (a secret mounted as a file, never an environment variable). Without it nothing that the extension sends is accepted.</summary>
     public string? TokenFile { get; set; }
 
-    /// <summary>The folder of the extension's package (<c>extension.json</c>, the signed <c>.crx</c>, the selectors), relative to the application unless it is absolute.</summary>
+    /// <summary>The folder of the extension's package (<c>extension.json</c> and the signed <c>.crx</c>), relative to the application unless it is absolute.</summary>
     public string PackageFolder { get; set; } = "extension";
 
     /// <summary>The address by which the browser reaches Geminarr, when it is not the one of the request (a proxy that ends TLS): the update manifest of the extension names the package by it. Empty: the address of the request.</summary>
