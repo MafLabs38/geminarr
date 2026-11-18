@@ -356,7 +356,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         Subject().Handle(new ExtensionPushRequest("conversation", null, "c2", new string('t', ExtensionService.MaxTitleLength + 50), null, [new PushedTurn("user", "x")], null)).Accepted.Should().BeTrue();
     }
 
-    private ExtensionPushResult NoTurns(string? id) => Subject().Handle(new ExtensionPushRequest("broken", null, id, null, null, null, null, ExtensionBrokenSteps.Turns));
+    private ExtensionPushResult NoTurns(string? id) => Subject().Handle(new ExtensionPushRequest("broken", null, id, null, null, null, "1.0.0", ExtensionBrokenSteps.Turns));
 
     [Fact]
     public async Task should_not_call_the_reader_broken_for_one_conversation_without_a_turn_but_for_three_in_a_row()

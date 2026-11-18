@@ -39,13 +39,7 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
-    // Two jobs, two structures. The mark of each conversation that showed nothing lasts as long as that conversation stays as it was (same title, not moved up the list): a read does not clear it, an hour does not either,
-    // or an account with a few conversations of images or voice would have them opened again every hour. The run of them since the last read (three in the same hour break the reader) is the other.
-    private readonly Dictionary<string, UnreadableMark> _unreadable = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, DateTimeOffset> _unreadableRun = new(StringComparer.Ordinal);
-    // The marks of a run of three, or made while the turns are broken: evidence about the page, not about the conversations. They become marks only if a conversation is then read by the same version of the extension (the page was fine,
-    // so those conversations really had no text); a read by another version (a fix) drops them, so that nothing that had text is skipped for good.
-    private readonly Dictionary<string, UnreadableMark> _pending = new(StringComparer.Ordinal);
+    private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
@@ -79,8 +73,6 @@ public sealed class ExtensionInbox
                 _conversations.Clear();
                 _asked.Clear();
                 _unreadable.Clear();
-                _unreadableRun.Clear();
-                _pending.Clear();
                 _list = [];
             }
         }
@@ -134,30 +126,10 @@ public sealed class ExtensionInbox
         {
             Purge(now);
             _asked.Remove(id);
-            var header = _list.FirstOrDefault(candidate => candidate.Id == id);
-            var mark = new UnreadableMark(now, header?.Title, header?.Rank ?? 0, version);
-            _unreadableRun[id] = now;
-            if (_session?.Broken == ExtensionBrokenSteps.Turns)
-            {
-                _pending[id] = mark;
-            }
-            else
-            {
-                _unreadable[id] = mark;
-            }
-
-            TrimMarks();
-            if (_unreadableRun.Count < UnreadableToBreak)
+            var brokenBefore = _session?.Broken == ExtensionBrokenSteps.Turns;
+            if (!_unreadable.Record(id, _list.FirstOrDefault(candidate => candidate.Id == id), version, now, brokenBefore, UnreadableToBreak))
             {
                 return false;
-            }
-
-            foreach (var runId in _unreadableRun.Keys)
-            {
-                if (_unreadable.Remove(runId, out var held))
-                {
-                    _pending[runId] = held;
-                }
             }
 
             _session = new ExtensionSession(_session?.SignedIn ?? true, version, now, ExtensionBrokenSteps.Turns);
@@ -165,29 +137,14 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>The bound of the marks, as of everything this holds: the oldest go first.</summary>
-    private void TrimMarks()
-    {
-        foreach (var held in new[] { _unreadable, _pending })
-        {
-            foreach (var oldest in held.OrderBy(pair => pair.Value.At).Select(pair => pair.Key).Take(Math.Max(held.Count - MaxConversations, 0)).ToList())
-            {
-                held.Remove(oldest);
-                _unreadableRun.Remove(oldest);
-            }
-        }
-    }
-
-    /// <summary>Whether this conversation showed nothing and is still as it was: the same title, and not moved up the list (a conversation that was continued comes back to the top). The most recent one is never excluded: it cannot move up, and is looked at every time.</summary>
+    /// <summary>Whether this conversation showed nothing and is still as it was, for the version of the extension that is running: the same title, and not moved up the list (a conversation that was continued comes back to the top).</summary>
     public bool IsUnreadable(ConversationHeader header)
     {
         lock (_gate)
         {
-            return header.Rank > 0 && _unreadable.TryGetValue(header.Id, out var mark) && mark.Title == header.Title && header.Rank >= mark.Rank;
+            return _unreadable.Holds(header, _session?.Version);
         }
     }
-
-    private sealed record UnreadableMark(DateTimeOffset At, string? Title, int Rank, string? Version);
 
     private void Purge(DateTimeOffset now)
     {
@@ -201,16 +158,7 @@ public sealed class ExtensionInbox
             _asked.Remove(old);
         }
 
-        // Only the run expires: three conversations that showed nothing hours apart are not a page that changed.
-        foreach (var old in _unreadableRun.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
-        {
-            _unreadableRun.Remove(old);
-        }
-
-        foreach (var old in _pending.Where(pair => now - pair.Value.At > HeldFor).Select(pair => pair.Key).ToList())
-        {
-            _pending.Remove(old);
-        }
+        _unreadable.Purge(now);
     }
 
     /// <summary>The page is not what the extension knows, at this step: the session stays what it was said to be, with the step.</summary>
@@ -236,13 +184,8 @@ public sealed class ExtensionInbox
         {
             Purge(now);
             // A conversation was read: the run of unreadable ones starts again, but each of them stays marked for its hour (it is not asked for again).
-            _unreadableRun.Clear();
-            foreach (var (pendingId, pending) in _pending.Where(pair => pair.Value.Version == version).ToList())
-            {
-                _unreadable[pendingId] = pending;
-            }
-
-            _pending.Clear();
+            // A conversation was read: the run of unreadable ones starts again, each of them stays marked, and what a broken page held aside is believed if this version read it.
+            _unreadable.Read(version);
             _conversations[id] = (title, turns, now);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             var held = HeldCharacters();

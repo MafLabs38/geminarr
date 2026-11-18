@@ -214,6 +214,18 @@ public sealed class ExtensionInboxFixture
     }
 
     [Fact]
+    public void should_ask_again_for_every_marked_conversation_when_another_version_of_the_extension_runs()
+    {
+        _subject.RecordList([new ConversationHeader("c0", "Zero", 0), new ConversationHeader("c1", "One", 3)], "1.0.0", Now);
+        _subject.RecordUnreadable("c1", "1.0.0", Now);
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 3)).Should().BeTrue();
+
+        _subject.RecordList([new ConversationHeader("c0", "Zero", 0), new ConversationHeader("c1", "One", 3)], "1.0.1", Now);
+
+        _subject.IsUnreadable(new ConversationHeader("c1", "One", 3)).Should().BeFalse("a fixed extension may read what the old one could not");
+    }
+
+    [Fact]
     public void should_never_exclude_the_most_recent_conversation_whatever_it_showed()
     {
         _subject.RecordList([new ConversationHeader("c0", "Zero", 0)], null, Now);
