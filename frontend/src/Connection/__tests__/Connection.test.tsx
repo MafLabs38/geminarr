@@ -16,6 +16,7 @@ const base: ConnectionResource = {
   hasDesktop: true,
   account: null,
   signingIn: false,
+  signOutPending: false,
 };
 
 describe('Connection', () => {
@@ -99,6 +100,16 @@ describe('Connection', () => {
     serveApi({ 'GET /connection': () => ({ ...base, state: 'Connected' }) });
     renderAt(<Connection />);
     expect(await screen.findByText('Signed in (the account is not read yet)')).toBeInTheDocument();
+  });
+
+  it('says that the account is being signed out while the extension has not confirmed it', async () => {
+    serveApi({
+      'GET /connection': () => ({ ...base, state: 'NotConnected', reason: 'disconnected', signOutPending: true }),
+    });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText(/Signing out of the browser/)).toBeInTheDocument();
+    expect(screen.getByText(/Disconnected: the account is signed out of the browser/)).toBeInTheDocument();
   });
 
   it('says that the session has ended when a sign-in is asked for again', async () => {

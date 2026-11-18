@@ -364,7 +364,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         AskFor("c1", "c2", "c3");
         NoTurns("c1").Accepted.Should().BeTrue();
         NoTurns("c2").Accepted.Should().BeTrue();
-        _inbox.Session?.Broken.Should().BeNull("a conversation with nothing to read is not a page that changed");
+        (_inbox.Session?.Broken).Should().BeNull("a conversation with nothing to read is not a page that changed");
         (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeFalse();
 
         NoTurns("c3").Accepted.Should().BeTrue();
@@ -386,7 +386,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         AskFor("c3", "c4");
         NoTurns("c3");
         NoTurns("c4");
-        _inbox.Session?.Broken.Should().BeNull("one was read after the first: they are not in a row");
+        (_inbox.Session?.Broken).Should().BeNull("one was read after the first: they are not in a row");
     }
 
     [Fact]
@@ -483,7 +483,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).Round.Should().BeTrue();
         subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).Round.Should().BeFalse("a round that was asked for is asked once");
 
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
         subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).SignOut.Should().BeTrue();
     }
 
@@ -516,7 +516,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
         _inbox.BeginSigningIn(_clock.GetUtcNow());
         _clock.Advance(TimeSpan.FromSeconds(1));
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
 
         _inbox.SigningIn(_clock.GetUtcNow()).Should().BeFalse("a person is not signing in: the operator has just signed the account out");
     }
@@ -527,7 +527,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         var subject = Subject();
         var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
         subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
 
         // The list of a round that read the page before the cookies were deleted arrives after the operator disconnected.
         subject.Handle(ListOf(Item("c1a2b3")));
@@ -542,20 +542,36 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
-    public void should_stop_asking_for_the_sign_out_when_nobody_is_signed_in_or_when_the_time_is_over()
+    public void should_ask_for_the_sign_out_until_the_extension_says_that_nobody_is_signed_in_however_long_that_takes()
     {
         var subject = Subject();
         var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
         subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
         subject.Handle(hello).SignOut.Should().BeTrue();
+        _inbox.SignOutPending.Should().BeTrue();
+
+        _clock.Advance(TimeSpan.FromHours(3));
+        subject.Handle(hello).SignOut.Should().BeTrue("the browser may have been off: the request is not dropped after a while");
 
         subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, "1.0.0"));
         subject.Handle(hello).SignOut.Should().BeFalse("nobody is signed in: it is done");
+        _inbox.SignOutPending.Should().BeFalse();
+        _inbox.Disconnected.Should().BeTrue("and nothing is read until somebody signs in again");
+    }
 
-        _inbox.RequestSignOut(_clock.GetUtcNow());
-        _clock.Advance(ExtensionInbox.SignOutFor + TimeSpan.FromSeconds(1));
-        subject.Handle(hello).SignOut.Should().BeFalse("the request is old: the extension is not asked for ever");
+    [Fact]
+    public void should_stop_saying_that_a_person_is_signing_in_after_ten_minutes()
+    {
+        var subject = Subject();
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, "1.0.0"));
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+
+        _clock.Advance(TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(1));
+
+        _inbox.SigningIn(_clock.GetUtcNow()).Should().BeFalse();
+        subject.Handle(hello).Round.Should().BeFalse("what it said is older than twenty seconds, but nobody is signing in any more, and the rounds are every fifteen minutes");
     }
 
     [Fact]
@@ -564,7 +580,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         var subject = Subject();
         AskFor("c1a2b3");
 
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
 
         subject.Handle(ConversationOf("c1a2b3", new PushedTurn("user", "Hello"))).Accepted.Should().BeFalse("nothing is asked any longer after a disconnect");
     }

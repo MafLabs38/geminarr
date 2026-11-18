@@ -96,7 +96,7 @@ public sealed class ExtensionReaderFixture
     public async Task should_not_take_a_session_that_the_operator_signed_out_for_a_login_that_expired()
     {
         _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
 
         (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser, "it is what was asked for, whatever the page was last said to show: no mail, no sign-in again");
 

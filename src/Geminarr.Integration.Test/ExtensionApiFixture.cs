@@ -336,4 +336,34 @@ public sealed class ExtensionApiFixture
 
         xml.Should().Contain($"codebase='https://geminarr.homelab.example/api/v1/extension/package/{ExtensionFactory.FileName}'");
     }
+
+    [Fact]
+    public async Task should_answer_a_heartbeat_with_the_keys_that_the_extension_reads()
+    {
+        using var factory = new ExtensionFactory();
+        using var client = factory.CreateClient();
+
+        var asked = await client.SendAsync(Push(new { kind = "hello", version = "1.2.3" }), CancellationToken);
+        var body = await asked.Content.ReadAsStringAsync(CancellationToken);
+
+        asked.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().Contain("\"round\":true", "nothing is known yet: a round is asked for").And.Contain("\"signOut\":false").And.Contain("\"open\":[]");
+    }
+
+    [Fact]
+    public async Task should_ask_the_extension_for_a_round_when_the_operator_runs_a_pass_and_for_the_sign_out_when_the_operator_disconnects()
+    {
+        using var factory = new ExtensionFactory();
+        using var operatorClient = await factory.SignedInClientAsync();
+        using var client = factory.CreateClient();
+        (await client.SendAsync(Push(new { kind = "state", signedIn = true, version = "1.2.3" }), CancellationToken)).EnsureSuccessStatusCode();
+        var hello = new { kind = "hello", version = "1.2.3" };
+        (await (await client.SendAsync(Push(hello), CancellationToken)).Content.ReadAsStringAsync(CancellationToken)).Should().Contain("\"round\":false");
+
+        (await operatorClient.PostAsync("/api/v1/runs", content: null, CancellationToken)).EnsureSuccessStatusCode();
+        (await (await client.SendAsync(Push(hello), CancellationToken)).Content.ReadAsStringAsync(CancellationToken)).Should().Contain("\"round\":true", "Run now asks the extension too");
+        (await operatorClient.PostAsync("/api/v1/connection/disconnect", content: null, CancellationToken)).EnsureSuccessStatusCode();
+
+        (await (await client.SendAsync(Push(hello), CancellationToken)).Content.ReadAsStringAsync(CancellationToken)).Should().Contain("\"signOut\":true");
+    }
 }

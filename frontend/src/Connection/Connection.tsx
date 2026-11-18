@@ -39,6 +39,8 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
     headline = translate('SignedInAs', { who: account.name ?? account.email });
   } else if (connection.state === 'Connected') {
     headline = translate('SignedInUnknownAccount');
+  } else if (connection.signOutPending) {
+    headline = translate('SigningOutNow');
   } else if (connection.signingIn) {
     headline = translate('SigningInNow');
   } else if (connection.state === 'NeedsLogin') {

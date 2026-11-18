@@ -207,7 +207,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
       await new Promise((resolve) => setTimeout(resolve, 8000));
       expect(await connectionOf(request)).toMatchObject({
         state: 'NotConnected',
-        reason: 'not-connected',
+        reason: 'disconnected',
         account: null,
       });
 

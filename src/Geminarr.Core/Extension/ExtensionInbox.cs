@@ -1,4 +1,5 @@
 using Geminarr.Core.Browser;
+using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
 
 namespace Geminarr.Core.Extension;
@@ -35,29 +36,29 @@ public sealed class ExtensionInbox
     /// <summary>How long what the extension handed over, or what it was asked for, is kept when no pass takes it: the next round brings it again.</summary>
     public static readonly TimeSpan HeldFor = TimeSpan.FromHours(1);
 
-    /// <summary>How long a sign-in that the operator started is waited for: after it, the page stops saying "signing in" and the extension stops being asked for rounds.</summary>
-    public static readonly TimeSpan SigningInFor = TimeSpan.FromMinutes(10);
-
-    /// <summary>How old what the extension said last may be, while a person signs in, before it is asked for a round again.</summary>
-    public static readonly TimeSpan SigningInRoundEvery = TimeSpan.FromSeconds(20);
-
-    /// <summary>How long a request to sign the account out stays open: the extension is asked each time it says that it is there, until it says that nobody is signed in, or until then.</summary>
-    public static readonly TimeSpan SignOutFor = TimeSpan.FromMinutes(5);
-
     private readonly Lock _gate = new();
     private readonly int _maxHeldCharacters;
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
-    private DateTimeOffset? _signingInSince;
-    private DateTimeOffset? _signOutAsked;
-    private bool _roundAsked;
-    private bool _disconnected;
+    private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
     {
+    }
+
+    /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
+    public static ExtensionInbox Restored(ConnectionRecord record)
+    {
+        var inbox = new ExtensionInbox();
+        if (record.LastReason == ConnectionReasons.Disconnected)
+        {
+            inbox.RequestSignOut();
+        }
+
+        return inbox;
     }
 
     internal ExtensionInbox(int maxHeldCharacters)
@@ -83,13 +84,12 @@ public sealed class ExtensionInbox
             _session = new ExtensionSession(signedIn, version, now, Account: signedIn ? AccountLabel.Parse(labels ?? []) : null);
             if (signedIn)
             {
-                _signingInSince = null;
-                EndDisconnectIfSignedOutIsOver(now);
+                _intents.SaidSignedIn();
             }
             else
             {
                 // The sign-out that was asked for is done (or was never needed): nothing is asked of the extension any longer.
-                _signOutAsked = null;
+                _intents.SaidSignedOut();
                 // Nobody is signed in: what was read for the account that was is not kept for the next one.
                 _conversations.Clear();
                 _asked.Clear();
@@ -99,7 +99,8 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account); says whether the session was signed out or broken at the page or the list before (news worth a pass); a list does not mend the turns.</summary>
+    /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account).</summary>
+    /// <returns>Whether the session was signed out or broken at the page or the list before: news worth a pass. A list does not mend a break of the turns.</returns>
     public bool RecordList(IReadOnlyList<ConversationHeader> list, string? version, DateTimeOffset now, IReadOnlyList<string?>? labels = null)
     {
         lock (_gate)
@@ -109,8 +110,7 @@ public sealed class ExtensionInbox
             var wasNotWell = _session is { SignedIn: false } or { Broken: ExtensionBrokenSteps.Page or ExtensionBrokenSteps.List };
             _list = list;
             _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null, AccountLabel.Parse(labels ?? []) ?? _session?.Account);
-            _signingInSince = null;
-            EndDisconnectIfSignedOutIsOver(now);
+            _intents.SaidSignedIn();
             return wasNotWell;
         }
     }
@@ -193,59 +193,39 @@ public sealed class ExtensionInbox
         }
     }
 
-    private bool SignOutPending(DateTimeOffset now) => _signOutAsked is { } asked && now - asked < SignOutFor;
-
-    /// <summary>
-    /// A word of "signed in" ends the disconnect only once the sign-out is over (the extension said that nobody is signed in, or the request is old): a round that was under way when the operator disconnected says "signed in"
-    /// about a page that it read before the cookies were deleted, and is not somebody signing in again.
-    /// </summary>
-    private void EndDisconnectIfSignedOutIsOver(DateTimeOffset now)
-    {
-        if (!SignOutPending(now))
-        {
-            _disconnected = false;
-            _signOutAsked = null;
-        }
-    }
-
-    /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser, so the extension is asked for rounds, quickly, until it says that somebody is signed in (or <see cref="SigningInFor"/> is over).</summary>
+    /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser, so the extension is asked for rounds, quickly, until it says that somebody is signed in (or <see cref="ExtensionIntents.SigningInFor"/> is over).</summary>
     public void BeginSigningIn(DateTimeOffset now)
     {
         lock (_gate)
         {
-            _signingInSince = now;
+            _intents.BeginSigningIn(now);
         }
     }
 
-    /// <summary>Whether a sign-in that the operator started is being waited for: it ends when the extension says that somebody is signed in, and after <see cref="SigningInFor"/>.</summary>
+    /// <summary>Whether a sign-in that the operator started is being waited for: it ends when the extension says that somebody is signed in, and after ten minutes.</summary>
     public bool SigningIn(DateTimeOffset now)
     {
         lock (_gate)
         {
-            return IsSigningIn(now);
+            return _intents.SigningIn(now, _session);
         }
     }
-
-    private bool IsSigningIn(DateTimeOffset now) =>
-        _signingInSince is { } since && now - since < SigningInFor && !(_session is { SignedIn: true } signedIn && signedIn.At >= since);
 
     /// <summary>The operator asked to look again: the extension is asked for a round the next time it says that it is there.</summary>
     public void RequestRound()
     {
         lock (_gate)
         {
-            _roundAsked = true;
+            _intents.RequestRound();
         }
     }
 
-    /// <summary>The operator disconnected: the extension is asked to sign the account out, and until somebody signs in again nothing is made of the session being gone (it is what was asked for).</summary>
-    public void RequestSignOut(DateTimeOffset now)
+    /// <summary>The operator disconnected: the extension is asked to sign the account out (until it says that nobody is signed in), and until somebody signs in again nothing is made of the session being gone (it is what was asked for).</summary>
+    public void RequestSignOut()
     {
         lock (_gate)
         {
-            _signOutAsked = now;
-            _disconnected = true;
-            _signingInSince = null;
+            _intents.RequestSignOut();
             _conversations.Clear();
             _asked.Clear();
             _unreadable.Clear();
@@ -260,22 +240,29 @@ public sealed class ExtensionInbox
         {
             lock (_gate)
             {
-                return _disconnected;
+                return _intents.Disconnected;
             }
         }
     }
 
-    /// <summary>
-    /// What the extension is asked when it says that it is there: a round now (it was asked for, what it said last is older than the interval of the rounds, a person is signing in and what it said last is old, or nothing is known yet: after a restart) and the sign-out. A
-    /// round that was asked for is asked once.
-    /// </summary>
+    /// <summary>Whether the extension was asked to sign the account out and has not said yet that nobody is signed in (the browser may be off).</summary>
+    public bool SignOutPending
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _intents.SignOutPending;
+            }
+        }
+    }
+
+    /// <summary>What the extension is asked when it says that it is there: a round now, and the sign-out (see <see cref="ExtensionIntents.TakeHints"/>).</summary>
     public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, TimeSpan roundEvery)
     {
         lock (_gate)
         {
-            var round = _roundAsked || _session is null || now - _session.At >= roundEvery || (IsSigningIn(now) && now - _session.At >= SigningInRoundEvery);
-            _roundAsked = false;
-            return (round, SignOutPending(now));
+            return _intents.TakeHints(now, _session, roundEvery);
         }
     }
 
@@ -292,7 +279,6 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             Purge(now);
-            // A conversation was read: the run of unreadable ones starts again, but each of them stays marked for its hour (it is not asked for again).
             // A conversation was read: the run of unreadable ones starts again, each of them stays marked, and what a broken page held aside is believed if this version read it.
             _unreadable.Read(version);
             _conversations[id] = (title, turns, now);

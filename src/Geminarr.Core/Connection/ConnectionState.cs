@@ -29,6 +29,9 @@ public static class ConnectionReasons
     public const string Unreachable = "unreachable";
     public const string Paused = "paused";
 
+    /// <summary>The operator disconnected: the account is being signed out of the browser by the extension, and nothing is read until somebody signs in again. It is kept in the record, so that a restart does not forget a sign-out that was not done yet.</summary>
+    public const string Disconnected = "disconnected";
+
     /// <summary>The browser container could not be reached (not started, its desktop address wrong, a limit): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
     public const string BrowserFailed = "browser-failed";
 

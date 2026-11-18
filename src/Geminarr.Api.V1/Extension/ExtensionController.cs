@@ -57,7 +57,7 @@ public sealed partial class ExtensionController : ControllerBase
             return Ok(new ExtensionPushResponse(result.Open, result.Round, result.SignOut));
         }
 
-        // The kind is one of four words of ours or nothing: what the content said is not repeated.
+        // The kind is one of five words of ours or nothing: what the content said is not repeated.
         LogRefusedContent(request?.Kind is "state" or "list" or "conversation" or "broken" or "hello" ? request.Kind : "unknown");
         return Problem(statusCode: StatusCodes.Status400BadRequest, title: result.Problem);
     }

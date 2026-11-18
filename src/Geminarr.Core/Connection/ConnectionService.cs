@@ -34,16 +34,19 @@ public sealed class ConnectionService
     /// <summary>Whether a sign-in that the operator started is being waited for (and the session is not good yet).</summary>
     public bool SigningInAt(ConnectionRecord record) => record.State != ConnectionState.Connected && _inbox.SigningIn(_clock.GetUtcNow());
 
+    /// <summary>Whether a disconnect has been asked and the extension has not yet said that nobody is signed in.</summary>
+    public bool SignOutPending => _inbox.SignOutPending;
+
     /// <summary>Who the browser is signed in as, as the extension read it (the operator's to see, never logged); nobody while the connection is not one.</summary>
     public AccountIdentity? AccountAt(ConnectionRecord record) => record.State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _inbox.Session?.Account;
 
     /// <summary>
-    /// Signs the account out of the browser, by the extension (it opens the account provider's sign-out page in a tab of its own: no debugging port, no cookie read), and forgets the connection: the person signs in
-    /// again by hand. What waits for Mnemarr stays. The extension is asked the next time that it says that it is there.
+    /// Signs the account out of the browser, by the extension (it deletes the cookies of its browser at its next word: no debugging port, no cookie read), and forgets the connection: the person signs in again by hand. What
+    /// waits for Mnemarr stays. The request is asked until the extension confirms (the browser may be off), and the record says so, so that a restart does not forget it.
     /// </summary>
     public void Disconnect()
     {
-        _inbox.RequestSignOut(_clock.GetUtcNow());
+        _inbox.RequestSignOut();
         _tracker.Disconnected();
     }
 

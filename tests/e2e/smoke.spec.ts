@@ -390,7 +390,6 @@ test.describe('smoke @smoke', () => {
 
       const connection = page.getByRole('region', { name: 'Connection' });
       // Nothing is read: not connected, and nothing to ask a person to sign in to. (Nobody has signed in to a browser either way: the instance that has one is the other.)
-      // gned in.
       await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
       await expect(connection.getByText('Not linked')).toBeVisible();
       // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.

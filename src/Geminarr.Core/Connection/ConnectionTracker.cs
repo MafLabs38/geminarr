@@ -63,14 +63,14 @@ public sealed class ConnectionTracker
     }
 
     /// <summary>No reader is configured, or the pass found no browser configured: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
-    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
+    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, _store.Get().LastReason == ConnectionReasons.Disconnected ? ConnectionReasons.Disconnected : ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
-    /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
+    /// <summary>The operator disconnected: the session is being signed out, whatever else was going on. The record says so (<see cref="ConnectionReasons.Disconnected"/>) until somebody connects again.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
     {
         _epoch++;
         var current = _store.Get();
-        var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.NotConnected);
+        var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.Disconnected);
         if (record != current)
         {
             _store.Save(record);

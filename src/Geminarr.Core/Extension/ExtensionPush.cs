@@ -1,6 +1,6 @@
 namespace Geminarr.Core.Extension;
 
-/// <summary>What the extension says, in one shape with a kind: <c>state</c> (nobody is signed in), <c>list</c> (the conversations of the page, most recent first), <c>conversation</c> (the turns of one) or <c>broken</c> (the page is not what it knows, at a <c>step</c>).</summary>
+/// <summary>What the extension says, in one shape with a kind: <c>state</c> (nobody is signed in), <c>hello</c> (it is there: it is answered with what is asked of it), <c>list</c> (the conversations of the page, most recent first), <c>conversation</c> (the turns of one) or <c>broken</c> (the page is not what it knows, at a <c>step</c>).</summary>
 public sealed record ExtensionPushRequest(string? Kind, bool? SignedIn, string? Id, string? Title, IReadOnlyList<PushedItem?>? Items, IReadOnlyList<PushedTurn?>? Turns, string? Version, string? Step = null, IReadOnlyList<string?>? Labels = null);
 
 public sealed record PushedItem(string? Id, string? Title);

@@ -121,7 +121,10 @@ public sealed class ConnectionServiceFixture : IDisposable
         _inbox.Disconnected.Should().BeTrue();
         _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15)).SignOut.Should().BeTrue("the extension is asked the next time that it says that it is there");
         subject.Current().State.Should().Be(ConnectionState.NotConnected);
+        subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "the record says so, so that a restart asks again");
         subject.Current().LastOkAt.Should().BeNull();
+        _tracker.NotConnected().LastReason.Should().Be(ConnectionReasons.Disconnected, "a pass that finds nothing to read does not forget it");
+        _tracker.Connected().LastReason.Should().BeNull();
     }
 
     [Fact]
@@ -178,5 +181,17 @@ public sealed class ConnectionServiceFixture : IDisposable
 
         subject.Current().State.Should().Be(ConnectionState.NotConnected, "there is no session to resume to");
         subject.Current().LastOkAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_ask_for_the_sign_out_again_after_a_restart_when_the_record_says_that_the_operator_disconnected()
+    {
+        var record = new ConnectionRecord(ConnectionState.NotConnected, _clock.GetUtcNow(), null, 0, ConnectionReasons.Disconnected);
+
+        var restored = ExtensionInbox.Restored(record);
+
+        restored.Disconnected.Should().BeTrue();
+        restored.SignOutPending.Should().BeTrue();
+        ExtensionInbox.Restored(record with { LastReason = ConnectionReasons.NotConnected }).Disconnected.Should().BeFalse();
     }
 }

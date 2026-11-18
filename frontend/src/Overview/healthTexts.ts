@@ -20,6 +20,7 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['browser-exposed', 'ReasonBrowserExposed'],
   ['egress-unguarded', 'ReasonEgressUnguarded'],
   ['extension-silent', 'ReasonExtensionSilent'],
+  ['disconnected', 'ReasonDisconnected'],
   ['rate-limited', 'ReasonRateLimited'],
   ['unreachable', 'ReasonUnreachable'],
   ['paused', 'ReasonPaused'],

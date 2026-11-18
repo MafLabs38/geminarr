@@ -68,7 +68,8 @@ public static class CoreServiceCollectionExtensions
         services.AddOptions<ExtensionOptions>().Bind(configuration.GetSection(ExtensionOptions.SectionName)).ValidateOnStart();
         services.AddSingleton<IExtensionToken, ExtensionToken>();
         services.AddSingleton<IExtensionPackage, ExtensionPackage>();
-        services.AddSingleton<ExtensionInbox>();
+        // A disconnect that the extension had not confirmed when Geminarr stopped is asked again: the record says so.
+        services.AddSingleton(provider => ExtensionInbox.Restored(provider.GetRequiredService<ConnectionTracker>().Current()));
         services.AddSingleton<ExtensionService>();
         services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch
         {

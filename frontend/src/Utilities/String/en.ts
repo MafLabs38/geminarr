@@ -44,6 +44,7 @@ const en = {
   DesktopNeedsHttps:
     "The browser's desktop works over HTTPS only (its video needs a secure page), so it cannot be shown on this address.",
   OpenThisPageOverHttps: 'Open this page over HTTPS',
+  SigningOutNow: 'Signing out of the browser… (waiting for its extension)',
   SigningInNow: 'Signing in…',
   SigningInHint:
     'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',
@@ -118,6 +119,7 @@ const en = {
   ReasonMnemarrUnreachable: 'Mnemarr does not answer: what waits is kept and goes when it does.',
   ReasonNeedsLogin: 'The session has expired: sign in again.',
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
+  ReasonDisconnected: 'Disconnected: the account is signed out of the browser. Sign in again when you want it read.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
   ReasonBrowserFailed:
     'The browser container does not answer: check that it runs and that its desktop address is the one Geminarr is given.',

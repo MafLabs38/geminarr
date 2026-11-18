@@ -33,7 +33,8 @@ public sealed class ExtensionCorsMiddleware
         var headers = context.Response.Headers;
         // The answer depends on the origin whatever it is: a cache between must not serve one origin's answer to another.
         headers.Append(HeaderNames.Vary, "Origin");
-        var origin = OriginOfTheExtension();
+        // A request that names no origin is not the extension's: the package is not read for it.
+        var origin = context.Request.Headers.Origin.Count == 0 ? null : OriginOfTheExtension();
         if (origin is null || !string.Equals(context.Request.Headers.Origin.ToString(), origin, StringComparison.Ordinal))
         {
             return _next(context);

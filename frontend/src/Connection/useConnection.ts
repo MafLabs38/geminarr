@@ -23,6 +23,8 @@ export interface Connection {
   account: { name: string | null; email: string } | null;
   /** A person is signing in right now: a tab of the browser is on the sign-in page of the account provider. */
   signingIn: boolean;
+  /** The operator disconnected and the extension has not yet said that nobody is signed in (the browser may be off). */
+  signOutPending: boolean;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
