@@ -15,6 +15,9 @@ public sealed class ExtensionOptions
     /// <summary>The folder of the extension's package (<c>extension.json</c>, the signed <c>.crx</c>, the selectors), relative to the application unless it is absolute.</summary>
     public string PackageFolder { get; set; } = "extension";
 
+    /// <summary>The address by which the browser reaches Geminarr, when it is not the one of the request (a proxy that ends TLS): the update manifest of the extension names the package by it. Empty: the address of the request.</summary>
+    public string? PublicUrl { get; set; }
+
     /// <summary>Minutes without a word from the extension after which it is taken for silent: the browser is not running it, or cannot reach Geminarr.</summary>
     public int SilentAfterMinutes { get; set; } = 45;
 }
@@ -23,6 +26,11 @@ public sealed class ExtensionOptionsValidator : IValidateOptions<ExtensionOption
 {
     public ValidateOptionsResult Validate(string? name, ExtensionOptions options)
     {
+        if (!string.IsNullOrWhiteSpace(options.PublicUrl) && !IsBaseUrl(options.PublicUrl))
+        {
+            return ValidateOptionsResult.Fail("Extension:PublicUrl (GEMINARR__EXTENSION__PUBLICURL) must be an http or https address without a path, such as https://geminarr.homelab.example.");
+        }
+
         if (options.SilentAfterMinutes is < 1 or > 1_440)
         {
             return ValidateOptionsResult.Fail("Extension:SilentAfterMinutes (GEMINARR__EXTENSION__SILENTAFTERMINUTES) must be between 1 and 1440.");
@@ -32,4 +40,12 @@ public sealed class ExtensionOptionsValidator : IValidateOptions<ExtensionOption
             ? ValidateOptionsResult.Fail("Extension:PackageFolder (GEMINARR__EXTENSION__PACKAGEFOLDER) cannot be empty.")
             : ValidateOptionsResult.Success;
     }
+
+    private static bool IsBaseUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+        && uri.AbsolutePath == "/"
+        && string.IsNullOrEmpty(uri.Query)
+        && string.IsNullOrEmpty(uri.Fragment)
+        && string.IsNullOrEmpty(uri.UserInfo);
 }

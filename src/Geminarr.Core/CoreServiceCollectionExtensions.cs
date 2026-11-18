@@ -57,6 +57,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<ExtensionOptions>, ExtensionOptionsValidator>();
         services.AddOptions<ExtensionOptions>().Bind(configuration.GetSection(ExtensionOptions.SectionName)).ValidateOnStart();
         services.AddSingleton<IExtensionToken, ExtensionToken>();
+        services.AddSingleton<IExtensionPackage, ExtensionPackage>();
         services.AddSingleton<ExtensionInbox>();
         services.AddSingleton<ExtensionService>();
         services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch

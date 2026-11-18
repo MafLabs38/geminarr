@@ -51,6 +51,7 @@ if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operat
 app.UseExceptionHandler();
 app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
+app.UseMiddleware<ExtensionCorsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
