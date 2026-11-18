@@ -50,6 +50,19 @@ spec:
             medium: Memory
             sizeLimit: 1Gi
 ---
+# Nothing may reach the browser: the web desktop that these images serve has no login unless you give it one, and whoever opens it holds the signed-in session. The extension only calls out. (Signing in to the
+# dedicated account needs a way in: until the next vertical brings it to Geminarr's page, open one for the time of the sign-in with a policy of your own, never a standing one.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geminarr-browser-ingress
+  namespace: geminarr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: geminarr-browser
+  policyTypes: [Ingress]
+---
 # What leaves the browser (docs/network.md): DNS, Geminarr, and the assistant's origins and its sign-in; nothing else. The hosts that the assistant's page loads from are in your own list
 # (they change; check them with the browser's own network panel): a new destination is a decision.
 apiVersion: networking.k8s.io/v1

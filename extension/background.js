@@ -6,7 +6,7 @@ const DEFAULT_ROUND_MINUTES = 15;
 const MAX_ROUND_MINUTES = 1440;
 const SWEEP_ALARM = 'sweep';
 const UPDATE_ALARM = 'update';
-const WORK_TABS = 'workTabs';
+const WORK_TAB_PREFIX = 'workTab:';
 // A page that has not answered after this long is closed: a hung tab must not pile up.
 const TAB_LIFETIME_MS = 3 * 60 * 1000;
 
@@ -38,31 +38,20 @@ async function push(body) {
   }
 }
 
-async function remember(tabId) {
-  const { [WORK_TABS]: tabs = {} } = await chrome.storage.session.get(WORK_TABS);
-  tabs[tabId] = Date.now();
-  await chrome.storage.session.set({ [WORK_TABS]: tabs });
-}
+// One key for each tab that this extension opened: the writes of two tabs never overwrite each other's, as one object holding them all would.
+const workTabKey = (tabId) => `${WORK_TAB_PREFIX}${tabId}`;
 
-async function forget(tabId) {
-  const { [WORK_TABS]: tabs = {} } = await chrome.storage.session.get(WORK_TABS);
-  await chrome.storage.session.set({
-    [WORK_TABS]: Object.fromEntries(Object.entries(tabs).filter(([id]) => id !== String(tabId))),
-  });
+async function isWorkTab(tabId) {
+  return workTabKey(tabId) in (await chrome.storage.session.get(workTabKey(tabId)));
 }
 
 async function openInBackground(path) {
   const tab = await chrome.tabs.create({ url: `${ORIGIN}${path}`, active: false });
-  await remember(tab.id);
-}
-
-async function isWorkTab(tabId) {
-  const { [WORK_TABS]: tabs = {} } = await chrome.storage.session.get(WORK_TABS);
-  return String(tabId) in tabs;
+  await chrome.storage.session.set({ [workTabKey(tab.id)]: Date.now() });
 }
 
 async function closeTab(tabId) {
-  await forget(tabId);
+  await chrome.storage.session.remove(workTabKey(tabId));
   await chrome.tabs.remove(tabId).catch(() => {});
 }
 
@@ -72,21 +61,21 @@ async function round() {
 }
 
 async function sweep() {
-  const { [WORK_TABS]: tabs = {} } = await chrome.storage.session.get(WORK_TABS);
-  for (const [tabId, since] of Object.entries(tabs)) {
-    if (Date.now() - since > TAB_LIFETIME_MS) await closeTab(Number(tabId));
+  const everything = await chrome.storage.session.get(null);
+  for (const [key, since] of Object.entries(everything)) {
+    if (key.startsWith(WORK_TAB_PREFIX) && Date.now() - since > TAB_LIFETIME_MS)
+      await closeTab(Number(key.slice(WORK_TAB_PREFIX.length)));
   }
 }
 
 async function onMessage(message, sender) {
   const answer = await push(message);
   if (message.kind === 'list') {
-    for (const id of (answer?.open ?? []).filter((candidate) => /^[A-Za-z0-9_-]{1,100}$/.test(candidate)))
+    for (const id of (answer?.open ?? []).filter((candidate) => /^[A-Za-z0-9_-]{1,64}$/.test(candidate)))
       await openInBackground(`/app/${id}`);
   }
-  // A page that this extension opened is done once it has been read: the list when Geminarr has said what it wants, a conversation once handed over. A page that a person opened is theirs, and stays.
-  if (sender.tab && (message.kind === 'list' || message.kind === 'conversation') && (await isWorkTab(sender.tab.id)))
-    await closeTab(sender.tab.id);
+  // A page that this extension opened is done once it has said what it had to say. A page that a person opened is theirs, and stays.
+  if (sender.tab && (await isWorkTab(sender.tab.id))) await closeTab(sender.tab.id);
 }
 
 chrome.runtime.onMessage.addListener((message, sender) => {
@@ -94,6 +83,22 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 chrome.runtime.onInstalled.addListener(() => void round());
 chrome.runtime.onStartup.addListener(() => void round());
+chrome.alarms.onAlarm.addListener((alarm) => {
+  switch (alarm.name) {
+    case ROUND_ALARM:
+      void round();
+      break;
+    case SWEEP_ALARM:
+      void sweep();
+      break;
+    case UPDATE_ALARM:
+      // The browser looks for a new version of an extension that a policy installs only every few hours: the extension asks for it itself, every hour.
+      void chrome.runtime.requestUpdateCheck().catch(() => {});
+      break;
+    default:
+  }
+});
+
 // Created only when missing or changed: creating one again restarts its period, and the worker wakes up often.
 async function ensureAlarm(name, periodInMinutes) {
   const existing = await chrome.alarms.get(name);
@@ -106,11 +111,3 @@ async function roundMinutes() {
 void roundMinutes().then((minutes) => ensureAlarm(ROUND_ALARM, minutes));
 void ensureAlarm(SWEEP_ALARM, 1);
 void ensureAlarm(UPDATE_ALARM, 60);
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ROUND_ALARM) void round();
-  if (alarm.name === SWEEP_ALARM) void sweep();
-});
-// The browser looks for a new version of an extension that a policy installs only every few hours: the extension asks for it itself, every hour.
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === UPDATE_ALARM) void chrome.runtime.requestUpdateCheck().catch(() => {});
-});

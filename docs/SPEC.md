@@ -1,6 +1,6 @@
 # Geminarr — Functional and Technical Specification
 
-> **Status**: draft v0.5 (2026-11-13). The architecture and the security model are decided (D-01 to D-22); the foundation and the operator access (verticals 0 and 1) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later); **how Gemini is read is not known yet** and is the object of the first spike (§13, Q-01 to Q-05): the reader's design (§6) is written to survive either answer and will be frozen after it.
+> **Status**: draft v0.6 (2026-11-18). The architecture and the security model are decided (D-01 to D-23); the foundation, the operator access, the link to Mnemarr and the reader (verticals 0 to 3) are built and Mnemarr's side of the contract is delivered (Mnemarr 0.4.0 and later). **Gemini is read by an extension in the browser that a person signed in to (D-23, ADR 0015)**: the sections below that speak of Geminarr driving a browser (the Playwright adapter, the profile folder, the live view, the route filter) describe the design that D-23 replaced; they are kept until the vertical that rewrites them (vertical 4, the sign-in) and each says so.
 > **Related documents**: [VISION.md](VISION.md) (why) · [ROADMAP.md](ROADMAP.md) (the verticals) · [adr/](adr/README.md) (decision records) · [mnemarr-changes.md](mnemarr-changes.md) (what Mnemarr must gain)
 > **Audience**: the project owner, contributors.
 >
@@ -78,7 +78,7 @@ How it fits the constellation:
 | ✅ D-12 | **The same pipeline, review agents and process as Mnemarr, with stricter coverage thresholds** (85 % overall, zero smells) (verticals, one PR each, local gates, push once, triaged review). | The maintainer's rule: identical structures, processes and skills. | [0005](adr/0005-the-same-quality-chain-and-process-as-mnemarr.md) |
 | ✅ D-13 | **Releases by semantic-release from `main`, consumed by pulling** (image on GHCR; a GitOps tool in the cluster follows the versions). Nothing in the CI can reach a host. | Same as Mnemarr's ADR 0013. | [0006](adr/0006-releases-with-semantic-release-consumed-by-pulling.md) |
 | ✅ D-14 | **Everything is described as code**: the repository (Terraform, `github-template`), the image (this repo), the deployment (the private GitOps repository). The container is configurable by environment variables and files only. | The maintainer deploys Geminarr like Mnemarr, on the Kubernetes cluster, by GitOps. | [0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md) |
-| 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
+| ✅ D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors of the web product live in one versioned place: `extension/content.js` (a change of the page is a new version of the extension, and the extension says so with `broken`). | The web product changes without notice; the pipeline must not. | [0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md) |
 | ~~D-16~~ | ~~One browser, started per pass and closed after it.~~ **Superseded by D-23**: Geminarr starts and drives no browser. | | [0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md) |
 | ✅ D-17 | **Default port 8282** (Portarr has 8484, Mnemarr 8383). | No collision on a default install. | [0009](adr/0009-default-port.md) |
 | ✅ D-19 | **One operator, a session in memory.** Geminarr has a single operator (a name, and a password in a mounted file read at each sign-in, at least twelve characters), signed in by a cookie (`HttpOnly`, `SameSite=Strict`, `Secure` unless told otherwise, `__Host-` prefixed), whose session lives in memory with an absolute lifetime (12 hours by default): a restart signs everybody out, and signing out kills a copied cookie. Five wrong passwords lock a name for fifteen minutes, counted per name whether it exists or not. Every call but the probes needs the session; every write carries `X-Geminarr-Request`; a request for a `Host` that is not allowed is refused (the probes excepted). No accounts to manage, no database. | The container holds a signed-in session of an account: the page that reaches it must be closed by default, simple enough to audit, and leave nothing at rest to steal. | [0011](adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) |
@@ -104,7 +104,7 @@ How it fits the constellation:
                          │   live view (WebSocket) ◀─┘                        ▲                                │
                          │        │                                          │ reads                          │
                          │        ▼                                          │                                │
-                         │   Browser adapter (Playwright, one Chromium, profile on its own volume)            │
+                         │   [D-23: the reader is an extension in a browser that has a container of its own]  │
                          └───────────┬───────────────────────────────────────────────────────┬────────────────┘
                                      │ HTTPS out (D-08)                                      │ HTTPS out
                                      ▼                                                       ▼
@@ -116,7 +116,7 @@ How it fits the constellation:
 
 | Project | Role | Rules |
 |---|---|---|
-| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
+| `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `TimeProvider`; the profile store of the first design is gone, D-23) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
 | `extension/` *(vertical 3)* | The reader that runs **in the browser** (JavaScript, not a .NET project): reads the pages and pushes them to Core's `ExtensionService`; packed and signed by `tools/extension` | Behind the ports of Core (`ExtensionReader`); selectors of the web product in one place, `extension/content.js` (D-15, D-23). |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
@@ -304,7 +304,7 @@ The browser profile (cookies, local storage) of the dedicated account is the **s
 
 A **network error is never "not signed in"**: only an explicit sign-in redirect or page counts towards `needs-login`.
 
-### 7.3 The live view (F-LGN)
+### 7.3 The live view (F-LGN) *(vertical 4; the design below predates D-23: the desktop that is shown is the one of the browser's container, relayed on an origin of its own, and Geminarr starts no browser)*
 
 The operator signs in once, **through Geminarr's page**, to a browser running in the container:
 
@@ -445,7 +445,7 @@ Every limit and interval above comes from configuration with that default; none 
 |---|---|
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
-| `profile` *(2)* | `profile-missing`, `profile-not-private`, `profile-unreadable` |
+| `profile` | *(none: Geminarr holds no profile, D-23)* |
 | `connection` | `not-connected`, `needs-login`, `reader-broken`, `extension-silent`, `rate-limited`, `unreachable` (`paused` comes with vertical 3) |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
@@ -514,16 +514,16 @@ Reading a consumer product by automation is against the provider's terms of use.
 
 | Id | Question | Status |
 |---|---|---|
-| Q-01 | Can the web product be read headless from the container with a profile created by the live view (no immediate block, no repeated challenge from the container's IP)? | 🧪 spike S1 |
+| Q-01 | Can the web product be read from the container with a profile created by hand (no immediate block, no repeated challenge from the container's IP)? | ✅ yes, by an extension in a browser a person signed in to (D-23); tried on the real account |
 | Q-02 | Is the list ordered by last activity, and does it give anything usable to detect a change without opening (a count, a timestamp)? | 🧪 S1 |
-| Q-03 | Read the page (DOM) or the internal calls of the web application? Which is less fragile, and is it stable across a week? | 🧪 S1 |
+| Q-03 | Read the page (DOM) or the internal calls of the web application? Which is less fragile, and is it stable across a week? | ✅ the page (DOM); stability across weeks is learned by running, and `broken` says when it fails |
 | Q-04 | How long does the session last, and does the provider bind cookies to the device in a way that breaks a profile kept in a container? | 🧪 S1 (needs days) |
 | Q-05 | Do voice conversations appear in the web history **with their text**? Are images and audio references only? | 🧪 S1 |
 | Q-06 | What does a Takeout export hold (full replies, ids, dates, conversation grouping)? | 🧪 S2 |
 | Q-07 | Rename of a conversation after its first send: ignore (proposed), or let the sender set a title through a Mnemarr API? | ❓ |
 | Q-08 | Live view: screencast of the browser over CDP with relayed input (proposed), or a VNC-type view in the container? Lightest that works. | 🧪 S1 |
 | Q-09 | A conversation imported from Takeout and later seen by the web reader are two sessions (proposed) or merged by content? | ❓ |
-| Q-10 | What does the browser's sandbox need in a restricted pod (user namespaces, `--no-sandbox` with a seccomp profile)? | 🧪 S1 |
+| Q-10 | What does the browser's sandbox need in a restricted pod (user namespaces, `--no-sandbox` with a seccomp profile)? | ❓ now the question of the browser's container, not of Geminarr's; the examples take what the image needs |
 | Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 4 |
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |

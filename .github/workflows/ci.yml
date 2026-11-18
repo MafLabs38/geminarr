@@ -47,9 +47,9 @@ jobs:
       # The checker of the review decisions (docs/review-decisions/README.md) has its own tests, run here and never in its own job.
       - run: python3 -I -m unittest -q
         working-directory: tools/review-decisions
-      # The packing of the extension (tools/extension) has its own tests, with Node alone.
-      - run: node --test "tools/extension/test/*.test.mjs"
       - run: yarn install --frozen-lockfile
+      # The extension (extension/) and its packing (tools/extension) have their own tests, with Node's runner and a synthetic page (jsdom).
+      - run: node --test "tools/extension/test/*.test.mjs"
       - run: yarn lint
       - run: yarn stylelint
       - run: yarn format:check
@@ -107,7 +107,7 @@ jobs:
   e2e-smoke:
     name: e2e-smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     needs: [test-backend, test-frontend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -333,10 +333,16 @@ jobs:
         if: ${{ needs.release.outputs.version != '' }}
         env:
           KEY: ${{ secrets.EXTENSION_SIGNING_KEY }}
-        run: test -n "$KEY" || { echo "::error title=No signing key::EXTENSION_SIGNING_KEY is not set: a release of the extension cannot be signed (docs/runbook.md)."; exit 1; }
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error title=No signing key::EXTENSION_SIGNING_KEY is not set, so a release of the extension cannot be signed (docs/DEPLOYMENT.md)."
+            exit 1
+          fi
       # The build stages run on the runner's own architecture and the final stage only copies files (Dockerfile), so the arm64
       # image needs no emulation. It is built here and not started: the end-to-end test runs the amd64 image (docs/releasing.md).
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        env:
+          EXTENSION_SIGNING_KEY: ${{ needs.release.outputs.version != '' && secrets.EXTENSION_SIGNING_KEY || '' }}
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -344,9 +350,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ steps.version.outputs.value }}
-          # The key that signs the extension, as a BuildKit secret: it is in no layer of the image and in no log.
-          secrets: |
-            extension_key=${{ secrets.EXTENSION_SIGNING_KEY }}
+          # The key that signs the extension, as a BuildKit secret (read from the environment of this step: a PEM has several lines), for a release only: a build that reads the layer cache never
+          # has it mounted. The other builds sign with an ephemeral key, which is only fine for an image that nobody installs the extension from.
+          secret-envs: ${{ needs.release.outputs.version != '' && 'extension_key=EXTENSION_SIGNING_KEY' || '' }}
           # A release is built from nothing and reads no layer cache (a layer written by an earlier job of the push could carry a
           # poisoned layer into the image published under the version), and writes none. Other builds use the cache.
           no-cache: ${{ needs.release.outputs.version != '' }}

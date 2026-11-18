@@ -17,6 +17,11 @@ services:
     cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, KILL]    # what the usual Chromium images need; try without
     security_opt:
       - no-new-privileges:true
-    # No published port for the page of the browser in this example: sign in to the account in it as your platform allows (the next vertical brings that to Geminarr's page).
+    # The page of the browser: nothing publishes it here, and **no other container may reach it**: the desktop that these images serve (port 3000 or 3001) has no login unless you give it one
+    # (for the linuxserver image, CUSTOM_USER and PASSWORD), and whoever opens it holds the signed-in session. The browser is on a network of its own, shared with Geminarr alone.
+    networks:
+      - reader
+networks:
+  reader:                # also given to the geminarr service of docker-compose.example.yml, and to nothing else
 volumes:
   browser-profile:

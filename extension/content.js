@@ -1,22 +1,28 @@
 // Reads the page of the assistant as a person sees it: whether somebody is signed in, the list of conversations, the turns of one conversation. It sends what it read to background.js and nothing else:
-// it submits no prompt, clicks nothing but scrolls the list, and reads no other page. If the page changes shape, only these selectors change.
+// it submits no prompt, clicks nothing but scrolls the list, and reads no other page. If the page changes shape, only these selectors change, and the extension says so (kind "broken", with the step) instead of
+// guessing: a page that nobody is signed in to is told by what it shows (a sign-in link), never by the absence of the sign-out one.
 const SELECTORS = {
   signedIn: 'a[href*="SignOutOptions"]',
+  signedOut: 'a[href*="ServiceLogin"]',
   link: 'a[href]',
   scroller: 'conversations-list infinite-scroller, infinite-scroller',
   turn: 'user-query, model-response',
   turnText: 'user-query-content, message-content',
 };
-const ID_IN_LINK = /\/app\/([A-Za-z0-9_-]+)$/;
-const SETTLE_MS = 5000;
+// The same bound as Geminarr's (an id of a conversation is at most 64 characters): a longer one is not a conversation of this page.
+const ID_IN_LINK = /\/app\/([A-Za-z0-9_-]{1,64})$/;
 const SCROLL_MS = 1500;
 const MAX_SCROLLS = 30;
 const STABLE_ROUNDS = 6;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
+// The page takes time to say who is signed in: it is asked about for up to 30 seconds, and a sign-in link must have been there for 5 before it is believed.
+const MAX_PAGE_POLLS = 60;
+const SIGNED_OUT_POLLS = 10;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const send = (message) => chrome.runtime.sendMessage(message);
+// The worker may have been restarted or the extension reloaded: a message that finds nobody is a read that is lost, not an error on the page.
+const send = (message) => chrome.runtime.sendMessage(message).catch(() => {});
 
 function conversationLinks() {
   return [...document.querySelectorAll(SELECTORS.link)]
@@ -24,23 +30,42 @@ function conversationLinks() {
     .filter(({ match }) => match);
 }
 
-async function readList() {
-  await wait(SETTLE_MS);
-  // One word per page: a page that nobody is signed in to says so and has no list; a page of an account sends its list, which says as much.
-  if (!document.querySelector(SELECTORS.signedIn)) {
-    send({ kind: 'state', signedIn: false });
-    return;
+/** "in", "out" or "unknown": what the page shows after it had the time to show it. */
+async function whoIsSignedIn() {
+  for (let i = 0; i < MAX_PAGE_POLLS; i++) {
+    if (document.querySelector(SELECTORS.signedIn)) return 'in';
+    if (i >= SIGNED_OUT_POLLS && document.querySelector(SELECTORS.signedOut)) return 'out';
+    await wait(POLL_MS);
   }
-  const scroller = document.querySelector(SELECTORS.scroller);
+  return 'unknown';
+}
+
+/** The list that scrolls, or nothing: it shows a little after the account does (seen on the real page), so it is asked for as long as the account was. */
+async function listThatScrolls() {
+  for (let i = 0; i < MAX_PAGE_POLLS; i++) {
+    const found = document.querySelector(SELECTORS.scroller);
+    if (found) return found;
+    await wait(POLL_MS);
+  }
+  return null;
+}
+
+async function readList() {
+  const who = await whoIsSignedIn();
+  // One word per page: a page that nobody is signed in to says so and has no list; a page of an account sends its list, which says as much; a page that is neither is not what this knows.
+  if (who === 'unknown') return send({ kind: 'broken', step: 'page' });
+  if (who === 'out') return send({ kind: 'state', signedIn: false });
+  const scroller = await listThatScrolls();
+  if (!scroller) return send({ kind: 'broken', step: 'list' });
   let seen = -1;
-  for (let i = 0; i < MAX_SCROLLS && scroller && conversationLinks().length !== seen; i++) {
+  for (let i = 0; i < MAX_SCROLLS && conversationLinks().length !== seen; i++) {
     seen = conversationLinks().length;
     scroller.scrollTop = scroller.scrollHeight;
     await wait(SCROLL_MS);
   }
   const items = conversationLinks().map(({ link, match }) => ({ id: match[1], title: (link.innerText ?? '').trim() }));
   // The same conversation can be linked twice on a page: the first place is its place.
-  send({
+  return send({
     kind: 'list',
     items: items.filter((item, index) => items.findIndex((other) => other.id === item.id) === index),
   });
@@ -55,7 +80,8 @@ function readTurns() {
     .filter((turn) => turn.text);
 }
 
-// A conversation is read when what it shows has stopped changing: the page fills in as it loads.
+// A conversation is read when what it shows has stopped changing: the page fills in as it loads. One that shows nothing at all is a page that is not what this knows; one that never stops changing is
+// read at the next round (a partial answer is never handed over).
 async function readConversation(id) {
   let last = '';
   let stable = 0;
@@ -65,11 +91,9 @@ async function readConversation(id) {
     const snapshot = JSON.stringify(turns);
     stable = turns.length > 0 && snapshot === last ? stable + 1 : 0;
     last = snapshot;
-    if (stable >= STABLE_ROUNDS) {
-      send({ kind: 'conversation', id, title: document.title, turns });
-      return;
-    }
+    if (stable >= STABLE_ROUNDS) return send({ kind: 'conversation', id, title: document.title, turns });
   }
+  return last === '[]' ? send({ kind: 'broken', step: 'turns' }) : undefined;
 }
 
 const conversation = ID_IN_LINK.exec(location.pathname);

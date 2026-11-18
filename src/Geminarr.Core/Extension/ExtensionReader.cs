@@ -31,6 +31,12 @@ public sealed class ExtensionReader : IConversationReader
             throw new ReaderException(ConnectionReasons.ExtensionSilent, "The extension of the browser has not said anything for a while: check that the browser runs and reaches Geminarr.");
         }
 
+        // A page that is not what the extension knows is not a session that is gone: it is the reader that is broken, said loudly (SPEC §6.4).
+        if (session.Broken is { } step)
+        {
+            throw new ReaderException(ConnectionReasons.ReaderBroken, $"The page of the assistant is not what the extension knows (step: {step}).");
+        }
+
         return Task.FromResult(session.SignedIn ? SessionCheck.SignedIn : SessionCheck.SignedOut);
     }
 

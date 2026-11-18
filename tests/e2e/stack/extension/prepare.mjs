@@ -20,6 +20,10 @@ writeFileSync(
     PasswordManagerEnabled: false,
     BrowserSignin: 0,
     SyncDisabled: true,
+    DeveloperToolsAvailability: 2,
+    RemoteDebuggingAllowed: false,
+    URLBlocklist: ['*'],
+    URLAllowlist: [ASSISTANT_ORIGIN],
   }),
 );
 console.log(`extension ${packed.id} ${packed.version}`);

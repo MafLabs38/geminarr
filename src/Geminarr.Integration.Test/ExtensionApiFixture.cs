@@ -18,16 +18,21 @@ public sealed class ExtensionFactory : GeminarrFactoryBase
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"geminarr-extension-{Guid.NewGuid():N}");
     private readonly bool _withPackage;
 
-    public ExtensionFactory(bool withPackage = true) : base(createFolder: true)
+    private readonly string _tokenText;
+    private readonly string _readerKind;
+
+    public ExtensionFactory(bool withPackage = true, string tokenText = Token, string readerKind = "Web") : base(createFolder: true)
     {
         _withPackage = withPackage;
+        _tokenText = tokenText;
+        _readerKind = readerKind;
     }
 
     protected override void AddSettings(Dictionary<string, string?> settings)
     {
         Directory.CreateDirectory(_folder);
-        File.WriteAllText(Path.Combine(_folder, "token"), Token + "\n");
-        settings["Reader:Kind"] = "Web";
+        File.WriteAllText(Path.Combine(_folder, "token"), _tokenText + "\n");
+        settings["Reader:Kind"] = _readerKind;
         settings["Extension:TokenFile"] = Path.Combine(_folder, "token");
         settings["Extension:PackageFolder"] = _folder;
         if (_withPackage)
@@ -50,7 +55,7 @@ public sealed class ExtensionFactory : GeminarrFactoryBase
 /// <summary>What the extension of the browser can do with the API, and what nobody else can.</summary>
 public sealed class ExtensionApiFixture
 {
-    private static readonly CancellationToken CancellationToken = TestContext.Current.CancellationToken;
+    private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
     private static readonly string ExtensionOrigin = $"chrome-extension://{ExtensionFactory.ExtensionId}";
 
     private static HttpRequestMessage Push(object body, string? token = ExtensionFactory.Token, bool header = true)
@@ -81,6 +86,56 @@ public sealed class ExtensionApiFixture
         var response = await factory.CreateClient().SendAsync(Push(new { kind = "state", signedIn = true }, token), CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task should_refuse_a_push_with_the_token_before_reading_a_body_that_is_not_even_json()
+    {
+        using var factory = new ExtensionFactory();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/extension/push") { Content = new StringContent("{ this is not json", Encoding.UTF8, "application/json") };
+        request.Headers.Add("X-Geminarr-Request", "1");
+
+        (await factory.CreateClient().SendAsync(request, CancellationToken)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the token is asked for before the body is looked at");
+    }
+
+    [Fact]
+    public async Task should_refuse_a_token_that_is_too_short_even_when_it_is_the_one_that_is_presented()
+    {
+        using var factory = new ExtensionFactory(tokenText: "short-token");
+
+        (await factory.CreateClient().SendAsync(Push(new { kind = "state", signedIn = true }, token: "short-token"), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task should_say_that_the_reader_is_not_the_web_one_without_repeating_what_it_was_told()
+    {
+        using var factory = new ExtensionFactory(readerKind: "None");
+
+        var response = await factory.CreateClient().SendAsync(Push(new { kind = "conversation", id = "c1", turns = new[] { new { role = "user", text = "a sentence that must not come back" } } }), CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync(CancellationToken);
+        body.Should().Contain("GEMINARR__READER__KIND").And.NotContain("sentence");
+    }
+
+    [Fact]
+    public async Task should_refuse_a_body_larger_than_a_conversation_can_be()
+    {
+        using var factory = new ExtensionFactory();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/extension/push") { Content = new StringContent("{\"kind\":\"state\",\"version\":\"" + new string('1', 9 * 1024 * 1024) + "\"}", Encoding.UTF8, "application/json") };
+        request.Headers.Add("Authorization", $"Bearer {ExtensionFactory.Token}");
+        request.Headers.Add("X-Geminarr-Request", "1");
+
+        (await factory.CreateClient().SendAsync(request, CancellationToken)).StatusCode.Should().BeOneOf(HttpStatusCode.RequestEntityTooLarge, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task should_take_the_word_that_the_page_is_broken()
+    {
+        using var factory = new ExtensionFactory();
+
+        (await factory.CreateClient().SendAsync(Push(new { kind = "broken", step = "page" }), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await factory.CreateClient().SendAsync(Push(new { kind = "broken", step = "whatever the page said" }), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

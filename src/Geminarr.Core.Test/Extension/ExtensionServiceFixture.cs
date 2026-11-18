@@ -27,8 +27,8 @@ public sealed class ExtensionServiceFixture : IDisposable
         _workspace.Dispose();
     }
 
-    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5) =>
-        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen }), _clock);
+    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5, int maxListed = 40) =>
+        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen, MaxListed = maxListed }), _clock);
 
     private static PushedItem Item(string? id, string? title = "T") => new(id, title);
 
@@ -126,7 +126,6 @@ public sealed class ExtensionServiceFixture : IDisposable
         var result = Subject().Handle(ListOf(Item("x0"), Item("x1"), Item("x2"), Item("old")));
 
         result.Open.Should().Equal("x0", "x1", "x2");
-        result.Open.Should().NotContain("old");
     }
 
     [Fact]
@@ -211,5 +210,78 @@ public sealed class ExtensionServiceFixture : IDisposable
         var result = Subject().Handle(ConversationOf("c1", new PushedTurn("tool", "a secret sentence of a conversation")));
 
         result.Problem.Should().NotContain("secret").And.NotContain("c1");
+    }
+
+    [Theory]
+    [InlineData(ExtensionBrokenSteps.Page)]
+    [InlineData(ExtensionBrokenSteps.List)]
+    [InlineData(ExtensionBrokenSteps.Turns)]
+    public async Task should_take_the_word_that_the_page_is_not_what_the_extension_knows_and_ask_for_a_pass_at_once(string step)
+    {
+        var result = Subject().Handle(new ExtensionPushRequest("broken", null, null, null, null, null, "1.0.0", step));
+
+        result.Accepted.Should().BeTrue();
+        _inbox.Session.Should().Be(new ExtensionSession(true, "1.0.0", _clock.GetUtcNow(), step));
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue("the page says it at once");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Page")]
+    [InlineData("a sentence that the page said")]
+    public void should_refuse_a_broken_page_at_a_step_that_is_not_one_of_the_three_and_not_repeat_it(string? step)
+    {
+        var result = Subject().Handle(new ExtensionPushRequest("broken", null, null, null, null, null, null, step));
+
+        result.Accepted.Should().BeFalse();
+        result.Problem.Should().NotContain("sentence");
+        _inbox.Session.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_ask_for_a_pass_when_the_page_is_known_again_after_it_was_not_even_if_nobody_changed_sides()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, null));
+        await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+        subject.Handle(new ExtensionPushRequest("broken", null, null, null, null, null, null, ExtensionBrokenSteps.Page));
+        await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, null));
+
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue("a page that is known again is news");
+        _inbox.Session!.Broken.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_choose_what_to_open_only_among_the_conversations_that_a_pass_looks_at()
+    {
+        var result = Subject(maxListed: 2).Handle(ListOf(Item("a"), Item("b"), Item("c"), Item("d")));
+
+        result.Open.Should().Equal("a", "b");
+    }
+
+    [Fact]
+    public void should_take_a_list_a_turn_and_a_conversation_of_exactly_the_largest_size_that_is_allowed()
+    {
+        var subject = Subject();
+
+        subject.Handle(ListOf([.. Enumerable.Range(0, ExtensionService.MaxListed).Select(i => Item($"c{i}"))])).Accepted.Should().BeTrue();
+        subject.Handle(ConversationOf("c1", new PushedTurn("user", new string('x', ExtensionService.MaxTurnLength)))).Accepted.Should().BeTrue();
+        subject.Handle(ConversationOf("c2", [.. Enumerable.Range(0, ExtensionService.MaxTurns).Select(_ => new PushedTurn("user", "x"))])).Accepted.Should().BeTrue();
+        var whole = Enumerable.Range(0, ExtensionService.MaxConversationLength / ExtensionService.MaxTurnLength).Select(_ => new PushedTurn("user", new string('x', ExtensionService.MaxTurnLength))).ToArray();
+        subject.Handle(ConversationOf("c3", whole)).Accepted.Should().BeTrue("the whole conversation may be as long as the bound says");
+    }
+
+    [Theory]
+    [InlineData(64, true)]
+    [InlineData(65, false)]
+    public void should_take_an_id_of_sixty_four_characters_and_not_of_sixty_five(int length, bool accepted)
+    {
+        var id = new string('a', length);
+
+        Subject().Handle(ListOf(Item(id))).Accepted.Should().Be(accepted);
+        Subject().Handle(ConversationOf(id, new PushedTurn("user", "x"))).Accepted.Should().Be(accepted);
     }
 }

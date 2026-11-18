@@ -14,7 +14,7 @@ The live view is the page where the operator types the dedicated account's passw
 
 ### From the browser (ADR 0015)
 
-The extension in the browser container calls Geminarr on the same port (8282), **only on `POST /api/v1/extension/push`**, with the token of its policy, and the browser fetches `GET /api/v1/extension/update.xml` and the package from it. These three need no session of the operator (the browser has none) and are the only anonymous paths besides the probes and the sign-in. The name by which the browser reaches Geminarr (`http://geminarr:8282` between two containers) **must be in `GEMINARR__ALLOWEDHOSTNAMES`**, or it gets a 400. Allow the browser's address alone: nothing else needs to reach port 8282 but the operator's proxy and this browser.
+The extension in the browser container calls Geminarr on the same port (8282), **only on `POST /api/v1/extension/push`**, with the token of its policy, and the browser fetches `GET /api/v1/extension/update.xml` and the package from it. These three need no session of the operator (the browser has none) and are the only anonymous paths besides the probes and the sign-in. The name by which the browser reaches Geminarr (`http://geminarr:8282` between two containers) **must be in `GEMINARR__ALLOWEDHOSTNAMES`**, or it gets a 400. Allow the browser's address alone: nothing else needs to reach port 8282 but the operator's proxy and this browser. **The token travels in clear over plain HTTP**: that is acceptable on one host or on a network of its own shared by the two containers (the examples), not across nodes of a cluster that does not encrypt its pod traffic: there, give the browser an `https` address (`geminarrUrl`, and `GEMINARR__EXTENSION__PUBLICURL` for the update manifest) or use a mesh that encrypts.
 
 ## Outbound (the list is the policy)
 
@@ -24,7 +24,7 @@ The extension in the browser container calls Geminarr on the same port (8282), *
 | The account provider's sign-in origin (`accounts.google.com`) | **From the browser container**: a person signs in | Only when the session ends |
 | The configured Mnemarr (HTTPS) | Send turns, positions, heartbeat; pairing and enrolment when the key is asked for | Every pass (a pairing: while it waits, a call every few seconds) |
 
-**Geminarr itself reaches only Mnemarr.** The extension has a single host permission, the assistant's origin, and sends to a single address, the one in its policy; the network policy of the **browser's** container repeats the list at the cluster level (the assistant's origin and the hosts its page loads, the account provider's sign-in, Geminarr). **A new destination is a decision** (ADR 0008: the network policy is in the trust anchor).
+**Geminarr itself reaches only Mnemarr.** The extension has a single host permission, the assistant's origin, and sends to a single address, the one in its policy; the network policy of the **browser's** container repeats the list at the cluster level (the assistant's origin and the hosts its page loads, the account provider's sign-in, Geminarr). The browser's own policy repeats it for the pages it may open (`URLBlocklist` `*` and `URLAllowlist`: the assistant's origin and its sign-in), the role that a route filter had when Geminarr drove the browser. **A new destination is a decision** (ADR 0008: the network policy is in the trust anchor).
 
 A proxy in front of the container: it must pass WebSocket upgrades on `/api/v1/connection/live-views/` (from vertical 3) and must not buffer them; and it must not cache `/api`.
 

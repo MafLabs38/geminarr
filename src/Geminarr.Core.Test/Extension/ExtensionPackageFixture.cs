@@ -46,6 +46,9 @@ public sealed class ExtensionPackageFixture : IDisposable
     [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "../a.crx" }""")]
     [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "a..b.crx" }""")]
     [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "a.zip" }""")]
+    [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "sub/a.crx" }""")]
+    [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "sub\\a.crx" }""")]
+    [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0", "file": "/etc/a.crx" }""")]
     [InlineData("""{ "id": "abcdefghijklmnopabcdefghijklmnop", "version": "1.0.0" }""")]
     [InlineData("not json")]
     [InlineData("null")]
@@ -57,12 +60,18 @@ public sealed class ExtensionPackageFixture : IDisposable
     }
 
     [Fact]
-    public void should_find_nothing_when_the_file_that_is_named_is_missing_or_the_description_is_huge()
+    public void should_find_nothing_when_the_file_that_is_named_is_missing()
     {
         Describe($$"""{ "id": "{{Id}}", "version": "1.0.0", "file": "missing.crx" }""", file: null);
-        Subject().Current().Should().BeNull();
 
+        Subject().Current().Should().BeNull();
+    }
+
+    [Fact]
+    public void should_find_nothing_when_the_description_is_larger_than_a_description_can_be()
+    {
         Describe(new string(' ', 5_000) + $$"""{ "id": "{{Id}}", "version": "1.0.0", "file": "a.crx" }""");
+
         Subject().Current().Should().BeNull();
     }
 }

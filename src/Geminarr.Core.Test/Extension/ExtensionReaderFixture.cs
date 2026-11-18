@@ -14,13 +14,6 @@ public sealed class ExtensionReaderFixture
     private ExtensionReader Subject(int silentAfterMinutes = 45) => new(_inbox, Options.Of(new ExtensionOptions { SilentAfterMinutes = silentAfterMinutes }), _clock);
 
     [Fact]
-    public async Task should_say_the_web_is_its_source()
-    {
-        Subject().Source.Should().Be("web");
-        await Task.CompletedTask;
-    }
-
-    [Fact]
     public async Task should_not_take_an_extension_that_never_spoke_for_a_session_that_is_gone()
     {
         var check = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
@@ -39,7 +32,7 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
-    public async Task should_take_a_silent_extension_for_a_reader_that_cannot_say_and_not_for_a_signed_out_session()
+    public async Task should_take_a_silent_extension_for_a_reader_that_cannot_say()
     {
         _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow());
         _clock.Advance(TimeSpan.FromMinutes(44));
@@ -52,10 +45,36 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
+    public async Task should_take_silence_after_a_signed_out_page_for_silence_and_not_for_a_session_that_is_gone()
+    {
+        _inbox.RecordSession(signedIn: false, null, _clock.GetUtcNow());
+        _clock.Advance(TimeSpan.FromMinutes(46));
+
+        var check = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
+
+        (await check.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent, "a word of the extension that old says nothing about now");
+    }
+
+    [Theory]
+    [InlineData(ExtensionBrokenSteps.Page)]
+    [InlineData(ExtensionBrokenSteps.List)]
+    [InlineData(ExtensionBrokenSteps.Turns)]
+    public async Task should_say_that_the_reader_is_broken_and_not_that_nobody_is_signed_in_when_the_page_is_not_what_the_extension_knows(string step)
+    {
+        _inbox.RecordBroken(step, null, _clock.GetUtcNow());
+
+        var check = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
+
+        var thrown = (await check.Should().ThrowAsync<ReaderException>()).Which;
+        thrown.Reason.Should().Be(ConnectionReasons.ReaderBroken);
+        thrown.Message.Should().Contain(step);
+    }
+
+    [Fact]
     public async Task should_list_only_the_conversations_that_the_extension_has_read_in_the_order_of_the_list_and_at_most_the_limit()
     {
         var now = _clock.GetUtcNow();
-        _inbox.RecordList([new ConversationHeader("a", "A", 0), new ConversationHeader("b", "B", 1), new ConversationHeader("c", "C", 2)], now);
+        _inbox.RecordList([new ConversationHeader("a", "A", 0), new ConversationHeader("b", "B", 1), new ConversationHeader("c", "C", 2)], null, now);
         _inbox.RecordConversation("c", "C", [new Turn("user", null, "x")], now);
         _inbox.RecordConversation("a", "A", [new Turn("user", null, "y")], now);
 

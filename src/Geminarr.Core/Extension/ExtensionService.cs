@@ -47,6 +47,7 @@ public sealed partial class ExtensionService
             "state" => State(request, version),
             "list" => List(request, version),
             "conversation" => Conversation(request),
+            "broken" => Broken(request, version),
             _ => ExtensionPushResult.Refused("Unknown kind."),
         };
     }
@@ -58,14 +59,27 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A state says whether somebody is signed in.");
         }
 
-        var before = _inbox.Session?.SignedIn;
+        var before = _inbox.Session;
         _inbox.RecordSession(signedIn, version, _clock.GetUtcNow());
-        // A change of who is signed in is told at once (the page shows "sign in again" without waiting for the hour of the next pass).
-        if (before != signedIn)
+        // A change of who is signed in, or a page that is known again, is told at once (the page shows "sign in again" without waiting for the hour of the next pass).
+        if (before?.SignedIn != signedIn || before.Broken is not null)
         {
             _trigger.Request();
         }
 
+        return ExtensionPushResult.Ok();
+    }
+
+    /// <summary>The extension says that the page is not what it knows, and at which of three steps: only a word of ours is kept, never what the page showed.</summary>
+    private ExtensionPushResult Broken(ExtensionPushRequest request, string? version)
+    {
+        if (!ExtensionBrokenSteps.IsKnown(request.Step))
+        {
+            return ExtensionPushResult.Refused("A broken page is told at one of three steps: page, list or turns.");
+        }
+
+        _inbox.RecordBroken(request.Step!, version, _clock.GetUtcNow());
+        _trigger.Request();
         return ExtensionPushResult.Ok();
     }
 
@@ -91,18 +105,17 @@ public sealed partial class ExtensionService
             }
         }
 
-        var now = _clock.GetUtcNow();
-        _inbox.RecordList(headers, now);
         // A list is also a word about the session: the page that showed it is the page of an account (a page nobody is signed in to sends a state, not a list).
-        var wasSignedOut = _inbox.Session is { SignedIn: false };
-        _inbox.RecordSession(signedIn: true, version, now);
-        if (wasSignedOut)
+        if (_inbox.RecordList(headers, version, _clock.GetUtcNow()))
         {
+            // Somebody signed in again, or the page is known again: the page says so at once.
             _trigger.Request();
         }
 
         var waiting = _outbox.ConversationsWaiting();
+        // What is asked for is chosen among the conversations that a pass looks at (MaxListed), never deeper: the past is the backfill's.
         var wanted = headers
+            .Take(_reader.Value.MaxListed)
             .Where(header => !_inbox.Has(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)

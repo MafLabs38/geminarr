@@ -76,10 +76,11 @@ test.describe('the extension reads the assistant @smoke', () => {
     { tag: '@browserless' },
     async ({ playwright }) => {
       test.setTimeout(240_000);
-      const request = await signedInRequest(playwright, GEMINARR);
       const before = await heldByMnemarr(playwright);
 
-      await (await playwright.request.newContext()).post(`${ASSISTANT}/admin/add`);
+      const assistant = await playwright.request.newContext();
+      await assistant.post(`${ASSISTANT}/admin/add`);
+      await assistant.dispose();
       // The stack asks the extension for a round every minute (the policy of its browser says so): the new conversation comes with the next one.
       await expect
         .poll(async () => Object.keys(await heldByMnemarr(playwright)).length, {
@@ -90,7 +91,6 @@ test.describe('the extension reads the assistant @smoke', () => {
         .toBe(Object.keys(before).length + 1);
       const after = await heldByMnemarr(playwright);
       for (const [session, lines] of Object.entries(before)) expect(after[session]).toBe(lines);
-      await request.dispose();
     },
   );
 
@@ -111,6 +111,29 @@ test.describe('the extension reads the assistant @smoke', () => {
       await expect.poll(state, { timeout: 200_000, intervals: [5000], message: 'reading resumes' }).toBe('Connected');
       await assistant.dispose();
       await request.dispose();
+    },
+  );
+
+  test(
+    'a page that is not the one the extension knows says "reader broken", not "sign in again", and reading resumes when it is',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(240_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+      const assistant = await playwright.request.newContext();
+      try {
+        const connection = async () => ((await (await request.get('/api/v1/connection')).json()) as Connection).reason;
+
+        await assistant.post(`${ASSISTANT}/admin/break`);
+        await expect
+          .poll(connection, { timeout: 200_000, intervals: [5000], message: 'the reader is said to be broken' })
+          .toBe('reader-broken');
+        await assistant.post(`${ASSISTANT}/admin/signin`);
+        await expect.poll(connection, { timeout: 200_000, intervals: [5000], message: 'reading resumes' }).toBeNull();
+      } finally {
+        await assistant.dispose();
+        await request.dispose();
+      }
     },
   );
 });

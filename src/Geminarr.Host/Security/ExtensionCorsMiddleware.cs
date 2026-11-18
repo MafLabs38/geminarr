@@ -1,4 +1,5 @@
 using Geminarr.Core.Extension;
+using Microsoft.Net.Http.Headers;
 
 namespace Geminarr.Host.Security;
 
@@ -9,6 +10,8 @@ namespace Geminarr.Host.Security;
 public sealed class ExtensionCorsMiddleware
 {
     public const string PushPath = "/api/v1/extension/push";
+    private const string AllowedHeaders = "authorization, content-type, x-geminarr-request";
+    private const string PreflightMaxAgeSeconds = "600";
 
     private readonly RequestDelegate _next;
     private readonly IExtensionPackage _package;
@@ -28,15 +31,15 @@ public sealed class ExtensionCorsMiddleware
 
         var headers = context.Response.Headers;
         headers.AccessControlAllowOrigin = context.Request.Headers.Origin;
-        headers.Vary = "Origin";
+        headers.Append(HeaderNames.Vary, "Origin");
         if (!HttpMethods.IsOptions(context.Request.Method))
         {
             return _next(context);
         }
 
         headers.AccessControlAllowMethods = "POST";
-        headers.AccessControlAllowHeaders = "authorization, content-type, x-geminarr-request";
-        headers.AccessControlMaxAge = "600";
+        headers.AccessControlAllowHeaders = AllowedHeaders;
+        headers.AccessControlMaxAge = PreflightMaxAgeSeconds;
         if (string.Equals(context.Request.Headers["Access-Control-Request-Private-Network"], "true", StringComparison.OrdinalIgnoreCase))
         {
             headers["Access-Control-Allow-Private-Network"] = "true";

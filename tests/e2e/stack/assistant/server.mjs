@@ -1,5 +1,5 @@
 // A fake assistant for the end-to-end tests: synthetic pages shaped like the ones the extension reads (a list of conversations, and the turns of one), on a plain-HTTP host of the test network. Nothing here is real.
-// POST /admin/signout shows the page of a visitor who is not signed in; POST /admin/signin goes back; POST /admin/add adds a conversation at the top of the list.
+// POST /admin/signout shows the page of a visitor who is not signed in; POST /admin/signin goes back; POST /admin/break shows a page that is neither (a page whose shape changed); POST /admin/add adds a conversation at the top of the list.
 import http from 'node:http';
 
 const conversations = [
@@ -30,7 +30,7 @@ const conversations = [
     ],
   },
 ];
-let signedIn = true;
+let mode = 'in';
 let added = 0;
 
 const page = (body) =>
@@ -40,14 +40,16 @@ const html = (response, body, status = 200) =>
 const escape = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
 function list(response) {
-  // A page that nobody is signed in to lists nothing.
-  const links = (signedIn ? conversations : [])
+  if (mode === 'broken') return html(response, '<p>A page that is not the one that the extension knows.</p>');
+  // A page that nobody is signed in to has a sign-in link and lists nothing.
+  const account =
+    mode === 'in'
+      ? '<a href="https://accounts.fake.invalid/SignOutOptions">Account</a>'
+      : '<a href="https://accounts.fake.invalid/ServiceLogin?continue=x">Sign in</a>';
+  const links = (mode === 'in' ? conversations : [])
     .map((item) => `<a href="/app/${item.id}">${escape(item.title)}</a>`)
     .join('');
-  const account = signedIn
-    ? '<a href="https://accounts.fake.invalid/SignOutOptions">Account</a>'
-    : '<a href="https://accounts.fake.invalid/signin">Sign in</a>';
-  html(
+  return html(
     response,
     `${account}<conversations-list><infinite-scroller style="display:block;height:300px;overflow:auto">${links}</infinite-scroller></conversations-list>`,
   );
@@ -69,8 +71,9 @@ http
     const path = new URL(request.url, 'https://assistant.invalid').pathname;
     if (request.method === 'POST' && path.startsWith('/admin/')) {
       request.resume();
-      if (path === '/admin/signout') signedIn = false;
-      if (path === '/admin/signin') signedIn = true;
+      if (path === '/admin/signout') mode = 'out';
+      if (path === '/admin/signin') mode = 'in';
+      if (path === '/admin/break') mode = 'broken';
       if (path === '/admin/add') {
         added += 1;
         conversations.unshift({
