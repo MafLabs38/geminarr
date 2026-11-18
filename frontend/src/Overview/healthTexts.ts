@@ -16,6 +16,7 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['not-connected', 'ReasonConnectionNotConnected'],
   ['needs-login', 'ReasonNeedsLogin'],
   ['reader-broken', 'ReasonReaderBroken'],
+  ['extension-silent', 'ReasonExtensionSilent'],
   ['rate-limited', 'ReasonRateLimited'],
   ['unreachable', 'ReasonUnreachable'],
   ['mnemarr-not-linked', 'ReasonMnemarrNotLinked'],

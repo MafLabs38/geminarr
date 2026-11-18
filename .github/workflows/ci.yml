@@ -47,6 +47,8 @@ jobs:
       # The checker of the review decisions (docs/review-decisions/README.md) has its own tests, run here and never in its own job.
       - run: python3 -I -m unittest -q
         working-directory: tools/review-decisions
+      # The packing of the extension (tools/extension) has its own tests, with Node alone.
+      - run: node --test "tools/extension/test/*.test.mjs"
       - run: yarn install --frozen-lockfile
       - run: yarn lint
       - run: yarn stylelint
@@ -163,7 +165,8 @@ jobs:
       # pull request's own code (the build): same-repository branch authors are trusted with this secret, and pull requests from
       # forks never get it.
       # tools/** (the release tooling and the checker of the review decisions) is analysed, but left out of the coverage figure: no coverage report
-      # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs).
+      # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs). The same for extension/**, which runs in a browser:
+      # the end-to-end job runs the real extension in a real Chromium against the stack.
       # Documented exception (CLAUDE.md): docker:S8431 asks for the tag or the digest of a base image, not both. The Dockerfile keeps
       # both on purpose: the digest makes a build reproducible, the tag is what Dependabot follows to move the digest (ADR 0013).
       - name: Begin SonarQube analysis
@@ -174,7 +177,7 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
-          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**,extension/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.qualitygate.wait=true
           /d:sonar.issue.ignore.multicriteria=e1
@@ -325,6 +328,12 @@ jobs:
             type=sha
             type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
             type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
+      # A release is signed by the key of the extension, or it is not published: an extension signed by another key is another extension, and the browsers that a policy installed it on would not update to it.
+      - name: A release needs the signing key of the extension
+        if: ${{ needs.release.outputs.version != '' }}
+        env:
+          KEY: ${{ secrets.EXTENSION_SIGNING_KEY }}
+        run: test -n "$KEY" || { echo "::error title=No signing key::EXTENSION_SIGNING_KEY is not set: a release of the extension cannot be signed (docs/runbook.md)."; exit 1; }
       # The build stages run on the runner's own architecture and the final stage only copies files (Dockerfile), so the arm64
       # image needs no emulation. It is built here and not started: the end-to-end test runs the amd64 image (docs/releasing.md).
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -335,6 +344,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ steps.version.outputs.value }}
+          # The key that signs the extension, as a BuildKit secret: it is in no layer of the image and in no log.
+          secrets: |
+            extension_key=${{ secrets.EXTENSION_SIGNING_KEY }}
           # A release is built from nothing and reads no layer cache (a layer written by an earlier job of the push could carry a
           # poisoned layer into the image published under the version), and writes none. Other builds use the cache.
           no-cache: ${{ needs.release.outputs.version != '' }}

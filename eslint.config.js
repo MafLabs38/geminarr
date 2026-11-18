@@ -60,8 +60,17 @@ export default tseslint.config(
     },
   },
   {
+    // The extension runs in the browser (a service worker and a content script), where `chrome` is a global; the packing tool and its tests run in Node.
+    files: ['extension/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser, ...globals.serviceworker, chrome: 'readonly' } },
+  },
+  {
+    files: ['tools/extension/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
     // Test inputs use example addresses and fakes keep mutable statics, as the repository's rules ask.
-    files: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'tests/**'],
+    files: ['**/__tests__/**', '**/*.test.{ts,tsx,mjs}', 'tests/**'],
     rules: {
       'sonarjs/no-hardcoded-ip': 'off',
       'sonarjs/no-clear-text-protocols': 'off',

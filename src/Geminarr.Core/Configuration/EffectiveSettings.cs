@@ -1,4 +1,5 @@
 using Geminarr.Core.Access;
+using Geminarr.Core.Extension;
 using Geminarr.Core.Identity;
 using Geminarr.Core.Link;
 using Geminarr.Core.Pipeline;
@@ -21,6 +22,7 @@ public sealed class EffectiveSettings
     private readonly IOptions<AuthOptions> _auth;
     private readonly IOperatorCredentials _credentials;
     private readonly IOptions<IdentityOptions> _identity;
+    private readonly IOptions<ExtensionOptions> _extension;
     private readonly IOptions<MnemarrOptions> _mnemarr;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly IOptions<RetentionOptions> _retention;
@@ -30,6 +32,7 @@ public sealed class EffectiveSettings
         IOptions<AuthOptions> auth,
         IOperatorCredentials credentials,
         IOptions<IdentityOptions> identity,
+        IOptions<ExtensionOptions> extension,
         IOptions<MnemarrOptions> mnemarr,
         IOptions<ReaderOptions> reader,
         IOptions<RetentionOptions> retention)
@@ -38,6 +41,7 @@ public sealed class EffectiveSettings
         _auth = auth;
         _credentials = credentials;
         _identity = identity;
+        _extension = extension;
         _mnemarr = mnemarr;
         _reader = reader;
         _retention = retention;
@@ -69,6 +73,10 @@ public sealed class EffectiveSettings
         new("GEMINARR__READER__LOGINFAILURES", _reader.Value.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__DEMOGROWSECONDS", _reader.Value.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _reader.Value.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__EXTENSION__TOKENFILE", string.IsNullOrWhiteSpace(_extension.Value.TokenFile) ? NotSet : "set", true),
+        new("GEMINARR__EXTENSION__PACKAGEFOLDER", _extension.Value.PackageFolder, false),
+        new("GEMINARR__EXTENSION__PUBLICURL", string.IsNullOrWhiteSpace(_extension.Value.PublicUrl) ? NotSet : _extension.Value.PublicUrl, false),
+        new("GEMINARR__EXTENSION__SILENTAFTERMINUTES", _extension.Value.SilentAfterMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__RETENTION__RUNSDAYS", _retention.Value.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

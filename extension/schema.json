@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "geminarrUrl": { "title": "Where Geminarr receives what the extension reads", "type": "string" },
+    "token": { "title": "The token that Geminarr gave this browser", "type": "string" }
+  }
+}
