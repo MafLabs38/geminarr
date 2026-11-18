@@ -1,3 +1,4 @@
+using Geminarr.Api.V1.Extension;
 using Geminarr.Core.Extension;
 using Microsoft.Net.Http.Headers;
 
@@ -23,16 +24,23 @@ public sealed class ExtensionCorsMiddleware
 
     public Task InvokeAsync(HttpContext context)
     {
+        // Only a request for the push route that names an origin reads the package: every other request of the host goes through without a look at the disk.
+        if (!context.Request.Path.Equals(ExtensionRoutes.PushPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return _next(context);
+        }
+
+        var headers = context.Response.Headers;
+        // The answer depends on the origin whatever it is: a cache between must not serve one origin's answer to another.
+        headers.Append(HeaderNames.Vary, "Origin");
         var origin = OriginOfTheExtension();
-        if (origin is null || !context.Request.Path.Equals(ExtensionRoutes.PushPath, StringComparison.OrdinalIgnoreCase) || !string.Equals(context.Request.Headers.Origin.ToString(), origin, StringComparison.Ordinal))
+        if (origin is null || !string.Equals(context.Request.Headers.Origin.ToString(), origin, StringComparison.Ordinal))
         {
             return _next(context);
         }
 
         // The header says the origin that the package gives, never what the request said it was.
-        var headers = context.Response.Headers;
         headers.AccessControlAllowOrigin = origin;
-        headers.Append(HeaderNames.Vary, "Origin");
         if (!HttpMethods.IsOptions(context.Request.Method))
         {
             return _next(context);

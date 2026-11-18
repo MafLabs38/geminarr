@@ -2,9 +2,9 @@ import { expect, type PlaywrightWorkerArgs, test } from '@playwright/test';
 
 /** The operator of the e2e stack (tests/e2e/stack/docker-compose.yml): a test-only value. */
 const OPERATOR = { name: 'e2e-operator', password: 'e2e-admin-password' };
-/** What the stack publishes for the tests: the fake assistant (to sign it out and to add a conversation) and the fake Mnemarr (to read what it holds). */
 /** The instance of the stack that reads through the extension (the other one has no reader). */
 const GEMINARR = process.env.GEMINARR_EXTENSION_URL ?? 'http://localhost:8283';
+/** What the stack publishes for the tests: the fake assistant (to sign it out and to add a conversation) and the fake Mnemarr (to read what it holds). */
 const ASSISTANT = 'http://localhost:8091';
 const MNEMARR = 'http://localhost:8092';
 

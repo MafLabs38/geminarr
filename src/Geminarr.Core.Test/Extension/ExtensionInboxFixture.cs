@@ -139,4 +139,42 @@ public sealed class ExtensionInboxFixture
     {
         ExtensionBrokenSteps.IsKnown(step).Should().Be(known);
     }
+
+    [Fact]
+    public void should_not_take_one_or_two_conversations_without_a_turn_for_a_page_that_changed_but_three_in_a_row()
+    {
+        _subject.RecordSession(signedIn: true, null, Now);
+
+        _subject.RecordUnreadable("c1", null, Now).Should().BeFalse();
+        _subject.RecordUnreadable("c2", null, Now).Should().BeFalse();
+        _subject.Session!.Broken.Should().BeNull();
+        _subject.RecordUnreadable("c3", "1.0.0", Now).Should().BeTrue();
+        _subject.Session.Should().Be(new ExtensionSession(true, "1.0.0", Now, ExtensionBrokenSteps.Turns));
+    }
+
+    [Fact]
+    public void should_forget_the_unreadable_ones_when_a_conversation_is_read_and_after_an_hour_and_when_nobody_is_signed_in()
+    {
+        _subject.RecordUnreadable("c1", null, Now);
+        _subject.RecordUnreadable("c2", null, Now);
+        _subject.RecordConversation("c9", "T", [new Turn("user", null, "hi")], Now);
+        _subject.IsUnreadable("c1").Should().BeFalse("a conversation was read: the page is the one that is known");
+
+        _subject.RecordUnreadable("c3", null, Now);
+        _subject.RecordUnreadable("c4", null, Now.Add(ExtensionInbox.HeldFor).AddMinutes(1));
+        _subject.IsUnreadable("c3").Should().BeFalse("an hour passed");
+        _subject.IsUnreadable("c4").Should().BeTrue();
+
+        _subject.RecordSession(signedIn: false, null, Now);
+        _subject.IsUnreadable("c4").Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_not_ask_about_more_conversations_than_it_holds()
+    {
+        _subject.Ask(Enumerable.Range(0, ExtensionInbox.MaxConversations + 5).Select(i => $"c{i}"), Now);
+
+        _subject.WasAsked("c0").Should().BeFalse("the oldest questions go first, whatever the order they were put in");
+        _subject.WasAsked($"c{ExtensionInbox.MaxConversations + 4}").Should().BeTrue();
+    }
 }

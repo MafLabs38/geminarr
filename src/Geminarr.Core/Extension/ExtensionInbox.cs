@@ -28,6 +28,9 @@ public sealed class ExtensionInbox
     /// <summary>The text that waits for a pass, in characters, at most: the container is small, and what is dropped is brought again by the next round.</summary>
     public const int MaxHeldCharacters = 20_000_000;
 
+    /// <summary>How many conversations in a row that show no turn make the reader broken: one or two are a conversation without text (an image, a voice), not a page that changed.</summary>
+    public const int UnreadableToBreak = 3;
+
     /// <summary>How long what the extension handed over, or what it was asked for, is kept when no pass takes it: the next round brings it again.</summary>
     public static readonly TimeSpan HeldFor = TimeSpan.FromHours(1);
 
@@ -36,6 +39,7 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _unreadable = new(StringComparer.Ordinal);
     private IReadOnlyList<ConversationHeader> _list = [];
 
     public ExtensionInbox() : this(MaxHeldCharacters)
@@ -68,6 +72,7 @@ public sealed class ExtensionInbox
                 // Nobody is signed in: what was read for the account that was is not kept for the next one.
                 _conversations.Clear();
                 _asked.Clear();
+                _unreadable.Clear();
                 _list = [];
             }
         }
@@ -95,6 +100,12 @@ public sealed class ExtensionInbox
             {
                 _asked[id] = now;
             }
+
+            // The same bound as what is held: the oldest questions go first.
+            foreach (var oldest in _asked.OrderBy(pair => pair.Value).Select(pair => pair.Key).Take(Math.Max(_asked.Count - MaxConversations, 0)).ToList())
+            {
+                _asked.Remove(oldest);
+            }
         }
     }
 
@@ -103,6 +114,32 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             return _asked.ContainsKey(id);
+        }
+    }
+
+    /// <summary>A conversation that showed no turn. Three of them in a row, with none read in between, are a page that is not what the extension knows; fewer are conversations with nothing to read, and are not asked for again for an hour.</summary>
+    public bool RecordUnreadable(string id, string? version, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            Purge(now);
+            _asked.Remove(id);
+            _unreadable[id] = now;
+            if (_unreadable.Count < UnreadableToBreak)
+            {
+                return false;
+            }
+
+            _session = new ExtensionSession(_session?.SignedIn ?? true, version, now, ExtensionBrokenSteps.Turns);
+            return true;
+        }
+    }
+
+    public bool IsUnreadable(string id)
+    {
+        lock (_gate)
+        {
+            return _unreadable.ContainsKey(id);
         }
     }
 
@@ -116,6 +153,11 @@ public sealed class ExtensionInbox
         foreach (var old in _asked.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
         {
             _asked.Remove(old);
+        }
+
+        foreach (var old in _unreadable.Where(pair => now - pair.Value > HeldFor).Select(pair => pair.Key).ToList())
+        {
+            _unreadable.Remove(old);
         }
     }
 
@@ -141,6 +183,7 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             Purge(now);
+            _unreadable.Clear();
             _conversations[id] = (title, turns, now);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())

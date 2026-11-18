@@ -78,7 +78,24 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A broken page is told at one of three steps: page, list or turns.");
         }
 
-        _inbox.RecordBroken(request.Step!, version, _clock.GetUtcNow());
+        var now = _clock.GetUtcNow();
+        if (request.Step == ExtensionBrokenSteps.Turns)
+        {
+            // One conversation that shows no turn is a conversation with nothing to read; only several in a row say that the page is not what the extension knows.
+            if (!IsId(request.Id))
+            {
+                return ExtensionPushResult.Refused("A conversation has an id of letters, digits, - and _ (64 at most).");
+            }
+
+            if (_inbox.RecordUnreadable(request.Id!, version, now))
+            {
+                _trigger.Request();
+            }
+
+            return ExtensionPushResult.Ok();
+        }
+
+        _inbox.RecordBroken(request.Step!, version, now);
         _trigger.Request();
         return ExtensionPushResult.Ok();
     }
@@ -95,11 +112,10 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A list has at most " + MaxPushedItems + " conversations.");
         }
 
-        var items = request.Items;
 
         var headers = new List<ConversationHeader>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var item in items)
+        foreach (var item in request.Items)
         {
             if (!IsId(item.Id))
             {
@@ -120,10 +136,10 @@ public sealed partial class ExtensionService
         }
 
         var waiting = _outbox.ConversationsWaiting();
-        // What is asked for is chosen among the conversations that a pass looks at (MaxPushedItems), never deeper: the past is the backfill's.
+        // What is asked for is chosen among the conversations that a pass looks at (`MaxListed`), never deeper: the past is the backfill's.
         var wanted = headers
             .Take(_reader.Value.MaxListed)
-            .Where(header => !_inbox.Has(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
+            .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
             .ToList();

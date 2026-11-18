@@ -53,7 +53,7 @@ They are not Geminarr's: they are the **policy of the browser** (`3rdparty.exten
 
 | Variable | Vertical | Purpose |
 |---|---|---|
-| `GEMINARR__READER__BACKFILLPERPASS`, `…RATELIMITPAUSEHOURS` | 4 | Backfill and the pause after a block |
-| `GEMINARR__IMPORT__*`, `GEMINARR__IMPORTFOLDER` | 5 | The Takeout import |
+| `GEMINARR__READER__BACKFILLPERPASS`, `…RATELIMITPAUSEHOURS` | 5 | Backfill and the pause after a block |
+| `GEMINARR__IMPORT__*`, `GEMINARR__IMPORTFOLDER` | 6 | The Takeout import |
 
 Every limit and interval comes from configuration with a documented default; none is a literal in the code, except the fixed security policy of the sign-in and an internal cache window, which are stated in [SPEC.md §10.2](SPEC.md#102-settings). A setting that cannot work stops the start with a sentence that names it.

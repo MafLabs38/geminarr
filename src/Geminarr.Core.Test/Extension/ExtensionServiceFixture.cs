@@ -222,7 +222,6 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Theory]
     [InlineData(ExtensionBrokenSteps.Page)]
     [InlineData(ExtensionBrokenSteps.List)]
-    [InlineData(ExtensionBrokenSteps.Turns)]
     public async Task should_take_the_word_that_the_page_is_not_what_the_extension_knows_and_ask_for_a_pass_at_once(string step)
     {
         var result = Subject().Handle(new ExtensionPushRequest("broken", null, null, null, null, null, "1.0.0", step));
@@ -355,5 +354,43 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", null, null, [new PushedTurn("user", "x")], null)).Accepted.Should().BeTrue();
         Subject().Handle(new ExtensionPushRequest("conversation", null, "c2", new string('t', ExtensionService.MaxTitleLength + 50), null, [new PushedTurn("user", "x")], null)).Accepted.Should().BeTrue();
+    }
+
+    private ExtensionPushResult NoTurns(string? id) => Subject().Handle(new ExtensionPushRequest("broken", null, id, null, null, null, null, ExtensionBrokenSteps.Turns));
+
+    [Fact]
+    public async Task should_not_call_the_reader_broken_for_one_conversation_without_a_turn_but_for_three_in_a_row()
+    {
+        NoTurns("c1").Accepted.Should().BeTrue();
+        NoTurns("c2").Accepted.Should().BeTrue();
+        _inbox.Session?.Broken.Should().BeNull("a conversation with nothing to read is not a page that changed");
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeFalse();
+
+        NoTurns("c3").Accepted.Should().BeTrue();
+
+        _inbox.Session!.Broken.Should().Be(ExtensionBrokenSteps.Turns);
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_stop_asking_for_a_conversation_that_has_nothing_to_read_and_forget_that_a_conversation_was_read_in_between()
+    {
+        NoTurns("c1");
+
+        Subject().Handle(ListOf(Item("c1"), Item("c2"))).Open.Should().Equal("c2");
+
+        AskFor("c2");
+        Subject().Handle(ConversationOf("c2", new PushedTurn("user", "hi")));
+        NoTurns("c3");
+        NoTurns("c4");
+        _inbox.Session?.Broken.Should().BeNull("one was read after the first: they are not in a row");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not an id")]
+    public void should_refuse_a_conversation_without_a_turn_whose_id_is_not_one(string? id)
+    {
+        NoTurns(id).Accepted.Should().BeFalse();
     }
 }

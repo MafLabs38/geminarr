@@ -200,20 +200,20 @@ describe('the page of a conversation', () => {
     ]);
   });
 
-  it('says that the page is not what it knows when a conversation shows no turn at all', async () => {
+  it('says which conversation shows no turn at all, and leaves it to Geminarr to tell a page that changed from a conversation with nothing to read', async () => {
     const { sent } = await run('<p>Nothing like a conversation</p>', '/app/c1a2b3');
 
-    assert.deepEqual(sent, [{ kind: 'broken', step: 'turns' }]);
+    assert.deepEqual(sent, [{ kind: 'broken', step: 'turns', id: 'c1a2b3' }]);
   });
 
-  it('hands over nothing of a conversation that never stops changing', async () => {
+  it('hands over nothing of a conversation that never stops changing, and gives up so that its page is closed', async () => {
     const { sent } = await run(turns, '/app/c1a2b3', {
       onWait: (n, document) => {
         document.querySelector('message-content').textContent = `Hi there ${n}`;
       },
     });
 
-    assert.deepEqual(sent, []);
+    assert.deepEqual(sent, [{ kind: 'giveup' }]);
   });
 
   it('reads nothing on a page that is not the list or a conversation', async () => {

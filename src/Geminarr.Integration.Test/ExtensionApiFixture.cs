@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Geminarr.Api.V1.Extension;
+using Geminarr.Core.Extension;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -168,6 +169,7 @@ public sealed class ExtensionApiFixture
 
         var conversation = await client.SendAsync(Push(new { kind = "conversation", id = "c1", title = "One", turns = new[] { new { role = "user", text = "hi" }, new { role = "assistant", text = "hello" } } }), CancellationToken);
         conversation.StatusCode.Should().Be(HttpStatusCode.OK);
+        factory.Services.GetRequiredService<ExtensionInbox>().Take("c1")!.Select(turn => (turn.Role, turn.Text)).Should().Equal(("user", "hi"), ("assistant", "hello"));
     }
 
     [Fact]
@@ -232,6 +234,35 @@ public sealed class ExtensionApiFixture
         answer.Headers.GetValues("Access-Control-Allow-Private-Network").Should().Equal("true");
         other.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
         foreign.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("chrome-extension://abcdefghijklmnopabcdefghijklmnop/")]
+    [InlineData("chrome-extension://ABCDEFGHIJKLMNOPABCDEFGHIJKLMNOP")]
+    [InlineData("http://abcdefghijklmnopabcdefghijklmnop")]
+    [InlineData("null")]
+    [InlineData("")]
+    public async Task should_give_no_header_to_an_origin_that_is_not_exactly_the_one_of_the_extension(string origin)
+    {
+        using var factory = new ExtensionFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.SendAsync(Preflight("/api/v1/extension/push", origin), CancellationToken);
+
+        response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+        response.Headers.GetValues("Vary").Should().Contain("Origin", "the answer depends on the origin whatever it is");
+    }
+
+    [Fact]
+    public async Task should_not_look_at_the_package_for_a_request_that_is_not_for_the_push_route()
+    {
+        using var factory = new ExtensionFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/live", CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.Contains("Vary").Should().BeFalse("the route of the push is the only one that speaks of origins");
     }
 
     private static HttpRequestMessage Preflight(string path, string origin)

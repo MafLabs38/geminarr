@@ -62,9 +62,16 @@ async function hasWorkTab() {
 }
 
 /** A round: one page of the list. What it finds, and what Geminarr asks for, is done by the messages below. */
-async function round() {
+async function openTheList() {
   // A round that finds the last one still reading (a slow page) waits: the sweep closes what hangs.
   if ((await settings()) && !(await hasWorkTab())) await openInBackground('/app');
+}
+
+// One at a time: the alarm, the start of the browser and the install can wake the worker together, and two rounds that look before either has opened its tab would open two.
+let roundsInTurn = Promise.resolve();
+function round() {
+  roundsInTurn = roundsInTurn.then(openTheList, openTheList);
+  return roundsInTurn;
 }
 
 async function sweep() {
@@ -76,10 +83,12 @@ async function sweep() {
 }
 
 async function onMessage(message, sender) {
-  const answer = await push(message);
+  // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing.
+  const answer = message.kind === 'giveup' ? null : await push(message);
   if (message.kind === 'list') {
-    const ids = (answer?.open ?? [])
-      .filter((candidate) => /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
+    // What Geminarr answers is a list of ids; anything else asks for nothing.
+    const ids = (Array.isArray(answer?.open) ? answer.open : [])
+      .filter((candidate) => typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
       .slice(0, MAX_TABS_PER_ANSWER);
     for (const id of ids) await openInBackground(`/app/${id}`);
   }

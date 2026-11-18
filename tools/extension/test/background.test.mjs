@@ -178,6 +178,34 @@ describe('what the extension opens and closes', () => {
     assert.deepEqual([calls.created.length, calls.removed], [0, [100]]);
   });
 
+  it('opens nothing and still closes its page when the answer is not what Geminarr says', async () => {
+    for (const answer of [
+      () => ({ ok: true, json: async () => ({ open: 'abc' }) }),
+      () => ({ ok: true, json: async () => Promise.reject(new Error('not json')) }),
+    ]) {
+      const { calls, listeners } = await load({ answer });
+      listeners.alarm({ name: 'round' });
+      await flush();
+      calls.created.length = 0;
+
+      listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+      await flush();
+
+      assert.deepEqual([calls.created.length, calls.removed], [0, [100]]);
+    }
+  });
+
+  it('closes the page of a conversation that gives up without telling Geminarr anything', async () => {
+    const { calls, listeners } = await load();
+    listeners.alarm({ name: 'round' });
+    await flush();
+
+    listeners.message({ kind: 'giveup' }, { tab: { id: 100 } });
+    await flush();
+
+    assert.deepEqual([calls.fetch.length, calls.removed], [0, [100]]);
+  });
+
   it('does not start a round while the last one is still reading', async () => {
     const { calls, listeners } = await load();
 

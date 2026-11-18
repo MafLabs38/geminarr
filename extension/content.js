@@ -80,8 +80,7 @@ function readTurns() {
     .filter((turn) => turn.text);
 }
 
-// A conversation is read when what it shows has stopped changing: the page fills in as it loads. One that shows nothing at all is a page that is not what this knows; one that never stops changing is
-// read at the next round (a partial answer is never handed over).
+// A conversation is read when what it shows has stopped changing: the page fills in as it loads (a partial answer is never handed over).
 async function readConversation(id) {
   let last = '';
   let stable = 0;
@@ -93,7 +92,8 @@ async function readConversation(id) {
     last = snapshot;
     if (stable >= STABLE_ROUNDS) return send({ kind: 'conversation', id, title: document.title, turns });
   }
-  return last === '[]' ? send({ kind: 'broken', step: 'turns' }) : undefined;
+  // One that shows nothing is a conversation with nothing to read (or, if several do, a page that changed: Geminarr counts); one that never stops changing is read at the next round, and its page is closed now.
+  return send(last === '[]' ? { kind: 'broken', step: 'turns', id } : { kind: 'giveup' });
 }
 
 // Only the pages that the worker opened are read: a page that a person opened is theirs, and is neither scrolled nor read.

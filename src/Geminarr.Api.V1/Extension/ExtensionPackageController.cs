@@ -37,7 +37,7 @@ public sealed class ExtensionPackageController : ControllerBase
             return NotFound();
         }
 
-        var codebase = $"{BaseUrl()}/api/v1/extension/package/{package.FileName}";
+        var codebase = $"{BaseUrl()}/{ExtensionRoutes.Base}/package/{package.FileName}";
         var xml = ExtensionUpdateManifest.Render(package, codebase);
         return Content(xml, UpdateContentType);
     }

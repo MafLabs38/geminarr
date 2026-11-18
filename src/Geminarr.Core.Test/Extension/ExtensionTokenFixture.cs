@@ -30,17 +30,11 @@ public sealed class ExtensionTokenFixture : IDisposable
     }
 
     [Fact]
-    public void should_accept_nothing_when_the_file_that_is_named_is_missing()
-    {
-        var subject = new ExtensionToken(Options.Of(new ExtensionOptions { TokenFile = Path.Combine(_folder, "missing") }));
-
-        subject.Verify("a token that is long enough to be one, but nobody gave it").Should().BeFalse();
-    }
-
-    [Fact]
     public void should_say_unreadable_for_a_file_that_is_missing_or_empty()
     {
-        new ExtensionToken(Options.Of(new ExtensionOptions { TokenFile = Path.Combine(_folder, "missing") })).Status.Should().Be(ExtensionTokenStatus.Unreadable);
+        var missing = new ExtensionToken(Options.Of(new ExtensionOptions { TokenFile = Path.Combine(_folder, "missing") }));
+        missing.Status.Should().Be(ExtensionTokenStatus.Unreadable);
+        missing.Verify("a token that is long enough to be one, but nobody gave it").Should().BeFalse();
         With("\n").Status.Should().Be(ExtensionTokenStatus.Unreadable);
     }
 

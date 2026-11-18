@@ -424,11 +424,11 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `READER__DEMOGROWSECONDS` | **60** | The demonstration reader only: seconds between two new turns of the conversation that is active |
 | `READER__POLLMINUTES` | **20** | Interval between passes (±20 % jitter) |
 | `READER__MAXLISTED`, `READER__MAXOPENPERPASS` | **40**, **5** | §6.2 |
-| `READER__BACKFILLPERPASS` *(4)* | **10** | §6.3 (0 turns backfill off) |
+| `READER__BACKFILLPERPASS` *(5)* | **10** | §6.3 (0 turns backfill off) |
 | `READER__PASSTIMEOUTMINUTES` (reading), `READER__MAXBACKOFFMINUTES` | **5**, **360** | §6.4 |
-| `READER__RATELIMITPAUSEHOURS` *(4)* | **6** | §6.4 |
+| `READER__RATELIMITPAUSEHOURS` *(5)* | **6** | §6.4 |
 | `READER__LOGINFAILURES` | **3** | Consecutive "not signed in" before `needs-login` |
-| `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(5)* | **512**, none | §8 |
+| `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(6)* | **512**, none | §8 |
 | `EXTENSION__TOKENFILE` | none | The file with the token that the extension presents (32 characters or more, a mounted secret); without it nothing the extension sends is accepted |
 | `EXTENSION__PACKAGEFOLDER` | **`extension`** | Where the signed package and its `extension.json` are (the image carries them) |
 | `EXTENSION__PUBLICURL` | none | The address by which the browser reaches Geminarr, when it is not the one of the request (a proxy that ends TLS): the update manifest names the package by it |
@@ -446,7 +446,7 @@ Every limit and interval above comes from configuration with that default; none 
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
 | `profile` | *(none: Geminarr holds no profile, D-23)* |
-| `connection` | `not-connected`, `needs-login`, `reader-broken`, `extension-silent`, `rate-limited`, `unreachable` (`paused` comes with vertical 3) |
+| `connection` | `not-connected`, `needs-login`, `reader-broken`, `extension-silent`, `rate-limited`, `unreachable` (`paused` comes with vertical 4) |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
 
@@ -525,9 +525,9 @@ Reading a consumer product by automation is against the provider's terms of use.
 | Q-09 | A conversation imported from Takeout and later seen by the web reader are two sessions (proposed) or merged by content? | ❓ |
 | Q-10 | What does the browser's sandbox need in a restricted pod (user namespaces, `--no-sandbox` with a seccomp profile)? | ❓ now the question of the browser's container, not of Geminarr's; the examples take what the image needs |
 | Q-11 | Quality of the search by meaning on informal, spoken-style conversations (the model was measured on project documentation). | 🧪 after vertical 4 |
-| Q-13 | A browser that stays silent for days (off, a policy lost, a token that does not match): `extension-silent` is a sentence on Mnemarr's machines page, never a mail. Should a long silence become an `attention` code (Mnemarr's closed list, M-3), or is a page that says it enough? | ❓ decide with the first weeks of running |
 | Q-12 | Does Mnemarr's start-of-session thread (ADR 0037/0038) stay free of `gemini` conversations once M-2 exists? | ❓ to check in Mnemarr |
 | Q-13 | License and visibility of this repository (proposed: public, GPL-3.0-or-later, like the family; the reader code names the product's pages, not its secrets). | ❓ maintainer |
+| Q-14 | A browser that stays silent for days (off, a policy lost, a token that does not match): `extension-silent` is a sentence on Mnemarr's machines page, never a mail. Should a long silence become an `attention` code (Mnemarr's closed list, M-3), or is a page that says it enough? | ❓ decide with the first weeks of running |
 
 ---
 
