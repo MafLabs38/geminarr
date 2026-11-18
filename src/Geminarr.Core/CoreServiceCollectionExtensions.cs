@@ -61,7 +61,6 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IBrowserHost, DesktopBrowserHost>();
         services.TryAddSingleton<IBrowserExposure, NoBrowserExposure>();
         services.AddSingleton<ConnectionTracker>();
-        services.AddSingleton<SignInObserver>();
         services.AddSingleton<ConnectionService>();
         // The kind is read when the reader is first needed, not when the services are registered: the configuration is final by then.
         services.AddSingleton(provider => new ReaderProvider(NewReader(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind, provider)));

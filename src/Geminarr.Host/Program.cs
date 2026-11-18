@@ -30,7 +30,6 @@ builder.Services.AddSingleton<Geminarr.Core.Browser.IEgressProbe, Geminarr.Host.
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
-builder.Services.AddHostedService<SignInWatcher>();
 builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
@@ -76,6 +75,16 @@ if (app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value is { Deskt
 {
     app.Logger.LogWarning("The desktop of the browser has no public address (GEMINARR__BROWSER__DESKTOPPUBLICURL): it is reached on port {Port} of the page's host, which a proxy that serves the default port only does not answer.", app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value.DesktopPort);
 }
+
+// The desktop's origin is picked by the port of the listener that accepted a connection: a desktop with no listener of its port is never served (it is not served on the operator's origin either), and the log says why.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var desktop = app.Services.GetRequiredService<IOptions<BrowserOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(desktop.DesktopUrl) && app.Urls.Count > 0 && !DesktopListener.IsBound(app.Urls, desktop.DesktopPort))
+    {
+        app.Logger.LogError("The desktop's port ({Port}) is not one that Geminarr listens on: the desktop is not served (GEMINARR__BROWSER__DESKTOPPORT, GEMINARR__URLS).", desktop.DesktopPort);
+    }
+});
 
 app.UseExceptionHandler();
 // The desktop of the browser is another program's: it has an origin of its own, a port that answers for it and for nothing else (ADR 0019).

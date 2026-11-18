@@ -49,10 +49,6 @@ public sealed class DesktopBrowserHost : IBrowserHost
         }
     }
 
-    public Task<bool?> IsSigningInAsync(CancellationToken cancellationToken) => Task.FromResult<bool?>(null);
-
-    public Task OpenSignInPageAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
     public Task DisconnectAsync(CancellationToken cancellationToken) =>
         throw new ConnectionRefusedException("Disconnecting comes with the extension of the browser: this version cannot clear the session.");
 }

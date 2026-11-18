@@ -16,8 +16,6 @@ const connection: Connection = {
   hasBrowser: false,
   pausedUntil: null,
   hasDesktop: false,
-  account: null,
-  signingIn: false,
 };
 const linkedState = {
   url: 'https://mnemarr.homelab.example',

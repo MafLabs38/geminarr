@@ -14,8 +14,6 @@ const base: ConnectionResource = {
   hasBrowser: true,
   pausedUntil: null,
   hasDesktop: true,
-  account: null,
-  signingIn: false,
 };
 
 describe('Connection', () => {
@@ -67,30 +65,7 @@ describe('Connection', () => {
     expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
   });
 
-  it('says who the browser is signed in as, by name and by address', async () => {
-    serveApi({
-      'GET /connection': () => ({
-        ...base,
-        state: 'Connected',
-        account: { name: 'Jane Doe', email: 'jane@example.org' },
-      }),
-    });
-    renderAt(<Connection />);
-
-    expect(await screen.findByText('Signed in as Jane Doe')).toBeInTheDocument();
-    expect(screen.getByText('jane@example.org')).toBeInTheDocument();
-  });
-
-  it('says the address when the page gave no name', async () => {
-    serveApi({
-      'GET /connection': () => ({ ...base, state: 'Connected', account: { name: null, email: 'jane@example.org' } }),
-    });
-    renderAt(<Connection />);
-
-    expect(await screen.findByText('Signed in as jane@example.org')).toBeInTheDocument();
-  });
-
-  it('says that nobody is signed in, and that the account is not read yet when only the session is known', async () => {
+  it('says that nobody is signed in, and that the account is not read when only the session is known', async () => {
     serveApi({ 'GET /connection': () => base });
     const view = renderAt(<Connection />);
     expect(await screen.findByText('Not signed in')).toBeInTheDocument();
@@ -125,22 +100,14 @@ describe('Connection', () => {
     await waitFor(() => expect(asked).toBe(1));
   });
 
-  it('opens the browser and its sign-in page when the person presses Sign in, and closes that window when the sign-in is done', async () => {
+  it('opens the browser desktop when the person presses Sign in, and closes that window when the connection says it is done', async () => {
     let signedIn = false;
-    let posted = 0;
     const close = vi.fn();
     const opened = { closed: false, close, location: { href: 'about:blank' }, opener: globalThis } as unknown as Window;
     const open = vi.spyOn(globalThis, 'open').mockReturnValue(opened);
     serveApi({
-      'GET /connection': () =>
-        signedIn
-          ? { ...base, state: 'Connected', account: { name: 'Jane Doe', email: 'jane@example.org' } }
-          : { ...base, signingIn: posted > 0 },
+      'GET /connection': () => (signedIn ? { ...base, state: 'Connected' } : base),
       'GET /runs': () => ({ runs: [], running: false }),
-      'POST /connection/sign-in': () => {
-        posted += 1;
-        return { ...base, signingIn: true };
-      },
       'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
     });
     renderAt(<Connection />);
@@ -151,13 +118,14 @@ describe('Connection', () => {
     expect(open).toHaveBeenCalledWith('about:blank', '_blank');
     await waitFor(() => expect(opened.location.href).toBe('https://localhost:8283/enter?ticket=a-ticket'));
     expect(opened.opener, 'the window keeps its link to this page, so that this page can close it').toBe(globalThis);
-    expect(await screen.findByText('Signing in…')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
 
     signedIn = true;
     await userEvent.click(await screen.findByRole('button', { name: 'Check again' }));
 
-    expect(await screen.findByText('Signed in as Jane Doe', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText('Signed in (the account is not read yet)', {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
   }, 15_000);
 
@@ -178,7 +146,6 @@ describe('Connection', () => {
     serveApi({
       'GET /connection': () => base,
       'GET /runs': () => ({ runs: [], running: false }),
-      'POST /connection/sign-in': () => base,
       'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
     });
     renderAt(<Connection />);
@@ -191,29 +158,12 @@ describe('Connection', () => {
     expect(open).toHaveBeenNthCalledWith(2, 'about:blank', '_blank');
   });
 
-  it('says why the sign-in page could not be opened', async () => {
-    vi.spyOn(globalThis, 'open').mockReturnValue(null);
-    serveApi({
-      'GET /connection': () => base,
-      'GET /runs': () => ({ runs: [], running: false }),
-      'POST /connection/sign-in': () =>
-        Response.json({ title: 'The browser container could not be reached.' }, { status: 502 }),
-      'POST /connection/desktop': () => ({ url: 'https://localhost:8283/enter?ticket=a-ticket' }),
-    });
-    renderAt(<Connection />);
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to the assistant' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('could not be reached');
-  });
-
   it('closes the window and says why when the address of the desktop could not be given', async () => {
     const close = vi.fn();
     vi.spyOn(globalThis, 'open').mockReturnValue({ closed: false, close, location: { href: '' } } as unknown as Window);
     serveApi({
       'GET /connection': () => base,
       'GET /runs': () => ({ runs: [], running: false }),
-      'POST /connection/sign-in': () => base,
       'POST /connection/desktop': () =>
         Response.json({ title: 'The session is not one that is open any more: sign in again.' }, { status: 400 }),
     });

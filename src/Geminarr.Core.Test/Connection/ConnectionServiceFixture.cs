@@ -13,82 +13,15 @@ public sealed class ConnectionServiceFixture : IDisposable
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 13, 9, 0, 0, TimeSpan.Zero));
     private readonly FakeBrowser _browser = new();
     private readonly ConnectionTracker _tracker;
-    private readonly SignInObserver _observer;
 
     public ConnectionServiceFixture()
     {
-        _observer = new SignInObserver(_clock);
         _tracker = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
     }
 
     public void Dispose() => _workspace.Dispose();
 
-    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _browser, Options.Of(new ReaderOptions { Kind = kind }), _clock, _observer);
-
-    [Fact]
-    public void should_keep_saying_signing_in_for_a_moment_after_the_sign_in_page_is_gone_unless_the_session_is_already_good()
-    {
-        var subject = Subject();
-        subject.SigningIn.Should().BeFalse();
-
-        _observer.Set(true);
-        subject.SigningIn.Should().BeTrue("a tab is on the sign-in page");
-
-        _observer.Set(false);
-        subject.SigningIn.Should().BeTrue("the session is being looked at");
-
-        _clock.Advance(TimeSpan.FromSeconds(14));
-        subject.SigningIn.Should().BeTrue("still within the moment");
-
-        _clock.Advance(TimeSpan.FromSeconds(2));
-        subject.SigningIn.Should().BeFalse("the sign-in was abandoned: nothing is waited for any longer");
-
-        _observer.Set(true);
-        _observer.Set(false);
-        _tracker.Connected();
-        subject.SigningIn.Should().BeFalse("the check found the session good");
-    }
-
-    [Fact]
-    public void should_stop_saying_signing_in_once_the_passes_say_that_a_sign_in_is_needed_again()
-    {
-        var subject = Subject();
-        _observer.Set(true);
-        subject.SigningIn.Should().BeTrue("a tab is on the sign-in page");
-
-        _tracker.SignedOut();
-        _tracker.SignedOut();
-
-        subject.Current().State.Should().Be(ConnectionState.NeedsLogin);
-        subject.SigningIn.Should().BeFalse("a tab left on an account picker is not somebody typing: the page says what the passes say");
-    }
-
-    [Fact]
-    public void should_show_nobody_as_signed_in_while_the_connection_is_not_one()
-    {
-        _browser.Account = new AccountIdentity("Jane Doe", "jane@example.org");
-        var subject = Subject();
-        _tracker.Connected();
-        subject.Account.Should().NotBeNull();
-
-        _tracker.Disconnected();
-
-        subject.Account.Should().BeNull("the page must not say signed in beside not connected");
-    }
-
-    [Fact]
-    public async Task should_open_the_sign_in_page_of_the_browser_and_refuse_when_no_browser_reads()
-    {
-        await Subject().OpenSignInAsync(TestContext.Current.CancellationToken);
-
-        _browser.SignInPagesOpened.Should().Be(1);
-        var act = () => Subject(ReaderKind.Demo).OpenSignInAsync(TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<ConnectionRefusedException>();
-
-        _browser.Configured = false;
-        var noAddress = () => Subject().OpenSignInAsync(TestContext.Current.CancellationToken);
-        await noAddress.Should().ThrowAsync<ConnectionRefusedException>("a reader that is Web but has no debugging address has nothing to open");
-    }
+    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _browser, Options.Of(new ReaderOptions { Kind = kind }), _clock);
 
     [Theory]
     [InlineData(ReaderKind.None)]

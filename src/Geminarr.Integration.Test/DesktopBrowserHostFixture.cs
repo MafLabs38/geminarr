@@ -77,16 +77,6 @@ public sealed class DesktopBrowserHostFixture : IAsyncDisposable
     }
 
     [Fact]
-    public async Task should_know_nothing_of_who_is_signing_in_and_open_nothing()
-    {
-        var subject = await SubjectAsync("/", redirect: false);
-
-        (await subject.IsSigningInAsync(TestContext.Current.CancellationToken)).Should().BeNull();
-        await subject.OpenSignInPageAsync(TestContext.Current.CancellationToken);
-        subject.State().Account.Should().BeNull();
-    }
-
-    [Fact]
     public async Task should_have_nothing_to_check_without_a_desktop()
     {
         var services = new ServiceCollection();

@@ -18,4 +18,4 @@ Geminarr attached to the browser container over its debugging port to look at th
 ## Consequences
 
 - R-24-34 has no object. The shared network namespace remains for the desktop only; its reason is the loopback address of the desktop, not a key to a session.
-- The sign-in state ("Signed in as ...") and *Disconnect* come back with the extension reader, in the pull request that puts it back.
+- The route `POST /connection/sign-in`, the watcher of the tabs, the account and the "signing in" fields, and the settings of the attachment are removed with the code that read them, and so are the tests. "Signed in as ..." and the end of a sign-in, and *Disconnect*, come back with the extension reader, in the pull request that puts it back.

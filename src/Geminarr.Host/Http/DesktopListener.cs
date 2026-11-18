@@ -39,6 +39,12 @@ public static class DesktopListener
         return string.Join(';', [.. entries, $"{first.Scheme}://{first.Host}:{port}"]);
     }
 
+    /// <summary>
+    /// Whether one of the addresses that the server listens on is on the desktop's port. The origin of the desktop is chosen by the local port of the connection (the port of the listener that accepted it): a
+    /// desktop that is configured and has no listener of its port is never served, so the start says so (it is a deployment that is wrong, not a request).
+    /// </summary>
+    public static bool IsBound(IEnumerable<string> addresses, int port) => addresses.Any(address => BindingAddress.Parse(address).Port == port);
+
     private static int Port(string? setting)
     {
         if (string.IsNullOrWhiteSpace(setting))

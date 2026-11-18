@@ -260,24 +260,6 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_step_aside_and_say_nothing_of_the_session_while_a_person_is_signing_in()
-    {
-        _reader.Say("c1", "T", "a");
-        var subject = Subject();
-        await subject.RunAsync(TestContext.Current.CancellationToken);
-        var before = _connection.Current();
-        _sink.Sent.Clear();
-        _reader.Session = SessionCheck.SigningIn;
-
-        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
-
-        (result!.Outcome, result.Reason).Should().Be((RunOutcomes.Skipped, ConnectionReasons.SigningIn));
-        _connection.Current().Should().Be(before);
-        _connection.Current().ConsecutiveFailures.Should().Be(0, "stepping aside is not a failure");
-        _sink.Sent.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task should_not_read_through_a_browser_that_something_else_can_reach_and_tell_mnemarr()
     {
         _reader.Say("c1", "T", "a");

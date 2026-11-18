@@ -29,9 +29,6 @@ public static class ConnectionReasons
     public const string Unreachable = "unreachable";
     public const string Paused = "paused";
 
-    /// <summary>The reason of a pass that stepped aside because a person is signing in, in a tab of the browser: not a state of the connection, only of that run.</summary>
-    public const string SigningIn = "signing-in";
-
     /// <summary>The browser container could not be reached (not started, the debugging address wrong, a limit): a matter for the deployment, not a page that changed, so nobody is asked to sign in or to update.</summary>
     public const string BrowserFailed = "browser-failed";
 

@@ -3,7 +3,7 @@ using Geminarr.Core.Pipeline;
 namespace Geminarr.Core.Browser;
 
 /// <summary>What is known of the browser from outside: whether one is configured, and whether the last attachment reached it (null until one was tried).</summary>
-public sealed record BrowserState(bool Configured, bool? Reachable, AccountIdentity? Account = null, bool? TabsAnswer = null);
+public sealed record BrowserState(bool Configured, bool? Reachable);
 
 /// <summary>
 /// The browser that holds the session (ADR 0016): a container of its own, that a person signs in to by hand. Geminarr has no debugging port to it (ADR 0021): the host only looks at the web desktop, and what the session is
@@ -20,18 +20,6 @@ public interface IBrowserHost
     /// <see cref="ReaderException"/>, never "signed out". Without a browser configured there is nothing to check.
     /// </summary>
     Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Whether a tab of the browser is on a sign-in page of the account provider at this moment, read from the list of tabs (plain HTTP, nothing is attached). A browser that cannot be reached cannot tell: the answer is then null, which is neither "signing in" nor "not signing in".
-    /// The person who is signing in is waited for: when this turns from true to false, a check is worth making at once.
-    /// </summary>
-    Task<bool?> IsSigningInAsync(CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Opens the sign-in page of the account provider in a tab of the browser of its own, unless a tab is on a sign-in page already: the person then signs in by hand, in the browser's own page. Nothing
-    /// is attached to do it (the browser is not driven), and nothing is typed. A browser that cannot be reached is a <see cref="ReaderException"/>.
-    /// </summary>
-    Task OpenSignInPageAsync(CancellationToken cancellationToken);
 
     /// <summary>Clears the session that the browser holds (its cookies): the person signs in again by hand. Nothing else of the browser is touched.</summary>
     Task DisconnectAsync(CancellationToken cancellationToken);

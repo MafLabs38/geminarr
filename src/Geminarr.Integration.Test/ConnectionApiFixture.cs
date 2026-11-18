@@ -100,21 +100,6 @@ public sealed class ConnectionApiFixture
     }
 
     [Fact]
-    public async Task should_say_who_the_browser_is_signed_in_as_to_the_operator_and_nobody_when_no_check_found_out()
-    {
-        using var factory = new BrowserFactory();
-        using var client = await factory.SignedInClientAsync();
-        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().BeNull();
-
-        factory.Browser.Account = new Geminarr.Core.Browser.AccountIdentity("Jane Doe", "jane@example.org");
-        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().BeNull("nobody is connected yet");
-
-        factory.Services.GetRequiredService<Geminarr.Core.Connection.ConnectionTracker>().Connected();
-
-        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.Account.Should().Be(new AccountResource("Jane Doe", "jane@example.org"));
-    }
-
-    [Fact]
     public async Task should_refuse_to_disconnect_with_a_sentence_when_the_browser_cannot_clear_its_session()
     {
         using var factory = new BrowserFactory();
@@ -125,31 +110,6 @@ public sealed class ConnectionApiFixture
 
         refused.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
         (await refused.Content.ReadAsStringAsync(Token)).Should().Contain("This version cannot clear the session.");
-    }
-
-    [Fact]
-    public async Task should_open_the_sign_in_page_of_the_browser_when_asked_and_say_so_when_the_browser_is_gone()
-    {
-        using var factory = new BrowserFactory();
-        using var client = await factory.SignedInClientAsync();
-
-        (await client.PostAsync("/api/v1/connection/sign-in", content: null, Token)).EnsureSuccessStatusCode();
-        factory.Browser.SignInPagesOpened.Should().Be(1);
-
-        factory.Browser.Unreachable = true;
-        var gone = await client.PostAsync("/api/v1/connection/sign-in", content: null, Token);
-
-        gone.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-        (await gone.Content.ReadAsStringAsync(Token)).Should().NotContain("127.0.0.1").And.NotContain("9222");
-    }
-
-    [Fact]
-    public async Task should_refuse_to_open_a_sign_in_page_when_no_browser_reads()
-    {
-        using var factory = new GeminarrFactory();
-        using var client = await factory.SignedInClientAsync();
-
-        (await client.PostAsync("/api/v1/connection/sign-in", content: null, Token)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

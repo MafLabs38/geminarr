@@ -15,31 +15,7 @@ public sealed class FakeBrowserHost : IBrowserHost
 
     public bool DisconnectRefused { get; set; }
 
-    public AccountIdentity? Account { get; set; }
-
-    public bool SigningIn { get; set; }
-
-    /// <summary>How many times the tabs were asked about.</summary>
-    public int Ticks { get; private set; }
-
-    /// <summary>The look at the tabs fails with something that is not the browser's to say.</summary>
-    public bool Breaks { get; set; }
-
-    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null, Account, TabsAnswer: Unreachable ? false : null);
-
-    public int SignInPagesOpened { get; private set; }
-
-    public Task OpenSignInPageAsync(CancellationToken cancellationToken)
-    {
-        SignInPagesOpened++;
-        return Unreachable ? throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.") : Task.CompletedTask;
-    }
-
-    public Task<bool?> IsSigningInAsync(CancellationToken cancellationToken)
-    {
-        Ticks++;
-        return Breaks ? throw new InvalidOperationException("broken") : Task.FromResult<bool?>(Unreachable ? null : SigningIn);
-    }
+    public BrowserState State() => new(Configured: true, Reachable: Unreachable ? false : null);
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
         Unreachable ? throw new ReaderException(ConnectionReasons.BrowserFailed, "The browser container could not be reached.") : Task.FromResult(Check);

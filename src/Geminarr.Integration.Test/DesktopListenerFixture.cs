@@ -39,4 +39,14 @@ public sealed class DesktopListenerFixture
 
         plan.Should().Throw<InvalidOperationException>().WithMessage($"*{message}*");
     }
+
+    [Theory]
+    [InlineData("http://[::]:8282;http://[::]:8283", 8283, true)]
+    [InlineData("http://0.0.0.0:8282", 8283, false)]
+    [InlineData("https://127.0.0.1:9000;http://+:8283", 8283, true)]
+    [InlineData("", 8283, false)]
+    public void should_know_whether_the_server_listens_on_the_port_of_the_desktop(string urls, int port, bool expected)
+    {
+        DesktopListener.IsBound(urls.Split(';', StringSplitOptions.RemoveEmptyEntries), port).Should().Be(expected);
+    }
 }

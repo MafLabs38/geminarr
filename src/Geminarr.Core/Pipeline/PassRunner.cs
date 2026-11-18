@@ -197,13 +197,6 @@ public sealed class PassRunner
                 return;
             }
 
-            if (session == SessionCheck.SigningIn)
-            {
-                // A person is signing in: the pass steps aside and says nothing of the session (the next one will).
-                state.Fail(RunOutcomes.Skipped, ConnectionReasons.SigningIn);
-                return;
-            }
-
             if (session == SessionCheck.SignedOut)
             {
                 var record = _connection.SignedOut();

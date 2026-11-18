@@ -35,7 +35,6 @@ const en = {
   ConnectionNotConnected: 'Not connected',
   SignInInTheBrowser:
     'Sign in by hand, in the page of the browser container: Geminarr never types a credential. This page notices by itself when you are done, and then shows the account.',
-  SignedInAs: 'Signed in as {who}',
   SignedInUnknownAccount: 'Signed in (the account is not read yet)',
   NotSignedIn: 'Not signed in',
   SessionEnded: 'The session has ended: sign in again',
@@ -44,9 +43,6 @@ const en = {
   DesktopNeedsHttps:
     "The browser's desktop works over HTTPS only (its video needs a secure page), so it cannot be shown on this address.",
   OpenThisPageOverHttps: 'Open this page over HTTPS',
-  SigningInNow: 'Signing in…',
-  SigningInHint:
-    'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',
   SignInDedicated: 'Use the dedicated account, never your main one.',
   BrowserPageNotGiven: 'No browser desktop is given to relay (GEMINARR__BROWSER__DESKTOPURL).',
   ConnectionConnected: 'Connected',

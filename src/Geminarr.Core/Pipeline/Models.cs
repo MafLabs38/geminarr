@@ -9,8 +9,6 @@ public enum SessionCheck
     /// <summary>No browser is configured (<c>GEMINARR__BROWSER__DESKTOPURL</c> is not set): there is nothing to check and nothing to ask for. A browser that is configured and that nobody has signed in to is <see cref="SignedOut"/>.</summary>
     NoBrowser,
 
-    /// <summary>A person is signing in, in a tab of the browser, at this very moment: nothing is attached and nothing is opened, so that the sign-in is not disturbed. The pass says nothing about the session.</summary>
-    SigningIn,
 }
 
 /// <summary>A conversation in the list of the assistant: its own id, its title if it shows one, and its rank (0 is the most recent).</summary>

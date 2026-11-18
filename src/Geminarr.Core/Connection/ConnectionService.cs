@@ -9,44 +9,23 @@ namespace Geminarr.Core.Connection;
 /// </summary>
 public sealed class ConnectionService
 {
-    /// <summary>How long "signing in" is still said after the sign-in page is gone, while the check that follows looks at the session (unless it already found it good).</summary>
-    private static readonly TimeSpan Settling = TimeSpan.FromSeconds(15);
-
     private readonly ConnectionTracker _tracker;
     private readonly IBrowserHost _browser;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly TimeProvider _clock;
-    private readonly SignInObserver _signIn;
 
-    public ConnectionService(ConnectionTracker tracker, IBrowserHost browser, IOptions<ReaderOptions> reader, TimeProvider clock, SignInObserver signIn)
+    public ConnectionService(ConnectionTracker tracker, IBrowserHost browser, IOptions<ReaderOptions> reader, TimeProvider clock)
     {
         _tracker = tracker;
         _browser = browser;
         _reader = reader;
         _clock = clock;
-        _signIn = signIn;
     }
 
     /// <summary>Whether a browser reads this Geminarr: without it there is nothing to pause or to disconnect.</summary>
     public bool HasBrowser => _reader.Value.Kind == ReaderKind.Web;
 
     public ConnectionRecord Current() => _tracker.Current();
-
-    /// <summary>Whether a person is signing in at this moment (a tab of the browser is on a sign-in page), or has just finished and the session is being looked at. Not once the passes have said that a sign-in is needed again (a tab left on an account picker is not somebody typing).</summary>
-    public bool SigningIn => SigningInAt(Current());
-
-    /// <summary>The same, for a record that the caller has read (so that a response says one state, not two reads of it).</summary>
-    public bool SigningInAt(ConnectionRecord record) => record.State != ConnectionState.NeedsLogin && (_signIn.SigningIn || (_signIn.EndedWithin(Settling) && record.State != ConnectionState.Connected));
-
-    /// <summary>Opens the sign-in page of the account provider in the browser, where the person signs in by hand. Nothing here types a credential.</summary>
-    public Task OpenSignInAsync(CancellationToken cancellationToken) =>
-        HasBrowser && _browser.State().Configured ? _browser.OpenSignInPageAsync(cancellationToken) : throw new ConnectionRefusedException("No browser reads this Geminarr: there is nothing to sign in to.");
-
-    /// <summary>Who the browser is signed in as, when the last check found out (the operator's to see, never logged); nobody while the connection is not one.</summary>
-    public AccountIdentity? Account => AccountAt(Current());
-
-    /// <summary>The same, for a record that the caller has read.</summary>
-    public AccountIdentity? AccountAt(ConnectionRecord record) => record.State is ConnectionState.NotConnected or ConnectionState.NeedsLogin ? null : _browser.State().Account;
 
     /// <summary>
     /// Clears the session that the browser holds and forgets the connection: the person signs in again by hand. What waits for Mnemarr stays. It is all or nothing: a browser that cannot be reached is said, and nothing changes
