@@ -4,7 +4,8 @@ const net = require('node:net');
 
 http
   .createServer((req, res) => {
-    const url = new URL(req.url, 'http://probe');
+    // The base only lets a relative path be parsed: it is never reached.
+    const url = new URL(req.url, 'https://probe.invalid');
     if (url.pathname !== '/try') {
       res.statusCode = 404;
       res.end();

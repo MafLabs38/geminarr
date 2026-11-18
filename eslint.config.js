@@ -10,7 +10,6 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
-      'tests/e2e/stack/**',
       '_output/**',
       'coverage/**',
       'playwright-report/**',
@@ -77,6 +76,20 @@ export default tseslint.config(
       'sonarjs/no-hardcoded-ip': 'off',
       'sonarjs/no-clear-text-protocols': 'off',
       'sonarjs/public-static-readonly': 'off',
+    },
+  },
+  {
+    // The fake assistant and the probes of the end-to-end stack are not test files for SonarQube (it reads them as code, and reports a security hotspot for each cleartext address): they are linted
+    // with the same rules, and an exception is written where it is made, with its reason.
+    files: ['tests/e2e/stack/**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+    rules: {
+      'sonarjs/no-clear-text-protocols': 'error',
+      // Plain Node scripts run as they are by the stack's containers: CommonJS.
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 );

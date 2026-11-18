@@ -74,7 +74,9 @@ function app(request, response) {
     );
     return;
   }
-  send(response, 302, { Location: 'http://signin:8081/signin?next=/app' });
+  // The fake sign-in page is on a plain-HTTP host of the test network, by design (the real one is https): the one exception, here and nowhere else.
+  // eslint-disable-next-line sonarjs/no-clear-text-protocols -- a fake on a private test network, never reachable from outside
+  send(response, 302, { Location: 'http://signin:8081/signin?next=/app' }); // NOSONAR: a fake on a private test network
 }
 
 function admin(request, response, url) {
@@ -128,7 +130,8 @@ const routes = [
 
 http
   .createServer((request, response) => {
-    const url = new URL(request.url, 'http://x');
+    // The base only lets a relative path be parsed: it is never reached.
+    const url = new URL(request.url, 'https://assistant.invalid');
     const host = (request.headers.host ?? '').split(':')[0];
     if (!admin(request, response, url)) {
       const route = routes.find(([routeHost, path]) => routeHost === host && path === url.pathname);
