@@ -57,7 +57,7 @@
 
 *Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected.*
 
-- ADR 0016. F-CON-01..04: the attachment to the browser (`GEMINARR__BROWSER__CDPURL`), the state machine, pause and disconnect, the health of the attachment.
+- ADR 0016. F-CON-01..04: the browser container and its web desktop relayed (`GEMINARR__BROWSER__DESKTOPURL`), the state machine, pause, the health of the browser. No debugging port (ADR 0021): the session state and *Disconnect* come with the extension reader.
 - **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; the browser has no sub-domain, no port and no login of its own: Geminarr relays its web desktop on an origin of its own (a second port of Geminarr, opened by a single-use ticket of the operator's session, no second password: ADR 0017, 0019).
 - Spike S1 starts here: the first read of Gemini on a throw-away account, then on the dedicated one.
 - Not now: reading conversations (vertical 4).

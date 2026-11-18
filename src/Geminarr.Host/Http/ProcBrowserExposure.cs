@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Geminarr.Host.Http;
 
 /// <summary>
-/// Reads what listens in the network namespace that Geminarr shares with the browser container, from <c>/proc/net/tcp</c> and <c>tcp6</c> (ADR 0017): the web desktop and the debugging port have no sign-in,
+/// Reads what listens in the network namespace that Geminarr shares with the browser container, from <c>/proc/net/tcp</c> and <c>tcp6</c> (ADR 0017): the web desktop has no sign-in,
 /// so any socket that listens off the loopback, other than Geminarr's own port, is a way to the browser that bypasses Geminarr. The answer is kept for a few seconds. A host without those files (not Linux)
 /// has nothing to say, and nothing is checked when no browser is configured.
 /// </summary>

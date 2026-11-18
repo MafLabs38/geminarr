@@ -4,7 +4,7 @@ using Geminarr.Core.Connection;
 namespace Geminarr.Core.Browser;
 
 /// <summary>
-/// What listens in the network namespace that Geminarr shares with the browser container (ADR 0017): the web desktop and the debugging port have no sign-in, so nothing may listen off the loopback
+/// What listens in the network namespace that Geminarr shares with the browser container (ADR 0017): the web desktop has no sign-in, so nothing may listen off the loopback
 /// but Geminarr's own port. Read from <c>/proc/net/tcp</c> and <c>/proc/net/tcp6</c>, which show every socket of the namespace, whatever the container that opened it.
 /// </summary>
 public interface IBrowserExposure

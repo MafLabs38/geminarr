@@ -300,6 +300,7 @@ test.describe('smoke @smoke', () => {
     );
     expect(await reaches(3000), 'the desktop itself is not').toBe(false);
     expect(await reaches(3001), 'nor its TLS port').toBe(false);
+    expect(await reaches(9222), 'and there is no debugging port to look for').toBe(false);
 
     // The operator's session asks for the address, with a ticket; it is worth one opening.
     const api = await signedInRequest(playwright, required(baseURL));

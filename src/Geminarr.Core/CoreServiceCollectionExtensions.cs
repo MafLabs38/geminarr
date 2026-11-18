@@ -51,6 +51,7 @@ public static class CoreServiceCollectionExtensions
         // No redirect is followed (a key must not follow one to another host), and a call is bounded.
         services.AddHttpClient(MnemarrClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddHttpClient(nameof(DesktopBrowserHost)).ConfigurePrimaryHttpMessageHandler(DesktopBrowserHost.NewHandler);
         services.AddSingleton<MnemarrClient>();
         services.AddSingleton<LinkService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();

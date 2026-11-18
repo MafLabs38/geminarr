@@ -20,7 +20,7 @@ This file is read automatically by Claude Code. It applies to every task in this
 
 Same as Mnemarr and Portarr, so the products share conventions ([ADR 0002](docs/adr/0002-the-family-stack-and-structure.md)):
 
-- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`, and `Geminarr.Browser` (Playwright adapter) from vertical 3.
+- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`. The browser is a container of its own and Geminarr has no debugging port to it (ADR 0021).
 - **Frontend**: React, TypeScript (strict), Vite, TanStack Query, CSS Modules
 - **Tests**: xUnit v3 + NSubstitute + AwesomeAssertions, Vitest + Testing Library, Playwright
 - **CI/CD**: GitHub Actions, single multi-arch container image on GHCR, semantic-release

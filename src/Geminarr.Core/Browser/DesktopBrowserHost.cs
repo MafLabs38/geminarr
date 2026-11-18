@@ -22,6 +22,9 @@ public sealed class DesktopBrowserHost : IBrowserHost
         _http = http;
     }
 
+    /// <summary>The handler of the one call that this host makes: no redirect is followed, no proxy of the environment is used, no cookie is kept (a browser container is a third party's image).</summary>
+    public static HttpMessageHandler NewHandler() => new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false };
+
     public BrowserState State() => new(!string.IsNullOrWhiteSpace(_options.Value.DesktopUrl), _reachable switch { 1 => true, 0 => false, _ => null });
 
     public async Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
