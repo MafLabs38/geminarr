@@ -29,6 +29,8 @@ public static partial class SecretMasker
         text = AwsKey().Replace(text, "[masked:aws-key]");
         text = SlackToken().Replace(text, "[masked:slack-token]");
         text = Jwt().Replace(text, "[masked:jwt]");
+        text = GoogleApiKey().Replace(text, "[masked:api-key]");
+        text = GoogleOAuthToken().Replace(text, "[masked:token]");
         text = BearerToken().Replace(text, "Bearer [masked:token]");
         text = AddressCredentials().Replace(text, "$1[masked:credentials]@");
         text = Assignment().Replace(text, "$1$2[masked]");
@@ -59,10 +61,18 @@ public static partial class SecretMasker
     [GeneratedRegex(@"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", RegexOptions.CultureInvariant, LimitMilliseconds)]
     private static partial Regex Jwt();
 
+    [GeneratedRegex(@"\bAIza[0-9A-Za-z_-]{35}\b", RegexOptions.CultureInvariant, LimitMilliseconds)]
+    private static partial Regex GoogleApiKey();
+
+    // An access token (ya29.) or a refresh token (1//0): what a person asking Gemini about a script is most likely to paste.
+    [GeneratedRegex(@"\b(?:ya29\.[0-9A-Za-z_-]{20,}|1//0[0-9A-Za-z_-]{30,})", RegexOptions.CultureInvariant, LimitMilliseconds)]
+    private static partial Regex GoogleOAuthToken();
+
     [GeneratedRegex(@"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, LimitMilliseconds)]
     private static partial Regex BearerToken();
 
-    [GeneratedRegex(@"(https?://)[^/\s:@]+:[^/\s@]+@", RegexOptions.CultureInvariant, LimitMilliseconds)]
+    // Any scheme: a connection string (postgres://, mongodb+srv://, redis://) holds a password as an address does.
+    [GeneratedRegex(@"(\b[a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, LimitMilliseconds)]
     private static partial Regex AddressCredentials();
 
     [GeneratedRegex(

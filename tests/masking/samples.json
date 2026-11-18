@@ -85,6 +85,26 @@
       "name": "an AWS key and a Slack token on their own lines",
       "input": "a\\\\nAKIA<U:16>\\\\nxoxb-<A:20>",
       "expected": "a\\\\n[masked:aws-key]\\\\n[masked:slack-token]"
+    },
+    {
+      "name": "google api key",
+      "input": "key AIza<A:35> end",
+      "expected": "key [masked:api-key] end"
+    },
+    {
+      "name": "google access token",
+      "input": "t ya29.<A:30> t",
+      "expected": "t [masked:token] t"
+    },
+    {
+      "name": "google refresh token",
+      "input": "r 1//0<A:40> r",
+      "expected": "r [masked:token] r"
+    },
+    {
+      "name": "credentials in a connection string",
+      "input": "postgres://user:pa55word@db.example:5432/app",
+      "expected": "postgres://[masked:credentials]@db.example:5432/app"
     }
   ]
 }
