@@ -70,6 +70,34 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_ask_for_a_pass_when_the_page_says_that_nobody_is_signed_in_and_not_when_it_says_the_same_again()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, null));
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue("the first word is a change");
+
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, null));
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeFalse("the same word again changes nothing");
+
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, null));
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task should_ask_for_a_pass_when_a_list_comes_after_a_page_that_nobody_was_signed_in_to_and_not_otherwise()
+    {
+        var subject = Subject();
+        subject.Handle(ListOf(Item("a")));
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeFalse("a list brings no news until a conversation comes with it");
+
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, null));
+        await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+        subject.Handle(ListOf(Item("a")));
+
+        (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue("somebody signed in again");
+    }
+
+    [Fact]
     public void should_ask_for_the_conversations_that_are_new_and_not_for_the_ones_that_it_has()
     {
         _inbox.RecordConversation("have", "T", [new Turn("user", null, "x")], _clock.GetUtcNow());

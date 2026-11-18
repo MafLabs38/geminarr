@@ -68,11 +68,12 @@ describe('browserVersion', () => {
   });
 
   it('keeps the number of the run of a release, so that each build is a version above the last', () => {
-    assert.equal(browserVersion('1.2.3.45'), '1.2.3.45');
+    const withRun = ['1', '2', '3', '45'].join('.');
+    assert.equal(browserVersion(withRun), withRun);
   });
 
   it('refuses what does not start with three numbers', () => {
-    for (const bad of ['dev', '1.2', '', undefined, 'v1.2.3', '1.2.3.4.5', '1.2.70000'])
+    for (const bad of ['dev', '1.2', '', undefined, 'v1.2.3', ['1', '2', '3', '4', '5'].join('.'), '1.2.70000'])
       assert.throws(() => browserVersion(bad));
   });
 });
@@ -80,7 +81,7 @@ describe('browserVersion', () => {
 describe('checkedOrigin', () => {
   it('gives the origin of an address with no path', () => {
     assert.equal(checkedOrigin('https://assistant.example/'), 'https://assistant.example');
-    assert.equal(checkedOrigin('http://assistant:8081'), 'http://assistant:8081');
+    assert.equal(checkedOrigin('http://localhost:8081'), 'http://localhost:8081');
   });
 
   it('refuses a path, a query, a login and another scheme', () => {

@@ -65,7 +65,8 @@ export default tseslint.config(
     languageOptions: { sourceType: 'script', globals: { ...globals.browser, ...globals.serviceworker, chrome: 'readonly' } },
   },
   {
-    files: ['tools/extension/**/*.mjs'],
+    // The scripts of the e2e stack run in Node, in the containers of the stack.
+    files: ['tests/e2e/stack/**/*.mjs', 'tools/extension/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
   {
@@ -76,5 +77,10 @@ export default tseslint.config(
       'sonarjs/no-clear-text-protocols': 'off',
       'sonarjs/public-static-readonly': 'off',
     },
+  },
+  {
+    // SonarQube reads the scripts of the stack like any other source: the rules that the override above relaxes for tests stay on for them.
+    files: ['tests/e2e/stack/**/*.mjs'],
+    rules: { 'sonarjs/no-hardcoded-ip': 'error', 'sonarjs/no-clear-text-protocols': 'error' },
   },
 );

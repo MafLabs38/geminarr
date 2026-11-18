@@ -70,6 +70,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();
+        services.AddSingleton<ISettingsSection, ExtensionSettingsSection>();
+        services.AddSingleton<ISettingsSection, RetentionSettingsSection>();
         services.AddSingleton<EffectiveSettings>();
         return services;
     }

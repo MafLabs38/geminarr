@@ -1,5 +1,8 @@
-# The stack the end-to-end tests run against: the image built from this repository, with an empty data folder.
+# The stack the end-to-end tests run against: the image built from this repository with an empty data folder, a fake assistant and a fake Mnemarr on the same network, and an ordinary Chromium that the extension is installed in
+# by policy, the way a deployment does it (docs/DEPLOYMENT.md). Nothing is real: the assistant and Mnemarr are synthetic, and the key that signs the extension is made for each run.
 name: geminarr-e2e
+x-node: &node
+  image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
 services:
   geminarr:
     build:
@@ -9,6 +12,11 @@ services:
     # The image runs as a non-root user: give it a throw-away data folder it owns.
     tmpfs:
       - /config:uid=1654,gid=1654
+    volumes:
+      - package:/extension:ro
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
     # The operator, as a real deployment gives it: a name and the password in a mounted file (a test-only value). The tests speak plain HTTP: the cookie cannot be Secure here.
     environment:
       GEMINARR__AUTH__ADMINUSER: e2e-operator
@@ -17,6 +25,18 @@ services:
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).
       GEMINARR__IDENTITY__NAME: E2E Lab
       GEMINARR__IDENTITY__LOGOFILE: /run/logo.svg
+      # The browser reaches Geminarr by the name of its container: that name is allowed, like any other that a deployment uses.
+      GEMINARR__ALLOWEDHOSTNAMES: localhost;127.0.0.1;geminarr
+      # The reader is the extension, with its token in a file and its package in the folder that the preparation wrote.
+      GEMINARR__READER__KIND: Web
+      # One pass that finds nobody signed in is enough to say "sign in again" (three by default), so that a test does not wait for three rounds.
+      GEMINARR__READER__LOGINFAILURES: '1'
+      GEMINARR__EXTENSION__TOKENFILE: /run/extension-token
+      GEMINARR__EXTENSION__PACKAGEFOLDER: /extension
+      # The Mnemarr of the stack speaks plain HTTP on a private network, for the tests only.
+      GEMINARR__MNEMARR__URL: http://mnemarr:8090
+      GEMINARR__MNEMARR__ALLOWINSECUREHTTP: 'true'
+      GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/mnemarr-code
     configs:
       - source: logo
         target: /run/logo.svg
@@ -24,8 +44,69 @@ services:
       - source: admin_password
         target: /run/admin-password
         mode: 0444
+      - source: extension_token
+        target: /run/extension-token
+        mode: 0444
+      - source: mnemarr_code
+        target: /run/mnemarr-code
+        mode: 0444
+  # A fake assistant: synthetic pages shaped like the ones that the extension reads. Published only so that a test can sign it out.
+  assistant:
+    <<: *node
+    working_dir: /app
+    command: ['node', 'server.mjs']
+    volumes:
+      - ./assistant/server.mjs:/app/server.mjs:ro
+    ports:
+      - '8091:8081'
+  # A fake Mnemarr: what a machine sees of the real one. Published only so that a test can read what it holds.
+  mnemarr:
+    <<: *node
+    working_dir: /app
+    command: ['node', 'server.mjs']
+    volumes:
+      - ./mnemarr/server.mjs:/app/server.mjs:ro
+    ports:
+      - '8092:8090'
+  # Packs the extension for the origin of the fake assistant with a key made now, and writes the policy of the browser (the id of the extension comes from the key).
+  prepare:
+    <<: *node
+    working_dir: /stack
+    environment:
+      TOKEN: e2e-extension-token-0123456789abcdef0123456789abcdef
+      GEMINARR_URL: http://geminarr:8282
+      ASSISTANT_ORIGIN: http://assistant:8081
+    volumes:
+      - ./extension/prepare.mjs:/stack/tests/e2e/stack/extension/prepare.mjs:ro
+      - ../../../tools/extension/pack.mjs:/stack/tools/extension/pack.mjs:ro
+      - ../../../extension:/extension-source:ro
+      - package:/package
+      - policy:/policy
+    # The path of the script under /stack keeps the relative import of prepare.mjs what it is in the repository.
+    entrypoint: ['node', '/stack/tests/e2e/stack/extension/prepare.mjs']
+  # An ordinary Chromium, with the policy that installs the extension. Its desktop is not published: nobody signs in to this one, the fake assistant needs no account.
+  browser:
+    image: lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108
+    shm_size: 1gb
+    environment:
+      PUID: '1000'
+      PGID: '1000'
+    volumes:
+      - policy:/etc/chromium/policies/managed:ro
+    depends_on:
+      geminarr:
+        condition: service_started
+      assistant:
+        condition: service_started
 configs:
   logo:
     content: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10"><circle cx="5" cy="5" r="4" fill="#3ee0c5"/></svg>'
   admin_password:
     content: e2e-admin-password
+  extension_token:
+    content: e2e-extension-token-0123456789abcdef0123456789abcdef
+  mnemarr_code:
+    content: E2E-CODE
+volumes:
+  package:
+  policy:

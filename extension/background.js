@@ -2,7 +2,8 @@
 // and it only ever sends to that address. A page of the assistant is opened in the background, read by content.js, and closed.
 const ORIGIN = '__ASSISTANT_ORIGIN__';
 const ROUND_ALARM = 'round';
-const ROUND_MINUTES = 15;
+const DEFAULT_ROUND_MINUTES = 15;
+const MAX_ROUND_MINUTES = 1440;
 const SWEEP_ALARM = 'sweep';
 const UPDATE_ALARM = 'update';
 const WORK_TABS = 'workTabs';
@@ -55,6 +56,11 @@ async function openInBackground(path) {
   await remember(tab.id);
 }
 
+async function isWorkTab(tabId) {
+  const { [WORK_TABS]: tabs = {} } = await chrome.storage.session.get(WORK_TABS);
+  return String(tabId) in tabs;
+}
+
 async function closeTab(tabId) {
   await forget(tabId);
   await chrome.tabs.remove(tabId).catch(() => {});
@@ -78,8 +84,9 @@ async function onMessage(message, sender) {
     for (const id of (answer?.open ?? []).filter((candidate) => /^[A-Za-z0-9_-]{1,100}$/.test(candidate)))
       await openInBackground(`/app/${id}`);
   }
-  // Whatever the page was for, it is done: the list once Geminarr has said what it wants, a conversation once it has been handed over.
-  if (sender.tab && (message.kind === 'list' || message.kind === 'conversation')) await closeTab(sender.tab.id);
+  // A page that this extension opened is done once it has been read: the list when Geminarr has said what it wants, a conversation once handed over. A page that a person opened is theirs, and stays.
+  if (sender.tab && (message.kind === 'list' || message.kind === 'conversation') && (await isWorkTab(sender.tab.id)))
+    await closeTab(sender.tab.id);
 }
 
 chrome.runtime.onMessage.addListener((message, sender) => {
@@ -87,11 +94,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 chrome.runtime.onInstalled.addListener(() => void round());
 chrome.runtime.onStartup.addListener(() => void round());
-// Created only when missing: creating one again restarts its period, and the worker wakes up often.
+// Created only when missing or changed: creating one again restarts its period, and the worker wakes up often.
 async function ensureAlarm(name, periodInMinutes) {
-  if (!(await chrome.alarms.get(name))) chrome.alarms.create(name, { periodInMinutes });
+  const existing = await chrome.alarms.get(name);
+  if (existing?.periodInMinutes !== periodInMinutes) chrome.alarms.create(name, { periodInMinutes });
 }
-void ensureAlarm(ROUND_ALARM, ROUND_MINUTES);
+async function roundMinutes() {
+  const { roundMinutes: wanted } = await chrome.storage.managed.get('roundMinutes');
+  return Number.isInteger(wanted) && wanted >= 1 && wanted <= MAX_ROUND_MINUTES ? wanted : DEFAULT_ROUND_MINUTES;
+}
+void roundMinutes().then((minutes) => ensureAlarm(ROUND_ALARM, minutes));
 void ensureAlarm(SWEEP_ALARM, 1);
 void ensureAlarm(UPDATE_ALARM, 60);
 chrome.alarms.onAlarm.addListener((alarm) => {

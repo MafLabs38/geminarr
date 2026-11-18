@@ -58,7 +58,14 @@ public sealed partial class ExtensionService
             return ExtensionPushResult.Refused("A state says whether somebody is signed in.");
         }
 
+        var before = _inbox.Session?.SignedIn;
         _inbox.RecordSession(signedIn, version, _clock.GetUtcNow());
+        // A change of who is signed in is told at once (the page shows "sign in again" without waiting for the hour of the next pass).
+        if (before != signedIn)
+        {
+            _trigger.Request();
+        }
+
         return ExtensionPushResult.Ok();
     }
 
@@ -86,8 +93,14 @@ public sealed partial class ExtensionService
 
         var now = _clock.GetUtcNow();
         _inbox.RecordList(headers, now);
-        // A list is also a word about the session: the page that showed it is the page of an account.
+        // A list is also a word about the session: the page that showed it is the page of an account (a page nobody is signed in to sends a state, not a list).
+        var wasSignedOut = _inbox.Session is { SignedIn: false };
         _inbox.RecordSession(signedIn: true, version, now);
+        if (wasSignedOut)
+        {
+            _trigger.Request();
+        }
+
         var waiting = _outbox.ConversationsWaiting();
         var wanted = headers
             .Where(header => !_inbox.Has(header.Id) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))

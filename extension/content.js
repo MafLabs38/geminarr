@@ -26,7 +26,11 @@ function conversationLinks() {
 
 async function readList() {
   await wait(SETTLE_MS);
-  send({ kind: 'state', signedIn: !!document.querySelector(SELECTORS.signedIn) });
+  // One word per page: a page that nobody is signed in to says so and has no list; a page of an account sends its list, which says as much.
+  if (!document.querySelector(SELECTORS.signedIn)) {
+    send({ kind: 'state', signedIn: false });
+    return;
+  }
   const scroller = document.querySelector(SELECTORS.scroller);
   let seen = -1;
   for (let i = 0; i < MAX_SCROLLS && scroller && conversationLinks().length !== seen; i++) {
