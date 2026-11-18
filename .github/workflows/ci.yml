@@ -48,8 +48,6 @@ jobs:
       - run: python3 -I -m unittest -q
         working-directory: tools/review-decisions
       - run: yarn install --frozen-lockfile
-      # The extension (extension/) and its packing (tools/extension) have their own tests, with Node's runner and a synthetic page (jsdom).
-      - run: node --test "tools/extension/test/*.test.mjs"
       - run: yarn lint
       - run: yarn stylelint
       - run: yarn format:check
@@ -107,7 +105,7 @@ jobs:
   e2e-smoke:
     name: e2e-smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     needs: [test-backend, test-frontend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -122,7 +120,7 @@ jobs:
       - name: Build the image and start the e2e stack
         run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build
       - name: Wait for Geminarr
-        run: timeout 60 bash -c 'until curl -fs http://localhost:8282/health/live && curl -fs http://localhost:8283/health/live; do sleep 1; done'
+        run: timeout 60 bash -c 'until curl -fs http://localhost:8282/health/live; do sleep 1; done'
       - name: The image runs as a non-root user
         run: |
           container=$(docker compose -f tests/e2e/stack/docker-compose.yml ps -q geminarr)
@@ -165,8 +163,7 @@ jobs:
       # pull request's own code (the build): same-repository branch authors are trusted with this secret, and pull requests from
       # forks never get it.
       # tools/** (the release tooling and the checker of the review decisions) is analysed, but left out of the coverage figure: no coverage report
-      # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs). The same for extension/**, which runs in a browser:
-      # the end-to-end job runs the real extension in a real Chromium against the stack.
+      # exists for its Python and its tests run in their own lanes (the `release-tooling` and `lint` jobs).
       # Documented exception (CLAUDE.md): docker:S8431 asks for the tag or the digest of a base image, not both. The Dockerfile keeps
       # both on purpose: the digest makes a build reproducible, the tag is what Dependabot follows to move the digest (ADR 0013).
       - name: Begin SonarQube analysis
@@ -177,7 +174,7 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
-          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**,extension/**"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,tests/**,tools/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.qualitygate.wait=true
           /d:sonar.issue.ignore.multicriteria=e1
@@ -186,16 +183,6 @@ jobs:
       - run: dotnet build src/Geminarr.sln
       - name: End SonarQube analysis
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-      # Whatever the gate said, the log and the summary of the run tell why (the failed conditions, the open issues, the hotspots to review), so that nobody has to open the server to know.
-      - name: What SonarQube found
-        if: always()
-        env:
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_KEY: ${{ github.repository_owner }}_${{ github.event.repository.name }}
-          SONAR_PULL_REQUEST: ${{ github.event.pull_request.number }}
-          SONAR_BRANCH: ${{ github.event_name == 'pull_request' && '' || github.ref_name }}
-        run: python3 tools/sonar/report.py
 
   security:
     name: security
@@ -338,21 +325,9 @@ jobs:
             type=sha
             type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
             type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
-      # A release is signed by the key of the extension, or it is not published: an extension signed by another key is another extension, and the browsers that a policy installed it on would not update to it.
-      - name: A release needs the signing key of the extension
-        if: ${{ needs.release.outputs.version != '' }}
-        env:
-          KEY: ${{ secrets.EXTENSION_SIGNING_KEY }}
-        run: |
-          if [ -z "$KEY" ]; then
-            echo "::error title=No signing key::EXTENSION_SIGNING_KEY is not set, so a release of the extension cannot be signed (docs/DEPLOYMENT.md)."
-            exit 1
-          fi
       # The build stages run on the runner's own architecture and the final stage only copies files (Dockerfile), so the arm64
       # image needs no emulation. It is built here and not started: the end-to-end test runs the amd64 image (docs/releasing.md).
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        env:
-          EXTENSION_SIGNING_KEY: ${{ needs.release.outputs.version != '' && secrets.EXTENSION_SIGNING_KEY || '' }}
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -360,9 +335,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ steps.version.outputs.value }}
-          # The key that signs the extension, as a BuildKit secret (read from the environment of this step: a PEM has several lines), for a release only: a build that reads the layer cache never
-          # has it mounted. The other builds sign with an ephemeral key, which is only fine for an image that nobody installs the extension from.
-          secret-envs: ${{ needs.release.outputs.version != '' && 'extension_key=EXTENSION_SIGNING_KEY' || '' }}
           # A release is built from nothing and reads no layer cache (a layer written by an earlier job of the push could carry a
           # poisoned layer into the image published under the version), and writes none. Other builds use the cache.
           no-cache: ${{ needs.release.outputs.version != '' }}

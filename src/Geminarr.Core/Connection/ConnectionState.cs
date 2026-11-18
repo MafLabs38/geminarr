@@ -24,9 +24,6 @@ public static class ConnectionReasons
     public const string ReaderBroken = "reader-broken";
     public const string RateLimited = "rate-limited";
     public const string Unreachable = "unreachable";
-
-    /// <summary>The extension of the browser has not said anything for a while (ADR 0015): the browser is not running it, or it cannot reach Geminarr.</summary>
-    public const string ExtensionSilent = "extension-silent";
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>

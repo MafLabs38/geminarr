@@ -12,10 +12,6 @@
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
-    <!-- The samples that Mnemarr's masking and its collector are run against too: the engines must not drift. -->
-    <Content Include="..\..\tests\masking\samples.json" Link="masking\samples.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <ItemGroup>
     <Using Include="AwesomeAssertions" />
     <Using Include="Xunit" />
   </ItemGroup>

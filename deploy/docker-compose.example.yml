@@ -23,11 +23,6 @@ services:
       # GEMINARR__MNEMARR__URL: https://mnemarr.homelab.example
       # GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/secrets/geminarr_mnemarr_code   # a one-time code, exchanged at start
       # GEMINARR__MNEMARR__KEYFILE: /run/secrets/geminarr_mnemarr_key             # or the key itself, if Mnemarr gave it to you
-      # The reader: the extension of the browser that a person signed in to Gemini in (browser/docker-compose.example.yml). The token is the same as in the policy of that browser;
-      # the name that browser reaches Geminarr by must be allowed (here the name of this service).
-      # GEMINARR__READER__KIND: Web
-      # GEMINARR__EXTENSION__TOKENFILE: /run/secrets/geminarr_extension_token   # 32 characters or more, random
-      # GEMINARR__ALLOWEDHOSTNAMES: localhost;127.0.0.1;[::1];geminarr
       # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
       # GEMINARR__IDENTITY__NAME: My lab
       # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one

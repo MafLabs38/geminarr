@@ -55,26 +55,6 @@ describe('ConnectionCard', () => {
     expect(screen.getByRole('link', { name: 'Mnemarr' })).toHaveAttribute('href', '/mnemarr');
   });
 
-  it('says why the browser of the reader is silent, and why the page is no longer the one the reader knows', async () => {
-    for (const [reason, sentence] of [
-      [
-        'extension-silent',
-        "The browser's extension has not said anything for a while: check that the browser runs and reaches Geminarr.",
-      ],
-      ['reader-broken', "The assistant's page is no longer what the reader knows."],
-    ] as const) {
-      serveApi({
-        'GET /connection': () => ({ ...connection, state: 'Degraded', reason }),
-        'GET /mnemarr': () => linkedState,
-        'GET /runs': () => idle,
-      });
-      const view = renderAt(<ConnectionCard />);
-
-      expect(await screen.findByText(sentence)).toBeInTheDocument();
-      view.unmount();
-    }
-  });
-
   it('says it is not linked', async () => {
     serveApi({
       'GET /connection': () => connection,

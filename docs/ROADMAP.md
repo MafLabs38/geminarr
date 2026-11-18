@@ -12,11 +12,10 @@
 | Mnemarr's changes (M-1 to M-4 and the mail), see [mnemarr-changes.md](mnemarr-changes.md) | **Delivered** (Mnemarr 0.4.0; production runs 0.6.0) |
 | Vertical 1: operator access | **Built**, in review |
 | Vertical 1b: identity of the environment (name, picture, version in the menu; F-SYS-04) | **Built**, in review |
-| Spike S1: read Gemini from a container with a dedicated account | **Done**: the answer is an extension in the browser a person signed in to ([ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)); the debugging-port route was tried and rejected |
+| Spike S1: read Gemini from a container with a dedicated account | Waits for the dedicated Google account |
 | Spike S2: what a Takeout export holds | Waits for the export |
 | Vertical 2: the link to Mnemarr | **Built**, in review |
-| Vertical 3: Gemini is read by an extension | **Built**, in review |
-| Verticals 4 to 7 | Not started |
+| Verticals 3 to 6 | Not started |
 
 ## Vertical 0 — Foundation *(built)*
 
@@ -53,34 +52,27 @@
 - Built with the demonstration reader (a sandbox setting, `GEMINARR__READER__KIND=Demo`) and proved on a real Mnemarr (pairing, 3 000 lines, found by search). [ADR 0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md). **"Run now" and the list of passes are here** (they were planned for vertical 4: the demonstration needs them); the full *Runs* page is still vertical 4.
 - Not now: the browser, the real assistant, masking (nothing real is read yet).
 
-## Vertical 3 — Gemini is read by an extension *(built)*
+## Vertical 3 — The session and the live view
 
-*Demo: a browser that a person signed in to Gemini in carries the extension (installed by its policy); within one round, the conversations of the page are in Mnemarr, turn by turn, and found by describing what they were about; a conversation added on the phone arrives with the next round; sign out of Gemini in that browser and the page says "sign in again".*
+*Demo: press Sign in; the container's browser appears on the page; sign in to the dedicated account with the phone; the state is Connected; restart the container and it is still connected; Disconnect and the profile is gone.*
 
-- F-RDR-02..06 for the web reader (the masking of secrets before the outbox, with the samples shared with Mnemarr), in the form of [ADR 0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md): the extension (`extension/`), its signed package served by Geminarr, the push route and its token, `extension-silent`, the candidates and positions of ADR 0014.
-- Validated by the agent on the real target first (rule 13 of `CLAUDE.md`): a signed-in profile read through the policy-installed, signed package; and end to end in CI with a real Chromium, a fake assistant and a fake Mnemarr.
-- Not now: signing in from Geminarr's page (vertical 4), backfill at a slow pace (vertical 5), the voice conversations' text and a very long list (measured with the real use).
+- F-CON-01..04, the browser project, the profile volume, the route filter, the Dockerfile stage for the browser by `TARGETARCH`, a smoke test of the arm64 image.
+- Not now: reading conversations.
 
-## Vertical 4 — Sign in from Geminarr's page
+## Vertical 4 — Read the conversations
 
-*Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the dedicated account with the phone; the state is Connected; Disconnect and the session is gone.*
+*Demo: talk to Gemini on the phone, wait one pass, and find the conversation in Mnemarr by describing what it was about.*
 
-- F-CON-01..04: the desktop of the browser relayed on an origin of its own behind a single-use ticket of the operator's session, the two containers (the browser and Geminarr) in the examples, the Connection page.
-- Not now: reading (vertical 3), the Takeout import.
+- F-RDR-02..07, F-VIEW-02/03: the web reader, candidates, positions, backfill at a slow pace, `reader-broken` and `rate-limited` handling, masking, "run now".
+- Validated by the agent on the real target first (rule 13 of `CLAUDE.md`).
 
-## Vertical 5 — Backfill, the Runs page
-
-*Demo: the first pass walks the older conversations at a slow pace until the end of the list, and the Runs page shows what each pass did.*
-
-- F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page.
-
-## Vertical 6 — The past, by Takeout
+## Vertical 5 — The past, by Takeout
 
 *Demo: give Geminarr the archive; the conversations of the past appear in Mnemarr; give it again and nothing is duplicated.*
 
 - F-IMP-01/02, with the safety rules of SPEC §8.
 
-## Vertical 7 — Run it for real
+## Vertical 6 — Run it for real
 
 *Demo: the maintainer lets the session expire (or disconnects), receives the mail from Mnemarr, follows it to Mnemarr's Machines page and from there to Geminarr, signs in again, and the reading resumes by itself; Geminarr is reached at its address on the cluster behind the single sign-on.*
 

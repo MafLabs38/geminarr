@@ -87,8 +87,6 @@ const en = {
   ReasonNeedsLogin: 'The session has expired: sign in again.',
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
-  ReasonExtensionSilent:
-    "The browser's extension has not said anything for a while: check that the browser runs and reaches Geminarr.",
   ReasonReaderBroken: "The assistant's page is no longer what the reader knows.",
   ReasonUnreachable: 'The assistant could not be reached: Geminarr tries again.',
   ReasonDataFolderMissing: 'The data folder does not exist: its volume is not mounted.',

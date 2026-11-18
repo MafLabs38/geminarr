@@ -23,7 +23,7 @@ public sealed class EffectiveSettings
     private readonly IOptions<IdentityOptions> _identity;
     private readonly IOptions<MnemarrOptions> _mnemarr;
     private readonly IOptions<ReaderOptions> _reader;
-    private readonly IReadOnlyList<ISettingsSection> _sections;
+    private readonly IOptions<RetentionOptions> _retention;
 
     public EffectiveSettings(
         IOptions<GeminarrOptions> geminarr,
@@ -32,7 +32,7 @@ public sealed class EffectiveSettings
         IOptions<IdentityOptions> identity,
         IOptions<MnemarrOptions> mnemarr,
         IOptions<ReaderOptions> reader,
-        IEnumerable<ISettingsSection> sections)
+        IOptions<RetentionOptions> retention)
     {
         _geminarr = geminarr;
         _auth = auth;
@@ -40,16 +40,10 @@ public sealed class EffectiveSettings
         _identity = identity;
         _mnemarr = mnemarr;
         _reader = reader;
-        _sections = [.. sections];
+        _retention = retention;
     }
 
     public IReadOnlyList<SettingValue> Read() =>
-    [
-        .. Own(),
-        .. _sections.SelectMany(section => section.Read()),
-    ];
-
-    private SettingValue[] Own() =>
     [
         new("GEMINARR__DATAFOLDER", _geminarr.Value.DataFolder, false),
         new("GEMINARR__PUBLICURL", _geminarr.Value.PublicUrl ?? NotSet, false),
@@ -75,5 +69,6 @@ public sealed class EffectiveSettings
         new("GEMINARR__READER__LOGINFAILURES", _reader.Value.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__DEMOGROWSECONDS", _reader.Value.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _reader.Value.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__RETENTION__RUNSDAYS", _retention.Value.RunsDays.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

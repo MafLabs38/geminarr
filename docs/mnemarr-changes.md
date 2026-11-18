@@ -22,7 +22,3 @@
 ## The file of instructions for the Mnemarr session
 
 When the maintainer is ready, the agent writes in the **Mnemarr workspace** a file (for example `docs/handoff/geminarr.md`, not committed until the session decides) that restates M-1 to M-4 with the acceptance above, links to this document and to SPEC §5, and says: *read `CLAUDE.md` and the protocol; one vertical, one pull request; ADR + D-row; do not start before reading Geminarr's SPEC §5*. The maintainer then opens a session from that workspace.
-
-## Masking rules that Geminarr adds (for Mnemarr and its collector to take)
-
-Geminarr's masking (`Geminarr.Core/Masking/SecretMasker.cs`) starts from Mnemarr's rules and the shared `tests/masking/samples.json`, and adds, because Gemini's users paste Google credentials: Google API keys (`AIza` + 35), access tokens (`ya29.`), refresh tokens (`1//0`), and credentials in an address of **any scheme** (`postgres://user:pass@…`, not only `http(s)`). Mnemarr's masking and the collector's should take the same four samples, so that the engines stay one (Q-27). Not a dependency: Geminarr works without it.

@@ -17,17 +17,6 @@ RUN corepack enable && yarn install --frozen-lockfile --ignore-scripts
 COPY frontend ./frontend
 RUN yarn build
 
-# The extension that reads the assistant in the browser (ADR 0015): packed and signed here, with Node alone. The key is a build secret (never a layer, never an argument): without it the package is signed by an
-# ephemeral key, which is only fine for a build that nobody installs from (the pipeline refuses to publish a release without the key).
-FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS extension
-ARG VERSION=0.0.0-dev
-WORKDIR /build
-COPY extension ./extension
-COPY tools/extension/pack.mjs ./tools/extension/pack.mjs
-RUN --mount=type=secret,id=extension_key,required=false \
-    if [ -s /run/secrets/extension_key ]; then key="--key /run/secrets/extension_key"; else key=""; fi \
-    && node tools/extension/pack.mjs --source extension --out /out --version "${VERSION}" ${key}
-
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b AS backend
 ARG VERSION=0.0.0-dev
 WORKDIR /build
@@ -46,8 +35,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled@sha256:7c625e44e5d588b4
 WORKDIR /app
 COPY --from=backend /app ./
 COPY --from=frontend /build/_output/UI ./wwwroot
-# The signed package and its description: what the browser installs and updates from (/api/v1/extension, ADR 0015).
-COPY --from=extension /out ./extension
 # The chiseled image has no shell to create folders: copy an empty one owned by the app user.
 # The folder is owned by the application's user on purpose: it is the mount point of the data volume and the container must be able to write it
 # (SonarQube hotspot docker:S6504, reviewed as safe: no other file of the image is writable by the application).
