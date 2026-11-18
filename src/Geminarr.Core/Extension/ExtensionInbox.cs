@@ -14,6 +14,9 @@ public sealed class ExtensionInbox
     /// <summary>More conversations than a list shows: a limit on what a misbehaving extension could make this hold.</summary>
     public const int MaxConversations = 200;
 
+    /// <summary>The text that waits for a pass, in characters, at most: the container is small, and what is dropped is brought again by the next round.</summary>
+    public const int MaxHeldCharacters = 20_000_000;
+
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
@@ -61,14 +64,22 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             _conversations[id] = (title, turns, now);
-            foreach (var oldest in _conversations.OrderBy(pair => pair.Value.At).Take(Math.Max(_conversations.Count - MaxConversations, 0)).Select(pair => pair.Key).ToList())
+            // The oldest go first, the one that has just arrived never: too many of them, or too much text.
+            foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())
             {
+                if (_conversations.Count <= MaxConversations && HeldCharacters() <= MaxHeldCharacters)
+                {
+                    break;
+                }
+
                 _conversations.Remove(oldest);
             }
 
             _session = _session is null ? new ExtensionSession(true, null, now) : _session with { At = now };
         }
     }
+
+    private long HeldCharacters() => _conversations.Values.Sum(held => held.Turns.Sum(turn => (long)turn.Text.Length));
 
     public bool Has(string id)
     {

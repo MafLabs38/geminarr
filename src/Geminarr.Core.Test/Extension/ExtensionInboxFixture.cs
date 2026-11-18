@@ -72,4 +72,18 @@ public sealed class ExtensionInboxFixture
 
         _subject.Take("c1")!.Should().HaveCount(2);
     }
+
+    [Fact]
+    public void should_hold_a_bounded_amount_of_text_and_drop_the_oldest_first_but_never_the_one_that_just_came()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var heavy = new string('x', ExtensionInbox.MaxHeldCharacters / 2 + 1);
+        _subject.RecordConversation("first", "T", [new Turn("user", null, heavy)], now);
+        _subject.RecordConversation("second", "T", [new Turn("user", null, heavy)], now.AddSeconds(1));
+        _subject.RecordConversation("third", "T", [new Turn("user", null, "short")], now.AddSeconds(2));
+
+        _subject.Has("first").Should().BeFalse("it was the oldest, and the two heavy ones were over the bound");
+        _subject.Has("second").Should().BeTrue();
+        _subject.Has("third").Should().BeTrue();
+    }
 }
