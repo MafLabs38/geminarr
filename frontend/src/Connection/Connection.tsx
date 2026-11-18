@@ -18,6 +18,7 @@ import { connectionStates } from './connectionStates';
 import {
   type Connection as ConnectionState,
   CONNECTION_WAITING_REFRESH_MS,
+  useCancelDisconnect,
   useConnection,
   useDisconnect,
   useOpenDesktop,
@@ -123,11 +124,12 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
   const pause = usePause();
   const resume = useResume();
   const disconnect = useDisconnect();
+  const cancelDisconnect = useCancelDisconnect();
   const [sure, setSure] = useState(false);
   const paused = connection.state === 'Paused';
-  const failure = pause.error ?? resume.error ?? disconnect.error;
+  const failure = pause.error ?? resume.error ?? disconnect.error ?? cancelDisconnect.error;
   // A second click while a request is on its way would send it twice (a disconnect attaches to the browser each time).
-  const busy = pause.isPending || resume.isPending || disconnect.isPending;
+  const busy = pause.isPending || resume.isPending || disconnect.isPending || cancelDisconnect.isPending;
 
   return (
     <div className={styles.actions}>
@@ -160,9 +162,16 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
           </Button>
         </>
       ) : (
-        <Button disabled={busy} variant="danger" onClick={() => setSure(true)}>
-          {translate('Disconnect')}
-        </Button>
+        <>
+          <Button disabled={busy} variant="danger" onClick={() => setSure(true)}>
+            {translate('Disconnect')}
+          </Button>
+          {connection.signOutPending && (
+            <Button disabled={busy} variant="quiet" onClick={() => cancelDisconnect.mutate()}>
+              {translate('CancelSignOut')}
+            </Button>
+          )}
+        </>
       )}
       {failure && <Alert>{failure.message}</Alert>}
     </div>

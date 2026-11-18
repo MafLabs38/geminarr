@@ -196,16 +196,20 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
-    public void should_forget_in_the_record_a_disconnect_that_the_operator_gave_up_by_pressing_sign_in()
+    public void should_forget_in_the_record_a_disconnect_that_the_operator_cancels_and_not_by_opening_the_desktop()
     {
         var subject = Subject();
         _tracker.Connected();
         subject.Disconnect();
-        subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected);
 
         subject.BeginSigningIn();
 
-        subject.Current().LastReason.Should().Be(ConnectionReasons.NotConnected, "a restart must not ask again for a sign-out that was given up");
+        subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "opening the desktop does not give a pending sign-out up");
+        _inbox.SignOutPending.Should().BeTrue();
+
+        subject.CancelDisconnect();
+
+        subject.Current().LastReason.Should().Be(ConnectionReasons.NotConnected, "a restart must not ask again for a sign-out that was cancelled");
         _inbox.SignOutPending.Should().BeFalse();
     }
 }

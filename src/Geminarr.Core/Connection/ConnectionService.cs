@@ -29,9 +29,12 @@ public sealed class ConnectionService
     public ConnectionRecord Current() => _tracker.Current();
 
     /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser by hand, so the extension is asked for rounds until it says that somebody is.</summary>
-    public void BeginSigningIn()
+    public void BeginSigningIn() => _inbox.BeginSigningIn(_clock.GetUtcNow());
+
+    /// <summary>The operator gives a pending sign-out up (the extension never confirmed it, or it was a mistake): the record forgets it too, so that a restart does not ask again.</summary>
+    public void CancelDisconnect()
     {
-        _inbox.BeginSigningIn(_clock.GetUtcNow());
+        _inbox.CancelSignOut();
         _tracker.GaveUpTheDisconnect();
     }
 

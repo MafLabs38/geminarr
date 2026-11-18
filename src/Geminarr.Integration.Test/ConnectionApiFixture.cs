@@ -164,4 +164,19 @@ public sealed class ConnectionApiFixture
         disconnected!.State.Should().Be("NotConnected");
         factory.Services.GetRequiredService<Geminarr.Core.Extension.ExtensionInbox>().Disconnected.Should().BeTrue("the extension is asked to sign the account out");
     }
+
+    [Fact]
+    public async Task should_say_that_a_sign_out_is_pending_until_the_operator_cancels_it()
+    {
+        using var factory = new BrowserFactory();
+        using var client = await factory.SignedInClientAsync();
+        (await client.PostAsync("/api/v1/connection/disconnect", content: null, Token)).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.SignOutPending.Should().BeTrue();
+        (await client.PostAsync("/api/v1/connection/desktop", content: null, Token)).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<ConnectionResource>("/api/v1/connection", Token))!.SignOutPending.Should().BeTrue("opening the desktop does not give it up");
+
+        var cancelled = await (await client.PostAsync("/api/v1/connection/disconnect/cancel", content: null, Token)).Content.ReadFromJsonAsync<ConnectionResource>(Token);
+
+        cancelled!.SignOutPending.Should().BeFalse();
+    }
 }

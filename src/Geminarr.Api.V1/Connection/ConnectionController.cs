@@ -110,6 +110,15 @@ public sealed class ConnectionController : ControllerBase
         return Get();
     }
 
+    /// <summary>Gives up a sign-out that the extension has not confirmed (the browser may be off, or it refused): the account that is signed in stays. Nothing happens when no sign-out is pending.</summary>
+    [HttpPost("disconnect/cancel")]
+    [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]
+    public ConnectionResource CancelDisconnect()
+    {
+        _connection.CancelDisconnect();
+        return Get();
+    }
+
     /// <summary>Signs the account out of the browser and forgets the connection: the state is not connected, and a person signs in again by hand. What waits for Mnemarr stays. The extension of the browser does it, the next time that it says that it is there (nothing else of the browser is touched).</summary>
     [HttpPost("disconnect")]
     [ProducesResponseType<ConnectionResource>(StatusCodes.Status200OK)]

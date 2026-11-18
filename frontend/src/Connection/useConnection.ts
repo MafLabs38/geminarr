@@ -60,6 +60,11 @@ export function useOpenDesktop() {
   return useMutation({ mutationFn: () => apiSend<{ url: string }>('POST', `${connectionPath}/desktop`) });
 }
 
+/** Gives up a sign-out that the extension has not confirmed. */
+export function useCancelDisconnect() {
+  return useWrite(() => apiSend<Connection>('POST', `${connectionPath}/disconnect/cancel`));
+}
+
 export function useDisconnect() {
   return useWrite(() => apiSend<Connection>('POST', `${connectionPath}/disconnect`));
 }

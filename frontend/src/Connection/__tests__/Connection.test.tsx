@@ -112,6 +112,28 @@ describe('Connection', () => {
     expect(screen.getByText(/Disconnected: the account is signed out of the browser/)).toBeInTheDocument();
   });
 
+  it('lets the operator cancel a sign-out that the extension has not confirmed', async () => {
+    let cancelled = 0;
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'NotConnected',
+        reason: 'disconnected',
+        signOutPending: cancelled === 0,
+      }),
+      'POST /connection/disconnect/cancel': () => {
+        cancelled += 1;
+        return { ...base, state: 'NotConnected', signOutPending: false };
+      },
+    });
+    renderAt(<Connection />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel the sign-out' }));
+
+    await waitFor(() => expect(cancelled).toBe(1));
+    expect(screen.queryByRole('button', { name: 'Cancel the sign-out' })).not.toBeInTheDocument();
+  });
+
   it('says that the session has ended when a sign-in is asked for again', async () => {
     serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
     renderAt(<Connection />);

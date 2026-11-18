@@ -23,12 +23,11 @@ internal sealed class ExtensionIntents
     /// <summary>Whether the extension has been asked to sign the account out and has not yet said that nobody is signed in.</summary>
     public bool SignOutPending => _signOutAsked;
 
-    /// <summary>A person is about to sign in: whatever sign-out was pending is given up (the operator who presses *Sign in* wants an account signed in, and a sign-out that never completes must not be a loop that nothing can stop).</summary>
-    public void BeginSigningIn(DateTimeOffset now)
-    {
-        _signingInSince = now;
-        _signOutAsked = false;
-    }
+    /// <summary>A person is about to sign in: the extension is asked for rounds, quickly. A pending sign-out is not touched (it wins until it is done, or until the operator cancels it).</summary>
+    public void BeginSigningIn(DateTimeOffset now) => _signingInSince = now;
+
+    /// <summary>The operator gives the pending sign-out up (it never completed, or was a mistake): nothing more is asked of the extension, and the account that is signed in is the account again.</summary>
+    public void CancelSignOut() => _signOutAsked = false;
 
     public void RequestRound() => _roundAsked = true;
 

@@ -506,7 +506,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
-    public void should_give_up_a_pending_sign_out_when_the_operator_presses_sign_in()
+    public void should_give_up_a_pending_sign_out_only_when_the_operator_cancels_it()
     {
         var subject = Subject();
         var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
@@ -515,6 +515,9 @@ public sealed class ExtensionServiceFixture : IDisposable
         subject.Handle(hello).SignOut.Should().BeTrue();
 
         _inbox.BeginSigningIn(_clock.GetUtcNow());
+        subject.Handle(hello).SignOut.Should().BeTrue("a person opening the desktop does not give a pending sign-out up");
+
+        _inbox.CancelSignOut();
 
         subject.Handle(hello).SignOut.Should().BeFalse("a sign-out that never completes must not be a loop that nothing can stop");
         _inbox.SignOutPending.Should().BeFalse();

@@ -221,6 +221,15 @@ public sealed class ExtensionInbox
         }
     }
 
+    /// <summary>The operator cancels a pending sign-out: nothing more is asked of the extension.</summary>
+    public void CancelSignOut()
+    {
+        lock (_gate)
+        {
+            _intents.CancelSignOut();
+        }
+    }
+
     /// <summary>The operator asked to look again: the extension is asked for a round the next time it says that it is there.</summary>
     public void RequestRound()
     {
