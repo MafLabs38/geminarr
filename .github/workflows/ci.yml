@@ -184,6 +184,16 @@ jobs:
       - run: dotnet build src/Geminarr.sln
       - name: End SonarQube analysis
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+      # Whatever the gate said, the log and the summary of the run tell why (the failed conditions, the open issues, the hotspots to review), so that nobody has to open the server to know.
+      - name: What SonarQube found
+        if: always()
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.repository_owner }}_${{ github.event.repository.name }}
+          SONAR_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          SONAR_BRANCH: ${{ github.event_name == 'pull_request' && '' || github.ref_name }}
+        run: python3 tools/sonar/report.py
 
   security:
     name: security
