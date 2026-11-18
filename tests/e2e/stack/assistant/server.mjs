@@ -95,7 +95,10 @@ function conversation(request, response, id) {
 }
 
 function admin(path, response) {
-  if (path === '/admin/signout') sessions.clear();
+  if (path === '/admin/signout') {
+    sessions.clear();
+    mode = 'in';
+  }
   if (path === '/admin/signin') {
     mode = 'in';
     armed = true;
