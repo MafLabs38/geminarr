@@ -21,5 +21,6 @@ public sealed class ExtensionSettingsSection : ISettingsSection
         new("GEMINARR__EXTENSION__PACKAGEFOLDER", _options.Value.PackageFolder, false),
         new("GEMINARR__EXTENSION__PUBLICURL", string.IsNullOrWhiteSpace(_options.Value.PublicUrl) ? NotSet : _options.Value.PublicUrl, false),
         new("GEMINARR__EXTENSION__SILENTAFTERMINUTES", _options.Value.SilentAfterMinutes.ToString(CultureInfo.InvariantCulture), false),
+        new("GEMINARR__EXTENSION__ROUNDMINUTES", _options.Value.RoundMinutes.ToString(CultureInfo.InvariantCulture), false),
     ];
 }

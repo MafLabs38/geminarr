@@ -25,15 +25,17 @@ public sealed partial class ExtensionService
     private readonly IOutboxStore _outbox;
     private readonly PassTrigger _trigger;
     private readonly IOptions<ReaderOptions> _reader;
+    private readonly IOptions<ExtensionOptions> _options;
     private readonly TimeProvider _clock;
 
-    public ExtensionService(ExtensionInbox inbox, IConversationStore conversations, IOutboxStore outbox, PassTrigger trigger, IOptions<ReaderOptions> reader, TimeProvider clock)
+    public ExtensionService(ExtensionInbox inbox, IConversationStore conversations, IOutboxStore outbox, PassTrigger trigger, IOptions<ReaderOptions> reader, IOptions<ExtensionOptions> options, TimeProvider clock)
     {
         _inbox = inbox;
         _conversations = conversations;
         _outbox = outbox;
         _trigger = trigger;
         _reader = reader;
+        _options = options;
         _clock = clock;
     }
 
@@ -67,7 +69,7 @@ public sealed partial class ExtensionService
     /// <summary>The extension says that it is there: it is told whether to run a round now, and whether to sign the account out. Nothing is recorded of the session by it.</summary>
     private ExtensionPushResult Hello()
     {
-        var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow());
+        var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(_options.Value.RoundMinutes));
         return ExtensionPushResult.Hints(round, signOut);
     }
 

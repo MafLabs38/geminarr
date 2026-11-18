@@ -12,8 +12,7 @@
     "extensions": {
       "<extension-id>": {
         "geminarrUrl": "http://127.0.0.1:8282",
-        "token": "<the content of GEMINARR__EXTENSION__TOKENFILE>",
-        "roundMinutes": 15
+        "token": "<the content of GEMINARR__EXTENSION__TOKENFILE>"
       }
     }
   },
@@ -22,11 +21,6 @@
   "SyncDisabled": true,
   "DeveloperToolsAvailability": 2,
   "RemoteDebuggingAllowed": false,
-  "URLBlocklist": [
-    "*"
-  ],
-  "URLAllowlist": [
-    "https://gemini.google.com",
-    "https://accounts.google.com"
-  ]
+  "URLBlocklist": ["*"],
+  "URLAllowlist": ["https://gemini.google.com", "https://accounts.google.com"]
 }

@@ -119,7 +119,7 @@ public sealed class ConnectionServiceFixture : IDisposable
         subject.Disconnect();
 
         _inbox.Disconnected.Should().BeTrue();
-        _inbox.TakeHints(_clock.GetUtcNow()).SignOut.Should().BeTrue("the extension is asked the next time that it says that it is there");
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15)).SignOut.Should().BeTrue("the extension is asked the next time that it says that it is there");
         subject.Current().State.Should().Be(ConnectionState.NotConnected);
         subject.Current().LastOkAt.Should().BeNull();
     }

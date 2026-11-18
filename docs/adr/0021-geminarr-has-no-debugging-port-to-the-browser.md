@@ -12,10 +12,10 @@ Geminarr attached to the browser container over its debugging port to look at th
 ## Decision
 
 1. **Geminarr has no debugging port to the browser**: the browser container is not started with `--remote-debugging-port`, the project that drove it (`Geminarr.Browser`, Playwright) is removed, and `GEMINARR__BROWSER__CDPURL` no longer exists.
-2. **What stays is the person's own sign-in**: the browser container, its web desktop relayed on an origin of its own behind a ticket of the operator's session (ADR 0017, 0019), the Connection page with its *Sign in* button and *Pause*, the egress guard (ADR 0020) and the exposure check.
-3. **What Geminarr cannot know until the extension says it**: whether somebody is signed in, and as whom. Until then the connection reads "not connected", the pass only checks that the desktop answers, and *Disconnect* is refused with a sentence of ours (clearing the session without a debugging port needs the extension).
+2. **What stays is the person's own sign-in**: the browser container, its web desktop relayed on an origin of its own behind a ticket of the operator's session (ADR 0017, 0019), the Connection page with its _Sign in_ button and _Pause_, the egress guard (ADR 0020) and the exposure check.
+3. **What Geminarr cannot know by itself**: whether somebody is signed in, as whom, and when a sign-in ends. The extension says it, and signs the account out when the operator disconnects ([0022](0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)); the host here only looks whether the desktop answers.
 
 ## Consequences
 
 - R-24-34 has no object. The shared network namespace remains for the desktop only; its reason is the loopback address of the desktop, not a key to a session.
-- The route `POST /connection/sign-in`, the watcher of the tabs, the account and the "signing in" fields, and the settings of the attachment are removed with the code that read them, and so are the tests. "Signed in as ..." and the end of a sign-in, and *Disconnect*, come back with the extension reader, in the pull request that puts it back.
+- The route `POST /connection/sign-in`, the watcher of the tabs, the account and the "signing in" fields, and the settings of the attachment are removed with the code that read them, and so are the tests. "Signed in as ...", the end of a sign-in and _Disconnect_ came back with the extension reader ([0022](0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)), which says them and does the sign-out.

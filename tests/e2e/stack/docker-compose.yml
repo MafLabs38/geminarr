@@ -8,7 +8,7 @@ networks:
   default:
     ipam:
       config:
-        - subnet: 172.29.40.0/24
+        - subnet: 10.254.77.0/24
 services:
   # A fake assistant: synthetic pages shaped like the ones that the extension reads (the list, the turns of a conversation, the button of the account). Nobody is signed in to it until a test says so. Published only so that
   # a test can sign it in and out and add a conversation, and ask whether another container can open a port of the browser.
@@ -35,7 +35,7 @@ services:
       - '8092:8090'
     networks:
       default:
-        ipv4_address: 172.29.40.10
+        ipv4_address: 10.254.77.10
   # Packs the extension for the origin of the fake assistant with a key made now, and writes the policy of the browser (the id of the extension comes from the key).
   prepare:
     <<: *node
@@ -186,11 +186,13 @@ services:
       GEMINARR__READER__LOGINFAILURES: '1'
       GEMINARR__EXTENSION__TOKENFILE: /run/extension-token
       GEMINARR__EXTENSION__PACKAGEFOLDER: /extension
+      # A round every minute (fifteen by default), so that a test does not wait a quarter of an hour for a conversation that was added.
+      GEMINARR__EXTENSION__ROUNDMINUTES: '1'
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
       # Test only: the two probes listen off the loopback (they show the egress guard).
       GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9224;9225'
       # The Mnemarr of the stack speaks plain HTTP on a private network, for the tests only; the egress guard names its address.
-      GEMINARR__MNEMARR__URL: http://172.29.40.10:8090
+      GEMINARR__MNEMARR__URL: http://10.254.77.10:8090
       GEMINARR__MNEMARR__ALLOWINSECUREHTTP: 'true'
       GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/mnemarr-code
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).

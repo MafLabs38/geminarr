@@ -197,16 +197,11 @@ test.describe('smoke @smoke', () => {
 
   test("the Connection page opens the browser's desktop, where a person signs in by hand", async ({
     page,
-    playwright,
-    baseURL,
     browserName,
   }) => {
     // One browser container and one server: the page is walked once, in one browser project.
     test.skip(browserName !== 'chromium', 'one browser container, one server');
     test.setTimeout(120_000);
-    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the desktop.
-    const api = await signedInRequest(playwright, required(baseURL));
-    expect((await api.delete('/api/v1/mnemarr')).status()).toBe(204);
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 

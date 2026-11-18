@@ -17,7 +17,7 @@ writeFileSync(
       '*': { installation_mode: 'blocked' },
       [packed.id]: { installation_mode: 'force_installed', update_url: `${GEMINARR_URL}/api/v1/extension/update.xml` },
     },
-    '3rdparty': { extensions: { [packed.id]: { geminarrUrl: GEMINARR_URL, token: TOKEN, roundMinutes: 1 } } },
+    '3rdparty': { extensions: { [packed.id]: { geminarrUrl: GEMINARR_URL, token: TOKEN } } },
     // The browser of the deployment never keeps a password, a profile of a person or a synced copy of itself.
     PasswordManagerEnabled: false,
     BrowserSignin: 0,

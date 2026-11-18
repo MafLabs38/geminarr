@@ -1,12 +1,9 @@
 // The only place that talks to Geminarr, and the one that opens the pages of the assistant. Its address and its token come from the policy of the browser (managed storage), never from the code,
 // and it only ever sends to that address. A page of the assistant is opened in the background, read by content.js, and closed.
 const ORIGIN = '__ASSISTANT_ORIGIN__';
-const ROUND_ALARM = 'round';
-const DEFAULT_ROUND_MINUTES = 15;
-const MAX_ROUND_MINUTES = 1440;
 const SWEEP_ALARM = 'sweep';
 const UPDATE_ALARM = 'update';
-// The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (a person is signing in, the operator asked) and whether to sign the account out.
+// The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (the interval of the rounds is over, a person is signing in, the operator asked) and whether to sign the account out. It is the only clock of the rounds.
 const HELLO_ALARM = 'hello';
 const HELLO_MINUTES = 0.5;
 const SIGN_OUT_KEY = 'signOutAt';
@@ -147,9 +144,6 @@ chrome.runtime.onInstalled.addListener(() => void round());
 chrome.runtime.onStartup.addListener(() => void round());
 chrome.alarms.onAlarm.addListener((alarm) => {
   switch (alarm.name) {
-    case ROUND_ALARM:
-      void round();
-      break;
     case SWEEP_ALARM:
       void sweep();
       break;
@@ -169,12 +163,7 @@ async function ensureAlarm(name, periodInMinutes) {
   const existing = await chrome.alarms.get(name);
   if (existing?.periodInMinutes !== periodInMinutes) chrome.alarms.create(name, { periodInMinutes });
 }
-async function roundMinutes() {
-  const { roundMinutes: wanted } = await chrome.storage.managed.get('roundMinutes');
-  return Number.isInteger(wanted) && wanted >= 1 && wanted <= MAX_ROUND_MINUTES ? wanted : DEFAULT_ROUND_MINUTES;
-}
-// A service worker is not a module: it cannot await at the top level (S7785), so these three calls start the alarms and are not awaited.
-void roundMinutes().then((minutes) => ensureAlarm(ROUND_ALARM, minutes)); // NOSONAR
+// A service worker is not a module: it cannot await at the top level (S7785), so these calls start the alarms and are not awaited.
 void ensureAlarm(SWEEP_ALARM, 1); // NOSONAR
 void ensureAlarm(UPDATE_ALARM, 60); // NOSONAR
 void ensureAlarm(HELLO_ALARM, HELLO_MINUTES); // NOSONAR

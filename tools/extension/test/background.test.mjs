@@ -125,7 +125,7 @@ describe('what the extension opens and closes', () => {
   it('opens a page in the background to read the list when a round starts, and remembers that the page is its own', async () => {
     const { calls, listeners, session } = await load();
 
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
 
     assert.deepEqual(plain(calls.created), [{ url: `${ORIGIN}/app`, active: false }]);
@@ -139,7 +139,7 @@ describe('what the extension opens and closes', () => {
         json: async () => ({ open: ['abc', 'has space', '../x', 'a'.repeat(65), 'def_-1'] }),
       }),
     });
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
     calls.created.length = 0;
 
@@ -157,7 +157,7 @@ describe('what the extension opens and closes', () => {
   it('opens at most ten conversations for one answer, whatever the answer says', async () => {
     const many = Array.from({ length: 30 }, (_, i) => `c${i}`);
     const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({ open: many }) }) });
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
     calls.created.length = 0;
 
@@ -169,7 +169,7 @@ describe('what the extension opens and closes', () => {
 
   it('opens nothing, and still closes its page, when the answer asks for nothing', async () => {
     const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({}) }) });
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
     calls.created.length = 0;
 
@@ -185,7 +185,7 @@ describe('what the extension opens and closes', () => {
       () => ({ ok: true, json: async () => Promise.reject(new Error('not json')) }),
     ]) {
       const { calls, listeners } = await load({ answer });
-      listeners.alarm({ name: 'round' });
+      listeners.startup();
       await flush();
       calls.created.length = 0;
 
@@ -198,7 +198,7 @@ describe('what the extension opens and closes', () => {
 
   it('closes the page of a conversation that gives up without telling Geminarr anything', async () => {
     const { calls, listeners } = await load();
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
 
     listeners.message({ kind: 'giveup' }, { tab: { id: 100 } });
@@ -210,9 +210,9 @@ describe('what the extension opens and closes', () => {
   it('does not start a round while the last one is still reading', async () => {
     const { calls, listeners } = await load();
 
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     listeners.startup();
     await flush();
 
@@ -226,7 +226,7 @@ describe('what the extension opens and closes', () => {
       { kind: 'broken', step: 'page' },
     ]) {
       const { calls, listeners } = await load();
-      listeners.alarm({ name: 'round' });
+      listeners.startup();
       await flush();
 
       listeners.message(message, { tab: { id: 100 } });
@@ -279,48 +279,12 @@ describe('which pages are its own', () => {
 
   it('says yes to a page that it opened, and no to any other, and keeps the channel open to answer', async () => {
     const { listeners } = await load();
-    listeners.alarm({ name: 'round' });
+    listeners.startup();
     await flush();
 
     assert.deepEqual(await ask(listeners, { id: 100 }), [true, true]);
     assert.deepEqual(await ask(listeners, { id: 7 }), [true, false]);
     assert.deepEqual(await ask(listeners, undefined), [true, false]);
-  });
-});
-
-describe('the round interval', () => {
-  const periodOf = (calls) => calls.alarmsCreated.find(([name]) => name === 'round')?.[1];
-
-  it('is fifteen minutes unless the policy says another whole number of minutes in the allowed range', async () => {
-    for (const [wanted, expected] of [
-      [undefined, 15],
-      [0, 15],
-      [1441, 15],
-      [2.5, 15],
-      ['5', 15],
-      [1, 1],
-      [5, 5],
-      [1440, 1440],
-    ]) {
-      const { calls } = await load({
-        managed: { geminarrUrl: 'https://geminarr.example', token: 't', roundMinutes: wanted },
-      });
-
-      assert.equal(periodOf(calls), expected, `roundMinutes ${wanted}`);
-    }
-  });
-
-  it('does not start an alarm again when it already runs with the period that is wanted', async () => {
-    const { calls } = await load({
-      alarms: {
-        round: { periodInMinutes: 15 },
-        sweep: { periodInMinutes: 1 },
-        update: { periodInMinutes: 60 },
-        hello: { periodInMinutes: 0.5 },
-      },
-    });
-
-    assert.deepEqual(calls.alarmsCreated, []);
   });
 });
 

@@ -12,36 +12,36 @@ Gemini keeps your conversations to itself: no API gives access to the history, a
 
 **Understand it:**
 
-| Document | Content |
-|---|---|
-| [docs/VISION.md](docs/VISION.md) | Why, what it must and must not do |
-| [docs/SPEC.md](docs/SPEC.md) | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and the browser container, the Takeout import, features, API, settings, health, security, questions |
-| [docs/adr/](docs/adr/README.md) | Architecture decision records |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | The spikes and the verticals, built and to come |
-| [docs/mnemarr-changes.md](docs/mnemarr-changes.md) | What Mnemarr must gain for Geminarr (four small changes) |
+| Document                                           | Content                                                                                                                                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/VISION.md](docs/VISION.md)                   | Why, what it must and must not do                                                                                                                                                           |
+| [docs/SPEC.md](docs/SPEC.md)                       | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and the browser container, the Takeout import, features, API, settings, health, security, questions |
+| [docs/adr/](docs/adr/README.md)                    | Architecture decision records                                                                                                                                                               |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                 | The spikes and the verticals, built and to come                                                                                                                                             |
+| [docs/mnemarr-changes.md](docs/mnemarr-changes.md) | What Mnemarr must gain for Geminarr (four small changes)                                                                                                                                    |
 
 **Run it:**
 
-| Document | Content |
-|---|---|
-| [deploy/](deploy/README.md) | Generic deployment examples (Docker, Kubernetes) and the three levels of "as code" |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | The shape of the GitOps folder, the order of a first deployment |
-| [docs/configuration.md](docs/configuration.md) | Every setting |
-| [docs/network.md](docs/network.md) | Ports, directions, the list of outbound destinations |
-| [docs/runbook.md](docs/runbook.md) | Operating it: what to watch, what to do when it is degraded |
-| [docs/releasing.md](docs/releasing.md) | How versions are made and followed |
-| [SECURITY.md](SECURITY.md) | Reporting a vulnerability, security model |
+| Document                                       | Content                                                                            |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [deploy/](deploy/README.md)                    | Generic deployment examples (Docker, Kubernetes) and the three levels of "as code" |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)       | The shape of the GitOps folder, the order of a first deployment                    |
+| [docs/configuration.md](docs/configuration.md) | Every setting                                                                      |
+| [docs/network.md](docs/network.md)             | Ports, directions, the list of outbound destinations                               |
+| [docs/runbook.md](docs/runbook.md)             | Operating it: what to watch, what to do when it is degraded                        |
+| [docs/releasing.md](docs/releasing.md)         | How versions are made and followed                                                 |
+| [SECURITY.md](SECURITY.md)                     | Reporting a vulnerability, security model                                          |
 
 **Contribute:**
 
-| Document | Content |
-|---|---|
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Workflow, conventions, development setup |
-| [docs/DEVELOPMENT-PROTOCOL.md](docs/DEVELOPMENT-PROTOCOL.md) | Build big, check it yourself, push once |
-| [docs/TESTING.md](docs/TESTING.md) | Testing strategy and CI gates |
-| [docs/review-decisions/](docs/review-decisions/README.md) | How the findings of the four review agents are answered (the register, the three levels) |
-| [docs/DESIGN.md](docs/DESIGN.md) | Interface guidelines (Portarr's, plus what is specific here) |
-| [CLAUDE.md](CLAUDE.md) | Rules for AI assistants working in this repository |
+| Document                                                     | Content                                                                                  |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                           | Workflow, conventions, development setup                                                 |
+| [docs/DEVELOPMENT-PROTOCOL.md](docs/DEVELOPMENT-PROTOCOL.md) | Build big, check it yourself, push once                                                  |
+| [docs/TESTING.md](docs/TESTING.md)                           | Testing strategy and CI gates                                                            |
+| [docs/review-decisions/](docs/review-decisions/README.md)    | How the findings of the four review agents are answered (the register, the three levels) |
+| [docs/DESIGN.md](docs/DESIGN.md)                             | Interface guidelines (Portarr's, plus what is specific here)                             |
+| [CLAUDE.md](CLAUDE.md)                                       | Rules for AI assistants working in this repository                                       |
 
 ## What is in the repository
 

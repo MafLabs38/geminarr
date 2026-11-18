@@ -37,13 +37,13 @@ public sealed class ExtensionReader : IConversationReader
             throw new ReaderException(ConnectionReasons.ReaderBroken, $"The page of the assistant is not what the extension knows (step: {step}).");
         }
 
-        if (session.SignedIn)
+        // The operator disconnected and nobody has signed in since the sign-out was over: whatever the page was last said to show, the session being gone is what was asked for, not a login that expired (and not a mail to Mnemarr).
+        if (_inbox.Disconnected)
         {
-            return Task.FromResult(SessionCheck.SignedIn);
+            return Task.FromResult(SessionCheck.NoBrowser);
         }
 
-        // The operator disconnected and nobody has signed in since: the session being gone is what was asked for, not a login that expired (and not a mail to Mnemarr).
-        return Task.FromResult(_inbox.Disconnected ? SessionCheck.NoBrowser : SessionCheck.SignedOut);
+        return Task.FromResult(session.SignedIn ? SessionCheck.SignedIn : SessionCheck.SignedOut);
     }
 
     /// <summary>The conversations that the extension has read, in the order of the list: what the pass can open now. The others come with the next round of the extension.</summary>

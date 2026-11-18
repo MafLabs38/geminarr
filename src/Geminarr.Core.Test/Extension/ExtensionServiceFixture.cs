@@ -27,8 +27,8 @@ public sealed class ExtensionServiceFixture : IDisposable
         _workspace.Dispose();
     }
 
-    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5, int maxListed = 40) =>
-        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen, MaxListed = maxListed }), _clock);
+    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5, int maxListed = 40, int roundMinutes = 15) =>
+        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen, MaxListed = maxListed }), Options.Of(new ExtensionOptions { RoundMinutes = roundMinutes }), _clock);
 
     private static PushedItem Item(string? id, string? title = "T") => new(id, title);
 
@@ -522,6 +522,26 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_take_a_round_that_began_before_the_sign_out_for_somebody_signing_in_again()
+    {
+        var subject = Subject();
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _inbox.RequestSignOut(_clock.GetUtcNow());
+
+        // The list of a round that read the page before the cookies were deleted arrives after the operator disconnected.
+        subject.Handle(ListOf(Item("c1a2b3")));
+
+        _inbox.Disconnected.Should().BeTrue("the page that was read is the page before the sign-out");
+        subject.Handle(hello).SignOut.Should().BeTrue("the extension is still asked to sign the account out");
+
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, "1.0.0"));
+        _inbox.Disconnected.Should().BeTrue("nobody is signed in: still disconnected");
+        subject.Handle(ListOf(Item("c1a2b3")));
+        _inbox.Disconnected.Should().BeFalse("somebody signed in after the sign-out was over");
+    }
+
+    [Fact]
     public void should_stop_asking_for_the_sign_out_when_nobody_is_signed_in_or_when_the_time_is_over()
     {
         var subject = Subject();
@@ -547,5 +567,19 @@ public sealed class ExtensionServiceFixture : IDisposable
         _inbox.RequestSignOut(_clock.GetUtcNow());
 
         subject.Handle(ConversationOf("c1a2b3", new PushedTurn("user", "Hello"))).Accepted.Should().BeFalse("nothing is asked any longer after a disconnect");
+    }
+
+    [Fact]
+    public void should_ask_for_a_round_when_what_the_extension_said_last_is_older_than_the_interval_of_the_rounds()
+    {
+        var subject = Subject(roundMinutes: 10);
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+
+        _clock.Advance(TimeSpan.FromMinutes(9));
+        subject.Handle(hello).Round.Should().BeFalse("it said something nine minutes ago");
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        subject.Handle(hello).Round.Should().BeTrue("ten minutes: a round is due");
     }
 }

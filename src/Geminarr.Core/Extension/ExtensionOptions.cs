@@ -20,6 +20,9 @@ public sealed class ExtensionOptions
 
     /// <summary>Minutes without a word from the extension after which it is taken for silent: the browser is not running it, or cannot reach Geminarr.</summary>
     public int SilentAfterMinutes { get; set; } = 45;
+
+    /// <summary>Minutes between two rounds of the extension: it says that it is there every half minute, and is asked for a round when what it said last is older than this. Keep it well below <see cref="SilentAfterMinutes"/>.</summary>
+    public int RoundMinutes { get; set; } = 15;
 }
 
 public sealed class ExtensionOptionsValidator : IValidateOptions<ExtensionOptions>
@@ -34,6 +37,11 @@ public sealed class ExtensionOptionsValidator : IValidateOptions<ExtensionOption
         if (options.SilentAfterMinutes is < 1 or > 1_440)
         {
             return ValidateOptionsResult.Fail("Extension:SilentAfterMinutes (GEMINARR__EXTENSION__SILENTAFTERMINUTES) must be between 1 and 1440.");
+        }
+
+        if (options.RoundMinutes is < 1 or > 1_440)
+        {
+            return ValidateOptionsResult.Fail("Extension:RoundMinutes (GEMINARR__EXTENSION__ROUNDMINUTES) must be between 1 and 1440.");
         }
 
         return string.IsNullOrWhiteSpace(options.PackageFolder)

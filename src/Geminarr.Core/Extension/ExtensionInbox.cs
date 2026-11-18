@@ -83,8 +83,8 @@ public sealed class ExtensionInbox
             _session = new ExtensionSession(signedIn, version, now, Account: signedIn ? AccountLabel.Parse(labels ?? []) : null);
             if (signedIn)
             {
-                _disconnected = false;
                 _signingInSince = null;
+                EndDisconnectIfSignedOutIsOver(now);
             }
             else
             {
@@ -109,9 +109,8 @@ public sealed class ExtensionInbox
             var wasNotWell = _session is { SignedIn: false } or { Broken: ExtensionBrokenSteps.Page or ExtensionBrokenSteps.List };
             _list = list;
             _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null, AccountLabel.Parse(labels ?? []) ?? _session?.Account);
-            _disconnected = false;
-            _signOutAsked = null;
             _signingInSince = null;
+            EndDisconnectIfSignedOutIsOver(now);
             return wasNotWell;
         }
     }
@@ -194,6 +193,21 @@ public sealed class ExtensionInbox
         }
     }
 
+    private bool SignOutPending(DateTimeOffset now) => _signOutAsked is { } asked && now - asked < SignOutFor;
+
+    /// <summary>
+    /// A word of "signed in" ends the disconnect only once the sign-out is over (the extension said that nobody is signed in, or the request is old): a round that was under way when the operator disconnected says "signed in"
+    /// about a page that it read before the cookies were deleted, and is not somebody signing in again.
+    /// </summary>
+    private void EndDisconnectIfSignedOutIsOver(DateTimeOffset now)
+    {
+        if (!SignOutPending(now))
+        {
+            _disconnected = false;
+            _signOutAsked = null;
+        }
+    }
+
     /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser, so the extension is asked for rounds, quickly, until it says that somebody is signed in (or <see cref="SigningInFor"/> is over).</summary>
     public void BeginSigningIn(DateTimeOffset now)
     {
@@ -239,7 +253,7 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>Whether the operator disconnected and nobody has signed in since.</summary>
+    /// <summary>Whether the operator disconnected and nobody has signed in since the sign-out was over: while it is, whatever the page was said to show is not the session.</summary>
     public bool Disconnected
     {
         get
@@ -252,16 +266,16 @@ public sealed class ExtensionInbox
     }
 
     /// <summary>
-    /// What the extension is asked when it says that it is there: a round now (it was asked for, a person is signing in and what it said last is old, or nothing is known yet: after a restart) and the sign-out. A
+    /// What the extension is asked when it says that it is there: a round now (it was asked for, what it said last is older than the interval of the rounds, a person is signing in and what it said last is old, or nothing is known yet: after a restart) and the sign-out. A
     /// round that was asked for is asked once.
     /// </summary>
-    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now)
+    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, TimeSpan roundEvery)
     {
         lock (_gate)
         {
-            var round = _roundAsked || _session is null || (IsSigningIn(now) && now - _session.At >= SigningInRoundEvery);
+            var round = _roundAsked || _session is null || now - _session.At >= roundEvery || (IsSigningIn(now) && now - _session.At >= SigningInRoundEvery);
             _roundAsked = false;
-            return (round, _signOutAsked is { } asked && now - asked < SignOutFor);
+            return (round, SignOutPending(now));
         }
     }
 
