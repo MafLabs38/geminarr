@@ -27,7 +27,7 @@ public interface IBrowserHost
     Task<bool?> IsSigningInAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Opens the sign-in page of the account provider in a tab of the browser of its own (<see cref="BrowserOptions.SignInUrl"/>), unless a tab is on a sign-in page already: the person then signs in by hand, in the browser's own page. Nothing
+    /// Opens the sign-in page of the account provider in a tab of the browser of its own, unless a tab is on a sign-in page already: the person then signs in by hand, in the browser's own page. Nothing
     /// is attached to do it (the browser is not driven), and nothing is typed. A browser that cannot be reached is a <see cref="ReaderException"/>.
     /// </summary>
     Task OpenSignInPageAsync(CancellationToken cancellationToken);

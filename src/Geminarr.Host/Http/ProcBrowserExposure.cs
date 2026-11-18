@@ -94,7 +94,7 @@ public sealed partial class ProcBrowserExposure : IBrowserExposure, IDisposable
     private ExposureReport Read(BrowserOptions browser)
     {
         var allowed = new HashSet<int>(OwnPorts());
-        allowed.UnionWith(OriginPolicy.Entries(browser.AllowedOpenPorts).Select(port => int.Parse(port, System.Globalization.CultureInfo.InvariantCulture)));
+        allowed.UnionWith(SettingList.Entries(browser.AllowedOpenPorts).Select(port => int.Parse(port, System.Globalization.CultureInfo.InvariantCulture)));
         // The listing of IPv4 sockets always exists on Linux; the one of IPv6 only where IPv6 does. What cannot be read is not taken for isolated.
         if (ReadLines(_files[0]) is not { } v4)
         {

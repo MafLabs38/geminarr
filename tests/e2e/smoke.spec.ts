@@ -300,7 +300,6 @@ test.describe('smoke @smoke', () => {
     );
     expect(await reaches(3000), 'the desktop itself is not').toBe(false);
     expect(await reaches(3001), 'nor its TLS port').toBe(false);
-    expect(await reaches(9222), 'and there is no debugging port to look for').toBe(false);
 
     // The operator's session asks for the address, with a ticket; it is worth one opening.
     const api = await signedInRequest(playwright, required(baseURL));
@@ -352,7 +351,14 @@ test.describe('smoke @smoke', () => {
     expect(asBrowser.uid, "the control is the browser's user").toBe(1000);
     expect(asBrowser.open, 'the control: the browser reaches the assistant, as the pod allows').toBe(true);
     expect(asGeminarr.open, "Geminarr's process does not, in the same namespace").toBe(false);
-    expect((await probe(9224, '127.0.0.1', 3000)).open, 'it still reaches the browser, on the loopback').toBe(true);
+    expect(
+      (await probe(9224, '127.0.0.1', 3000)).open,
+      'it still reaches the desktop of the browser, on the loopback',
+    ).toBe(true);
+    expect(
+      (await probe(9224, '127.0.0.1', 9222)).open,
+      'and nothing listens for a debugging port in the namespace',
+    ).toBe(false);
     expect(
       (await probe(9224, '127.0.0.1', 8282)).open,
       'but not another port of the loopback (a proxy of a mesh would be there)',

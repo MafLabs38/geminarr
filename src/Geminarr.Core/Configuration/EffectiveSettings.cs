@@ -80,14 +80,7 @@ public sealed class EffectiveSettings
         new("GEMINARR__BROWSER__DESKTOPURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopUrl) ? NotSet : "set", false),
         new("GEMINARR__BROWSER__DESKTOPPORT", _browser.Value.DesktopPort.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__DESKTOPPUBLICURL", string.IsNullOrWhiteSpace(_browser.Value.DesktopPublicUrl) ? NotSet : _browser.Value.DesktopPublicUrl, false),
-        new("GEMINARR__BROWSER__ASSISTANTURL", _browser.Value.AssistantUrl, false),
-        new("GEMINARR__BROWSER__SIGNINHOSTS", _browser.Value.SignInHosts, false),
-        new("GEMINARR__BROWSER__SIGNINURL", _browser.Value.SignInUrl, false),
-        new("GEMINARR__BROWSER__SESSIONCOOKIES", _browser.Value.SessionCookies, false),
-        new("GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS", _browser.Value.SessionCheckTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
-        new("GEMINARR__BROWSER__SIGNINGINPASSES", _browser.Value.SigningInPasses.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__BROWSER__ALLOWEDOPENPORTS", string.IsNullOrWhiteSpace(_browser.Value.AllowedOpenPorts) ? NotSet : _browser.Value.AllowedOpenPorts, false),
         new("GEMINARR__BROWSER__REQUIREEGRESSGUARD", _browser.Value.RequireEgressGuard ? "true" : "false", false),
-        new("GEMINARR__BROWSER__ALLOWINSECUREASSISTANT", _browser.Value.AllowInsecureAssistant ? "true" : "false", false),
     ];
 }

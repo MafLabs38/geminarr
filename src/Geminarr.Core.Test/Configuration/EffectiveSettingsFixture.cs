@@ -41,7 +41,7 @@ public sealed class EffectiveSettingsFixture
     {
         var settings = Subject(new AuthOptions()).Read().ToDictionary(setting => setting.Name, setting => setting.Value);
 
-        settings.Should().ContainKey("GEMINARR__BROWSER__DESKTOPURL").And.ContainKey("GEMINARR__BROWSER__ASSISTANTURL").And.ContainKey("GEMINARR__BROWSER__SIGNINHOSTS");
+        settings.Should().ContainKey("GEMINARR__BROWSER__DESKTOPURL").And.ContainKey("GEMINARR__BROWSER__DESKTOPPORT").And.ContainKey("GEMINARR__BROWSER__REQUIREEGRESSGUARD");
         settings.Should().NotContainKey("GEMINARR__BROWSER__CDPURL");
         settings["GEMINARR__BROWSER__DESKTOPURL"].Should().Be("not set");
     }

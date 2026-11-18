@@ -120,7 +120,7 @@ const en = {
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
   ReasonBrowserFailed:
-    'The browser container does not answer: check that it runs and that its debugging address is the one Geminarr is given.',
+    'The browser container does not answer: check that it runs and that its desktop address is the one Geminarr is given.',
   ReasonBrowserExposed:
     'A port of the browser container listens off the loopback: its desktop is closed until it is fixed (see the runbook).',
   ReasonEgressUnguarded:

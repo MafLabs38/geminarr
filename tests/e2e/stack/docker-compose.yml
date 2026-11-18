@@ -137,12 +137,6 @@ services:
       GEMINARR__READER__LOGINFAILURES: '1'
       GEMINARR__READER__POLLMINUTES: '1'
       GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
-      GEMINARR__BROWSER__ASSISTANTURL: http://assistant:8081/app
-      GEMINARR__BROWSER__SIGNINHOSTS: signin
-      GEMINARR__BROWSER__SIGNINURL: http://signin:8081/signin?next=/app
-      # The fake assistant sets one cookie when a person signs in: its name says that the account is signed in.
-      GEMINARR__BROWSER__SESSIONCOOKIES: assistant
-      GEMINARR__BROWSER__ALLOWINSECUREASSISTANT: 'true'
       # Test only: the two probes listen off the loopback (they show the egress guard).
       GEMINARR__BROWSER__ALLOWEDOPENPORTS: '9224;9225'
       # Who this environment is, as a real deployment says it: a name and a picture in a mounted file (a synthetic drawing).

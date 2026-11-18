@@ -40,24 +40,6 @@ public sealed class BrowserOptions
     /// </summary>
     public const string RelayOrigin = "https://geminarr.invalid";
 
-    /// <summary>The page of the assistant that is opened to check the session; its host is the only one Geminarr navigates to.</summary>
-    public string AssistantUrl { get; set; } = "https://gemini.google.com/app";
-
-    /// <summary>The sign-in pages of the account provider: a redirect to one of them says that the session is gone.</summary>
-    public string SignInHosts { get; set; } = "accounts.google.com";
-
-    /// <summary>
-    /// The page of the account provider that the "Sign in" button of the Connection page opens in the browser, in a tab of its own (a person types their credentials there, by hand; Geminarr never does). Its host is one of
-    /// <see cref="SignInHosts"/> and it brings the person back to the assistant's page.
-    /// </summary>
-    public string SignInUrl { get; set; } = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fgemini.google.com%2Fapp";
-
-    /// <summary>
-    /// The names (never the values) of the cookies that say that the account is signed in, separated by <c>;</c>: one of them must be in the browser. The assistant's page is shown to a visitor who is not
-    /// signed in (a guest mode), so the page alone does not say it. Empty: the page alone decides.
-    /// </summary>
-    public string SessionCookies { get; set; } = "SID;__Secure-1PSID";
-
     /// <summary>
     /// Ports that other containers of the same pod open on purpose, off the loopback, and that Geminarr must not take for the browser being exposed (a service-mesh proxy, a metrics exporter; the test relay of the
     /// end-to-end stack), separated by <c>;</c>. Never the web desktop's: it has no sign-in (the start is refused).
@@ -70,17 +52,6 @@ public sealed class BrowserOptions
     /// </summary>
     public bool RequireEgressGuard { get; set; } = true;
 
-    /// <summary>A sandbox or a test only: the assistant and the sign-in pages may be on plain http.</summary>
-    public bool AllowInsecureAssistant { get; set; }
-
-    /// <summary>
-    /// How many passes in a row step aside because a tab of the browser is on a sign-in page (a person is signing in). A tab that stays there longer is not somebody typing (an account picker left open, a prompt
-    /// never finished): the pass then looks at the session as usual.
-    /// </summary>
-    public int SigningInPasses { get; set; } = 3;
-
-    /// <summary>How long the page of the assistant may take to load when the session is checked.</summary>
-    public int SessionCheckTimeoutSeconds { get; set; } = 30;
 }
 
 public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
@@ -88,36 +59,11 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
     public ValidateOptionsResult Validate(string? name, BrowserOptions options)
     {
         var problem =
-            (OriginPolicy.AssistantHost(options) is null ? "Browser:AssistantUrl (GEMINARR__BROWSER__ASSISTANTURL) must be an https address with a host (http only when the sandbox switch allows it)." : null)
-            ?? Address("DesktopUrl", options.DesktopUrl)
+            Address("DesktopUrl", options.DesktopUrl)
             ?? Loopback("DesktopUrl", options.DesktopUrl)
             ?? DesktopOrigin(options)
-            ?? Hosts("SignInHosts", options.SignInHosts)
-            ?? SignInUrl(options)
-            ?? (options.SessionCheckTimeoutSeconds is >= 5 and <= 300 ? null : "Browser:SessionCheckTimeoutSeconds (GEMINARR__BROWSER__SESSIONCHECKTIMEOUTSECONDS) must be between 5 and 300.")
-            ?? OpenPorts(options)
-            ?? (options.SigningInPasses is >= 1 and <= 100 ? null : "Browser:SigningInPasses (GEMINARR__BROWSER__SIGNINGINPASSES) must be between 1 and 100.");
+            ?? OpenPorts(options);
         return problem is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problem);
-    }
-
-    /// <summary>A wildcard covers the names under a domain of its own (<c>*.example.org</c>): never a whole public suffix (<c>*.org</c>), and a list is not empty.</summary>
-    private static string? SignInUrl(BrowserOptions options) =>
-        Uri.TryCreate(options.SignInUrl, UriKind.Absolute, out var uri)
-        && (uri.Scheme == Uri.UriSchemeHttps || (options.AllowInsecureAssistant && uri.Scheme == Uri.UriSchemeHttp))
-        && uri.UserInfo.Length == 0
-        && OriginPolicy.Classify(options.SignInUrl, options) == PageKind.SignIn
-            ? null
-            : "Browser:SignInUrl (GEMINARR__BROWSER__SIGNINURL) must be an https address on one of the SignInHosts, without a user name (http only when the sandbox switch allows it).";
-
-    private static string? Hosts(string setting, string list)
-    {
-        var entries = OriginPolicy.Entries(list);
-        if (entries.Length == 0 || entries.Any(entry => entry.StartsWith("*.", StringComparison.Ordinal) && !entry[2..].Contains('.', StringComparison.Ordinal)))
-        {
-            return $"Browser:{setting} (GEMINARR__BROWSER__{setting.ToUpperInvariant()}) must name hosts, and a wildcard only under a domain of its own (*.example.org, not *.org).";
-        }
-
-        return null;
     }
 
     /// <summary>The desktop's own origin (ADR 0019): a port, and when a proxy gives it an address, an origin (scheme, host, port) and nothing after it.</summary>
@@ -137,7 +83,7 @@ public sealed class BrowserOptionsValidator : IValidateOptions<BrowserOptions>
     /// <summary>The ports that are tolerated off the loopback are port numbers, and none is the browser's own: its desktop (and the TLS port that goes with it) has no sign-in.</summary>
     private static string? OpenPorts(BrowserOptions options)
     {
-        var ports = OriginPolicy.Entries(options.AllowedOpenPorts);
+        var ports = SettingList.Entries(options.AllowedOpenPorts);
         if (!ports.All(port => int.TryParse(port, out var number) && number is >= 1 and <= 65535))
         {
             return "Browser:AllowedOpenPorts (GEMINARR__BROWSER__ALLOWEDOPENPORTS) must be port numbers separated by semicolons.";
