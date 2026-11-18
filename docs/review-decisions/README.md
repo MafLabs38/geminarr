@@ -6,13 +6,13 @@ The review agents are made to find defects, so they always find some. This regis
 
 ## Three answers
 
-| Answer                                                                     | When                                                                                                   | Who decides                                                                      |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| **fixed**                                                                  | The finding is right                                                                                   | The author                                                                       |
-| **declined** (or **deferred**), rated medium, minor or low                 | A preference, a hardening beyond the threat model, a defect that does not occur: the reason is written | The author                                                                       |
-| **declined** (or **deferred**), rated **blocker, critical, high or major** | The author does not want to fix a serious finding                                                      | **The maintainer**, in a comment on the pull request, before the entry is merged |
+| Answer | When | Who decides |
+|---|---|---|
+| **fixed** | The finding is right | The author |
+| **declined** (or **deferred**), rated medium, minor or low | A preference, a hardening beyond the threat model, a defect that does not occur: the reason is written | The author |
+| **declined** (or **deferred**), rated **blocker, critical, high or major** | The author does not want to fix a serious finding | **The maintainer**, in a comment on the pull request, before the entry is merged |
 
-A medium finding is still answered (fixed, or declined with its reason); only the four serious levels need the maintainer. The levels of the agents are mapped: blocker, critical, high and major are the serious ones; medium; minor and low (the tests reviewer's _remove / fix / add_: a _fix_ that is right is fixed, the others are answered like any finding).
+A medium finding is still answered (fixed, or declined with its reason); only the four serious levels need the maintainer. The levels of the agents are mapped: blocker, critical, high and major are the serious ones; medium; minor and low (the tests reviewer's *remove / fix / add*: a *fix* that is right is fixed, the others are answered like any finding).
 
 ## One file per pull request
 
@@ -40,4 +40,4 @@ The heading is `R-<pr>-<n> | <agent> | <level> | <decision>`: the source is `tes
 1. Read every report of the pipeline's agents on the head commit; check each finding in the code.
 2. Write an entry per finding in the file of the pull request. Fix what is right.
 3. For a serious finding that you would not fix: **stop and tell the maintainer** (which finding, what it would cost, what you recommend). They answer in a comment on the pull request; its link goes in `Approved`.
-4. Summarise in the _Review_ section of the pull request, pointing to the file.
+4. Summarise in the *Review* section of the pull request, pointing to the file.

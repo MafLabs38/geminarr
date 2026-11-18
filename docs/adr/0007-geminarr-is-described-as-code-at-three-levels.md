@@ -10,10 +10,10 @@ The maintainer deploys the family on a Kubernetes cluster by GitOps and describe
 
 ## Decision
 
-| Level                                                                                               | Where                                                        | Tool                                    |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- |
-| The repository (branches, rules, labels, secrets of the CI, quality options)                        | the organisation's `github-template`, `repos/geminarr.yaml`  | Terraform, applied by its pipeline      |
-| The image                                                                                           | this repository: `Dockerfile`, `ci.yml`, `tools/release`     | GitHub Actions, semantic-release, GHCR  |
+| Level | Where | Tool |
+|---|---|---|
+| The repository (branches, rules, labels, secrets of the CI, quality options) | the organisation's `github-template`, `repos/geminarr.yaml` | Terraform, applied by its pipeline |
+| The image | this repository: `Dockerfile`, `ci.yml`, `tools/release` | GitHub Actions, semantic-release, GHCR |
 | The deployment (namespace, volumes, deployment, service, ingress, sealed secrets, image automation) | the maintainer's private GitOps repository, `apps/geminarr/` | Flux, with the secrets encrypted (SOPS) |
 
 - The container is configurable by **environment variables and files only** (no flag, no interactive step), so that the whole deployment is a manifest. Secrets (admin password, Mnemarr key or enrolment code) are mounted files.

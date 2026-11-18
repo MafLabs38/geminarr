@@ -15,7 +15,7 @@ The maintainer talks to Gemini every day, mostly by voice on the phone, sometime
 3. **Keep the conversations raw.** They are an idea repository: no summary, no structure imposed. Found by meaning, readable as written, like in Google's own history.
 4. **Never put the main Google account at risk.** Reading Gemini means holding a signed-in session, and a session is the whole account: so it is a dedicated account that shares the maintainer's plan.
 5. **Say when it needs a person**: when the session ends, ask for a sign-in again, by mail, with a link, and nothing more.
-6. *_Be one more *arr*_ in the family: one container, an API, a small page, the same quality chain, described as code and deployed by GitOps like the others.
+6. **Be one more *arr** in the family: one container, an API, a small page, the same quality chain, described as code and deployed by GitOps like the others.
 
 ## What it must not do
 

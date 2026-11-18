@@ -21,4 +21,4 @@ This guard is not harmless: **the operator's password is the key to the browser'
 ## Consequences
 
 - A sandbox with a browser keeps the strict minimum: a password that is short to type but twelve characters long. A lowered minimum is possible only without a browser (a sandbox of the screens, of the API), and a copy of its environment into a deployment with a browser does not start.
-- The review agents raised it at "major" (R-24-109): it is answered _fixed_ in `docs/review-decisions/24.md`, so it needs no approval of the maintainer.
+- The review agents raised it at "major" (R-24-109): it is answered *fixed* in `docs/review-decisions/24.md`, so it needs no approval of the maintainer.

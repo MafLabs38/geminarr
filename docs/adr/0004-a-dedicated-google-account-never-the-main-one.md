@@ -13,7 +13,7 @@ Without an API, Geminarr reads Gemini as a signed-in user, so the container must
 1. Geminarr signs in to a **dedicated personal Google account** that shares the maintainer's Google AI plan through the family group (the plan's own family sharing), and from then on the maintainer uses that account for Gemini on the phone and on the PC. A Brand Account is not isolation (it is reached from the main account).
 2. The account holds only Gemini conversations, has a strong password kept outside Google's password manager and 2-step verification on the phone, and is never the recovery address of another account.
 3. **Read-only on the assistant's own pages**; the only other origin the browser may load is the account provider's sign-in, during the live view.
-4. The profile is the crown jewel (SPEC §11): own volume, `0700`, never logged, excluded from clear backups; _Disconnect_ destroys it.
+4. The profile is the crown jewel (SPEC §11): own volume, `0700`, never logged, excluded from clear backups; *Disconnect* destroys it.
 5. **The past** comes by the least exposed way that is complete enough: Google Takeout (no session); else extraction from the maintainer's own browser (text only); else, last resort and with the maintainer present, an **ephemeral** sign-in of the container to the main account (SPEC §11.4).
 
 ## Alternatives considered
