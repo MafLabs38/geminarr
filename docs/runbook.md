@@ -20,6 +20,7 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 | `data-folder-missing` / `data-folder-read-only` | The volume is not mounted or not writable by uid 1654 | Fix the mount or the volume's ownership; the readiness probe recovers within 15 seconds plus one probe period (its result is reused for 15 s) |
 | `needs-login` | The session expired (or the provider asked for a new verification) | Open the link of the mail, press *Sign in*, sign in to the **dedicated** account on the live view, approve on the phone |
 | `reader-broken` | The assistant's page no longer looks like what the reader knows | Nothing is lost (the outbox is kept, the position stays). Update Geminarr to a version of the reader that knows the new page; until then it only signals |
+| `extension-silent` | The extension of the browser has said nothing for a while (`GEMINARR__EXTENSION__SILENTAFTERMINUTES`, 45): the browser is off, cannot reach Geminarr, or lost its policy. **It also shows for up to one round after Geminarr restarts** (the extension speaks every `roundMinutes`) | Wait one round. If it stays: is the browser's container running? From it, can `<geminarrUrl>/health/live` be opened? Is the name it uses in `GEMINARR__ALLOWEDHOSTNAMES` (a 400 in the log of Geminarr)? Is the token the same on both sides (`401`, "The extension was refused" in the log)? |
 | `rate-limited` | The provider limited or challenged the session | Geminarr pauses by itself (six hours by default); look at the account's security page; do not shorten the pause |
 | `unreachable` | The provider or the network is down | Wait: it backs off by itself |
 | `not-connected` | No reader is configured (the default): nothing is read, and the machine still says it is alive to Mnemarr | Nothing, until the reader of the assistant is set (`GEMINARR__READER__KIND`) |
@@ -47,6 +48,15 @@ Codes are in [SPEC.md §10.3](SPEC.md#103-health-and-reason-codes). Until the he
 - **A suspected leak of the profile**: *Disconnect* in Geminarr, then in the dedicated Google account's security page sign out of all sessions and remove the device, change its password; only then sign in again. Revoke the machine in Mnemarr if the key may have leaked too.
 - **A stuck pass**: it stops at `PassTimeoutMinutes` by itself; "Run now" while one runs is refused.
 - **Upgrade of the browser** (a new image version): the profile is the browser's own format; if the state turns `needs-login` after an upgrade, sign in again and write the version here.
+
+## The extension
+
+- **It does not read**: in the browser, `chrome://policy` shows the policy (is it loaded?), `chrome://extensions` shows the extension (installed, enabled, the version). A policy the browser cannot parse installs nothing: check the JSON.
+- **The browser did not install it**: open the `update_url` from the browser's container; a 404 is a package that the image lacks (the image was built without the folder: `GEMINARR__EXTENSION__PACKAGEFOLDER`), a 400 is a name that is not allowed.
+- **A new version does not arrive**: the browser's own check runs about every five hours; the extension asks every hour. To force it: remove the entry of the policy, restart the browser, put it back.
+- **The signing key was lost or changed**: it is a new extension, with a new id: change the id in the policy of every browser. Packages signed by another key are refused by the browser, so nothing installs by mistake.
+- **Rotate the token**: new token in Geminarr's file, then in the policy, then restart the browser. Between the two, `extension-silent` and a `401` in the log.
+- **The page of Gemini changed and nothing is read**: the extension reads with the selectors of `extension/content.js`; a change of the page is a new version of the extension (a release). Nothing is lost: the next round reads what was missed.
 
 ## Spike hygiene (while a spike is going on)
 

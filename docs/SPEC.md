@@ -79,12 +79,13 @@ How it fits the constellation:
 | ✅ D-13 | **Releases by semantic-release from `main`, consumed by pulling** (image on GHCR; a GitOps tool in the cluster follows the versions). Nothing in the CI can reach a host. | Same as Mnemarr's ADR 0013. | [0006](adr/0006-releases-with-semantic-release-consumed-by-pulling.md) |
 | ✅ D-14 | **Everything is described as code**: the repository (Terraform, `github-template`), the image (this repo), the deployment (the private GitOps repository). The container is configurable by environment variables and files only. | The maintainer deploys Geminarr like Mnemarr, on the Kubernetes cluster, by GitOps. | [0007](adr/0007-geminarr-is-described-as-code-at-three-levels.md) |
 | 🟡 D-15 | **The reader is an interface with two implementations** (the web reader, the Takeout importer) and a sink (Mnemarr). Selectors and the internal calls of the web product live in one versioned place. | The web product changes without notice; the pipeline must not. | *after the spike* |
-| 🟡 D-16 | **One browser, started per pass and closed after it** (resident only during a live view). | A resident Chromium costs memory for nothing between two passes that are 20 minutes apart. | *after the spike* |
+| ~~D-16~~ | ~~One browser, started per pass and closed after it.~~ **Superseded by D-23**: Geminarr starts and drives no browser. | | [0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md) |
 | ✅ D-17 | **Default port 8282** (Portarr has 8484, Mnemarr 8383). | No collision on a default install. | [0009](adr/0009-default-port.md) |
 | ✅ D-19 | **One operator, a session in memory.** Geminarr has a single operator (a name, and a password in a mounted file read at each sign-in, at least twelve characters), signed in by a cookie (`HttpOnly`, `SameSite=Strict`, `Secure` unless told otherwise, `__Host-` prefixed), whose session lives in memory with an absolute lifetime (12 hours by default): a restart signs everybody out, and signing out kills a copied cookie. Five wrong passwords lock a name for fifteen minutes, counted per name whether it exists or not. Every call but the probes needs the session; every write carries `X-Geminarr-Request`; a request for a `Host` that is not allowed is refused (the probes excepted). No accounts to manage, no database. | The container holds a signed-in session of an account: the page that reaches it must be closed by default, simple enough to audit, and leave nothing at rest to steal. | [0011](adr/0011-one-operator-a-session-in-memory-and-everything-closed-but-the-probes.md) |
 | ✅ D-20 | **The mail is Mnemarr's, and points to Mnemarr.** On an `attention` signal Mnemarr (0.4.0, its ADR 0041 and 0042) shows its own sentence and the satellite's link on its Machines page and sends **one mail** per episode (a reminder at most once a day, a few at most) from its own mailbox to its own recipient, by SMTP. The mail holds Mnemarr's sentence and the address of **Mnemarr's** Machines page, **never the link or any text the satellite wrote**: a leaked ingest key must not be able to make Mnemarr send a convincing "sign in here". The link of Geminarr's sign-in page is shown there, with its host visible. | The consequence of an ingest-only key being low-trust. This replaces the "link to Geminarr's page in the mail" of ADR 0003 §6. | [0012](adr/0012-the-attention-mail-points-to-mnemarr-not-to-the-satellite.md) |
 | ✅ D-21 | **The menu says which environment it is**: a name, a picture and the version at the bottom of the menu, the same as Mnemarr's and Portarr's. The deployment gives the name, the colors and a mounted image file (checked by its content); the product's own drawing is the default. The personal picture lives in the GitOps folder, not in this repository. | One design for the family, and the laboratory's face stays out of a public repository. | [0013](adr/0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md) |
 | ✅ D-22 | **One pass is the unit of work; the outbox holds the only copy of a turn until Mnemarr acknowledges it; Mnemarr's positions win; the key is a file; a demonstration reader (a sandbox setting) proves the chain before the real reader exists.** | The reader is the unknown; the chain after it is the same whatever reads. | [0014](adr/0014-the-pass-the-outbox-and-mnemarrs-positions.md) |
+| ✅ D-23 | **The reader is an extension in the browser that a person signed in to.** The extension reads the assistant's pages and pushes what it reads to Geminarr with a token; it is ours, signed by the pipeline and installed by the browser's policy, with one permission on one host. Geminarr holds no session, drives no browser and uses no debugging port. | Whoever holds a debugging port holds the browser and its Google session; the browser a person signed in to by hand already has the session, and the extension needs none of it to leave the browser. | [0015](adr/0015-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md) |
 | ✅ D-18 | **Review findings are answered in a register** (`docs/review-decisions/`) that the four agents read; a blocker, critical, high or major finding that is not fixed is accepted by the maintainer in a comment, checked by the `review-decisions` job. | The agents always find something and forget between rounds; the maintainer keeps control of what is serious without chasing the rest. | [0010](adr/0010-review-findings-are-answered-in-a-register-the-agents-read.md) |
 
 ---
@@ -116,7 +117,7 @@ How it fits the constellation:
 | Project | Role | Rules |
 |---|---|---|
 | `Geminarr.Core` | Domain and use cases: connection state machine, scheduler, pipeline, outbox, ports (`IConversationReader`, `IConversationSink`, `IProfileStore`, `TimeProvider`) | No ASP.NET, no browser code. Everything testable with fakes and `FakeTimeProvider`. |
-| `Geminarr.Browser` *(vertical 3)* | The Playwright adapter: the web reader, the live view, the profile | Behind the ports of Core; selectors and calls of the web product in one place (D-15). |
+| `extension/` *(vertical 3)* | The reader that runs **in the browser** (JavaScript, not a .NET project): reads the pages and pushes them to Core's `ExtensionService`; packed and signed by `tools/extension` | Behind the ports of Core (`ExtensionReader`); selectors of the web product in one place, `extension/content.js` (D-15, D-23). |
 | `Geminarr.Api.V1` | Controllers and resources of `/api/v1` | Thin. Authentication, the hosts and the header of writes are built (vertical 1). |
 | `Geminarr.Host` | Entry point, configuration, health, static files of the frontend | The only project that knows the others. |
 | `frontend/` | React page: overview, connection, conversations, runs, settings | Server data only through the data hooks (DESIGN.md). |
@@ -231,6 +232,8 @@ It is `always-on` (state `silent` after 30 minutes without a heartbeat), its con
 
 ## 6. The reader
 
+> **D-23 (ADR 0015).** The web reader is an **extension in the browser** that a person signed in to: it reads the pages and pushes the list and the turns to `POST /api/v1/extension/push`, and `ExtensionReader` serves the pass from what arrived. The three ports below are unchanged; where this section says "browser", "one page" or "selectors" it is the extension's (round, background tabs, `extension/content.js`). A session that is gone is what the extension says (`signedIn: false`); a browser that does not speak is `extension-silent`.
+
 ### 6.1 Ports
 
 ```text
@@ -273,7 +276,7 @@ The text is extracted as the assistant wrote it (Markdown when the product expos
 
 ### 7.1 The profile
 
-The browser profile (cookies, local storage) of the dedicated account is the **session**. It lives in `GEMINARR__PROFILEFOLDER` (default `/profile`, **a volume of its own**, mode `0700`, owner the container's user), not in the data folder: it is excluded from every clear backup and from every snapshot of the database. It holds no extension, no synced data and no saved password (the browser is started with sync, autofill and password saving off).
+The browser profile (cookies, local storage) of the dedicated account is the **session**, and **it lives in the browser's own container, on its own volume, mode `0700`**: Geminarr never mounts it and never sees it (D-23, ADR 0015). It is excluded from every clear backup and from every snapshot of Geminarr's database. The browser's policy switches off sync, the password manager and the browser's own sign-in; the only extension is Geminarr's reader.
 
 ### 7.2 The states of the connection
 
@@ -408,7 +411,6 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | Setting | Default | Purpose |
 |---|---|---|
 | `DATAFOLDER` | **`/config`** | Database, settings, outbox, Mnemarr key |
-| `PROFILEFOLDER` *(3)* | **`/profile`** | The browser profile: a volume of its own |
 | `PUBLICURL` | none | The address of Geminarr's page as the operator reaches it (http or https, a host, no credentials); its host is allowed, and it is the address that goes in the `attention` signal |
 | `ALLOWEDHOSTNAMES` | **`localhost;127.0.0.1;[::1]`** | The names the page may be reached by (commas, semicolons or spaces; ports ignored; `*` for every name): any other `Host` is refused, the probes excepted. **Not** the `AllowedHosts` key of ASP.NET, which stays `*` |
 | `AUTH__ADMINUSER`, `AUTH__ADMINPASSWORDFILE` | none, none | The operator: a name that is not obvious, and a file with a password of twelve characters or more (read at each sign-in; set together or not at all; without them nobody can sign in) |
@@ -418,7 +420,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `MNEMARR__MACHINE` | **`gemini`** | The machine name (1 to 40 lower-case letters, digits, hyphens); a pairing lets the person who approves it name the machine |
 | `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` | `<data>/mnemarr/key`, none | See §5.1 |
 | `MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only |
-| `READER__KIND` | **`None`** | `None`, or `Demo` (a sandbox only: invented conversations that grow, ADR 0014) |
+| `READER__KIND` | **`None`** | `None`, `Web` (the extension, ADR 0015) or `Demo` (a sandbox only: invented conversations that grow, ADR 0014) |
 | `READER__DEMOGROWSECONDS` | **60** | The demonstration reader only: seconds between two new turns of the conversation that is active |
 | `READER__POLLMINUTES` | **20** | Interval between passes (±20 % jitter) |
 | `READER__MAXLISTED`, `READER__MAXOPENPERPASS` | **40**, **5** | §6.2 |
@@ -427,6 +429,10 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `READER__RATELIMITPAUSEHOURS` *(4)* | **6** | §6.4 |
 | `READER__LOGINFAILURES` | **3** | Consecutive "not signed in" before `needs-login` |
 | `IMPORT__MAXMEGABYTES`, `IMPORTFOLDER` *(5)* | **512**, none | §8 |
+| `EXTENSION__TOKENFILE` | none | The file with the token that the extension presents (32 characters or more, a mounted secret); without it nothing the extension sends is accepted |
+| `EXTENSION__PACKAGEFOLDER` | **`extension`** | Where the signed package and its `extension.json` are (the image carries them) |
+| `EXTENSION__PUBLICURL` | none | The address by which the browser reaches Geminarr, when it is not the one of the request (a proxy that ends TLS): the update manifest names the package by it |
+| `EXTENSION__SILENTAFTERMINUTES` | **45** | Minutes without a word from the extension before `extension-silent` (1 to 1 440) |
 | `RETENTION__RUNSDAYS` | **90** | How long runs are kept |
 
 Every limit and interval above comes from configuration with that default; none is a literal in the code. The exceptions are fixed security policy and an internal cache window that no operator needs to tune: the lockout (five failures, fifteen minutes, 1 000 names tracked), the 100 sessions at most, the 12-character minimum of the password, the longest name (100), password (1 024) and password file (4 KB) that are looked at, and the 15 seconds during which the readiness probe reuses its result (the Kubernetes example's `periodSeconds: 15` follows it). Also fixed, because they are what Mnemarr's own contract (the heartbeat: a pass at least every 10 minutes, since Mnemarr calls a machine silent after 30; reading follows the poll interval apart from it) or the container's safety say and not a choice: the limits of a batch (500 lines, 3 MB), a title (200 characters) and an attention address (512), the 30 seconds and the 16 MiB of a call to Mnemarr, the hour after which Mnemarr's positions are asked for again and after which the outbox is said to grow, the 20 batches read from the outbox at a time, the range of a pairing's life (30 to 3 600 seconds, Mnemarr gives it), and the 1 000 turns at which the demonstration reader stops growing. They are part of D-19 and ADR 0011, not something an operator tunes.
@@ -440,7 +446,7 @@ Every limit and interval above comes from configuration with that default; none 
 | `data-folder` | `data-folder-missing`, `data-folder-read-only` |
 | `database` | `database-unreadable`, `database-step-unknown` |
 | `profile` *(2)* | `profile-missing`, `profile-not-private`, `profile-unreadable` |
-| `connection` | `not-connected`, `needs-login`, `reader-broken`, `rate-limited`, `unreachable` (`paused` comes with vertical 3) |
+| `connection` | `not-connected`, `needs-login`, `reader-broken`, `extension-silent`, `rate-limited`, `unreachable` (`paused` comes with vertical 3) |
 | `mnemarr` | `mnemarr-not-linked`, `mnemarr-refused`, `mnemarr-unreachable`, `mnemarr-insecure-address`, `mnemarr-rejected` (Mnemarr said no to what was sent) |
 | `outbox` | `outbox-growing` (older than one hour) |
 
@@ -547,5 +553,6 @@ Reading a consumer product by automation is against the provider's terms of use.
 | 2026-11-11 | v0.1: first draft after the discussion of the day (questions only). |
 | 2026-11-11 | v0.2: import ladder (D-10), main-account exception. |
 | 2026-11-11 | v0.3: full functional and technical specification: decisions D-01 to D-18, architecture, data model, contract with Mnemarr (`chat-turns`, attention), reader, session and live view, Takeout, features, API, settings, health, security, questions. |
+| 2026-11-18 | v0.6: D-23, the reader is an extension in the browser that a person signed in to (ADR 0015), which supersedes D-16; the `Web` reader, the push route, the package served by Geminarr, `extension-silent`. |
 | 2026-11-13 | v0.5: vertical 2 built: D-22 (the pass, the outbox, Mnemarr's positions, the key is a file, the demonstration reader), the schema versioned by `PRAGMA user_version`, the API and settings of the link, `mnemarr-rejected`. |
 | 2026-11-13 | v0.4: Mnemarr's side delivered (0.4.0): the contract of §5 aligned with what it does (a title of the sender, 20 000-character turns, the attention rules, the mail that points to Mnemarr, the consolidate switch, `positions?machine=`); D-19 (one operator, a session in memory), D-20 (the mail is Mnemarr's); the verticals renumbered (access, link, session, reader, import, production); vertical 1 built. |
