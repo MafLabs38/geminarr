@@ -44,9 +44,12 @@ const cookieOf = (request) => new RegExp(`(?:^|; )${COOKIE}=([^;]+)`).exec(reque
 /** Whether the request is a signed-in one, and the header that gives the cookie to a person who has just signed in. */
 function visitor(request) {
   const token = cookieOf(request);
-  if (token && sessions.has(token)) return { signedIn: true, headers: {} };
-  if (armed) {
-    armed = false;
+  const valid = Boolean(token) && sessions.has(token);
+  // The person who signs in does so at the next request, whoever makes it: a request that is signed in already uses the session that it has.
+  const signsIn = armed;
+  armed = false;
+  if (valid) return { signedIn: true, headers: {} };
+  if (signsIn) {
     const created = `s${sessions.size + 1}${Date.now()}`;
     sessions.add(created);
     return { signedIn: true, headers: { 'Set-Cookie': `${COOKIE}=${created}; Path=/` } };
