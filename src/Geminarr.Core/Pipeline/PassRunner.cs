@@ -230,26 +230,8 @@ public sealed class PassRunner
     private IEnumerable<ConversationHeader> Candidates(IReadOnlyList<ConversationHeader> headers)
     {
         var waiting = _outbox.ConversationsWaiting();
-        return headers.Where(header =>
-        {
-            // Nothing is opened until Mnemarr has been asked what it holds (and again after an unlink): a conversation goes on from where Mnemarr stands, and no text waits with nowhere to go.
-            if (_positions is null)
-            {
-                return false;
-            }
-
-            var known = _conversations.Get(header.Id);
-            if (known is null)
-            {
-                return true;
-            }
-
-            // The most recent conversation is looked at every pass: new turns do not move it up a list that it already heads.
-            return header.Rank == 0
-                || header.Rank < known.ListRank
-                || !string.Equals(ConversationLines.TitleHashOf(header.Title), known.TitleHash, StringComparison.Ordinal)
-                || (known.TurnsKnown > known.TurnsSent && !waiting.Contains(header.Id));
-        }).OrderBy(header => header.Rank);
+        // Nothing is opened until Mnemarr has been asked what it holds (and again after an unlink): a conversation goes on from where Mnemarr stands, and no text waits with nowhere to go.
+        return headers.Where(header => _positions is not null && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id))).OrderBy(header => header.Rank);
     }
 
     /// <summary>Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands.</summary>
