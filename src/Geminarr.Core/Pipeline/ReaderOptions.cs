@@ -31,6 +31,11 @@ public sealed class ReaderOptions
     /// <summary>How many conversations are opened in a pass; the others wait for the next.</summary>
     public int MaxOpenPerPass { get; set; } = 5;
 
+    /// <summary>
+    /// How many conversations older than the ones that a pass looks at are also opened in a pass, until the end of the list is read (SPEC §6.3): the history is walked slowly, on purpose. 0 switches it off.
+    /// </summary>
+    public int BackfillPerPass { get; set; } = 10;
+
     /// <summary>Reading never lasts longer than this (sending and the heartbeat are not bounded by it).</summary>
     public int PassTimeoutMinutes { get; set; } = 5;
 
@@ -46,12 +51,16 @@ public sealed class ReaderOptions
 
 public sealed class ReaderOptionsValidator : IValidateOptions<ReaderOptions>
 {
+    /// <summary>The most that a pass backfills: the extension opens the pages of a pass one after the other, and a pass that opened many would be a burst.</summary>
+    public const int MaxBackfillPerPass = 20;
+
     public ValidateOptionsResult Validate(string? name, ReaderOptions options)
     {
         var problem =
             Below("PollMinutes", options.PollMinutes, 1, 1440)
             ?? Below("MaxListed", options.MaxListed, 1, 500)
             ?? Below("MaxOpenPerPass", options.MaxOpenPerPass, 1, 100)
+            ?? Below("BackfillPerPass", options.BackfillPerPass, 0, MaxBackfillPerPass)
             ?? Below("PassTimeoutMinutes", options.PassTimeoutMinutes, 1, 120)
             ?? Below("MaxBackoffMinutes", options.MaxBackoffMinutes, 1, 10080)
             ?? Below("LoginFailures", options.LoginFailures, 1, 100)

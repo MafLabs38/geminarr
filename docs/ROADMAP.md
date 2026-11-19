@@ -18,7 +18,8 @@
 | Vertical 3: Gemini is read by an extension, and the sign-in through it                                                               | **Built**, in review                                                                                                                                                                                                 |
 | Vertical 3 (browser): the browser container and the connection to it ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)) | **Built**, merged; the debugging port is gone ([ADR 0021](adr/0021-geminarr-has-no-debugging-port-to-the-browser.md))                                                                                                |
 | Vertical 4: sign in from Geminarr's page                                                                                             | **Built** with the extension (who is signed in, the end of a sign-in within a minute, Disconnect)                                                                                                                    |
-| Verticals 5 to 7                                                                                                                     | Not started                                                                                                                                                                                                          |
+| Vertical 5: backfill, the Runs page (and the Conversations page)                                                                      | **Built**, in review ([ADR 0024](adr/0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md))                                                                                                                                                                                                  |
+| Verticals 6 and 7                                                                                                                    | Not started                                                                                                                                                                                                          |
 
 ## Vertical 0 — Foundation _(built)_
 
@@ -80,11 +81,12 @@ _Demo: press Sign in on Geminarr's Connection page; the browser's desktop appear
 - Who is signed in, the end of a sign-in within a minute and _Disconnect_ are the extension's (§7.3 of the spec, [ADR 0022](adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)): a heartbeat every half minute, the label of the account button, the deletion of the cookies of the browser.
 - Not now: the Takeout import.
 
-## Vertical 5 — Backfill, the Runs page
+## Vertical 5 — Backfill, the Runs page _(built)_
 
 _Demo: the first pass walks the older conversations at a slow pace until the end of the list, and the Runs page shows what each pass did._
 
-- F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page.
+- F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page. [ADR 0024](adr/0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md): a few older conversations a pass, no stored flag, the list says whether it ends there, the pages of an answer opened one after the other; the _Conversations_ page (metadata only, with the progress of the history) and the _Runs_ page.
+- Not now: `rate-limited` and its pause of six hours (F-RDR-05, the failure classes are those of the pass today), a very long list (the Takeout import).
 
 ## Vertical 6 — The past, by Takeout
 

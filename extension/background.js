@@ -24,7 +24,16 @@ const WORK_TAB_PREFIX = 'workTab:';
 // A page that has not answered after this long is closed: a hung tab must not pile up.
 const TAB_LIFETIME_MS = 3 * 60 * 1000;
 // At most this many conversations are opened for one answer, whatever the answer says: a tab is a page of the browser that holds the session.
-const MAX_TABS_PER_ANSWER = 10;
+// (The recent ones that changed, and the few older ones that the backfill brings, SPEC §6.3.)
+// (The same number as `ExtensionService.MaxOpenPerAnswer`: Geminarr asks for no more.)
+const MAX_TABS_PER_ANSWER = 25;
+// The pages of one answer are opened one after the other, a pause of 1 to 4 seconds between two (SPEC §6.4): a person does not open twenty conversations at the same instant.
+const OPEN_PAUSE_MIN_MS = 1000;
+const OPEN_PAUSE_SPREAD_MS = 3000;
+// Not a secret, only a spread of the pauses: the browser's own source of randomness is used, so that nothing here is a generator to be careful with.
+const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+const pauseBetweenOpens = () =>
+  new Promise((resolve) => setTimeout(resolve, OPEN_PAUSE_MIN_MS + randomUnit() * OPEN_PAUSE_SPREAD_MS));
 
 async function settings() {
   const { geminarrUrl, token } = await chrome.storage.managed.get(['geminarrUrl', 'token']);
@@ -211,7 +220,10 @@ async function onMessage(message, sender) {
       const ids = (Array.isArray(answer?.open) ? answer.open : [])
         .filter((candidate) => typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
         .slice(0, MAX_TABS_PER_ANSWER);
-      for (const id of ids) await openInBackground(`/app/${id}`);
+      for (const [index, id] of ids.entries()) {
+        if (index > 0) await pauseBetweenOpens();
+        await openInBackground(`/app/${id}`);
+      }
     }
     // A word of the page may be answered by a request too (a person is signing in, the operator disconnected): it is done after the page has been dealt with.
     await actOn(answer);

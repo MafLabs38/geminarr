@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Geminarr.Api.V1.Connection;
+using Geminarr.Api.V1.Conversations;
 using Geminarr.Api.V1.Health;
 using Geminarr.Api.V1.Mnemarr;
 using Geminarr.Api.V1.Runs;
@@ -18,6 +19,7 @@ public sealed class MnemarrApiFixture
     [InlineData("/api/v1/mnemarr")]
     [InlineData("/api/v1/mnemarr/pairing")]
     [InlineData("/api/v1/runs")]
+    [InlineData("/api/v1/conversations")]
     [InlineData("/api/v1/connection")]
     public async Task should_answer_401_to_a_caller_who_has_not_signed_in(string path)
     {
@@ -275,6 +277,25 @@ public sealed class MnemarrApiFixture
         await scheduler.StopAsync(CancellationToken.None);
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
+    public async Task should_list_what_it_knows_of_the_conversations_as_counts_and_states_and_never_a_title_or_a_turn()
+    {
+        using var factory = await LinkedAsync();
+        using var client = await factory.SignedInClientAsync();
+        var scheduler = ActivatorUtilities.CreateInstance<Geminarr.Host.Pipeline.PassScheduler>(factory.Services, TimeSpan.Zero);
+        await scheduler.StartAsync(CancellationToken.None);
+        await EventuallyAsync(async () => (await client.GetFromJsonAsync<RunsResource>("/api/v1/runs", Token))! is { Running: false, Runs.Count: >= 1 });
+        await scheduler.StopAsync(CancellationToken.None);
+
+        var body = await client.GetStringAsync("/api/v1/conversations", Token);
+        var conversations = System.Text.Json.JsonSerializer.Deserialize<ConversationsResource>(body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+
+        conversations.Total.Should().BeGreaterThan(0);
+        conversations.Conversations.Should().OnlyContain(conversation => conversation.Id.Length > 0 && conversation.TurnsKnown >= conversation.TurnsSent);
+        conversations.Backfill.Enabled.Should().BeTrue();
+        body.Should().NotContainEquivalentOf("\"title\"").And.NotContainEquivalentOf("\"text\"").And.NotContainEquivalentOf("\"turns\":");
     }
 
     [Fact]

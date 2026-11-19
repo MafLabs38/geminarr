@@ -13,6 +13,9 @@ namespace Geminarr.Core.Extension;
 public sealed partial class ExtensionService
 {
     public const int MaxPushedItems = 500;
+
+    /// <summary>The most conversations that one answer asks the extension to open: the extension opens no more (`MAX_TABS_PER_ANSWER`), so what is asked past it would be lost. The recent ones come first, the backfill takes what is left.</summary>
+    public const int MaxOpenPerAnswer = 25;
     public const int MaxTitleLength = 300;
     public const int MaxTurns = 2_000;
     public const int MaxTurnLength = 200_000;
@@ -212,7 +215,7 @@ public sealed partial class ExtensionService
         }
 
         // A list is also a word about the session: the page that showed it is the page of an account (a page nobody is signed in to sends a state, not a list).
-        if (_inbox.RecordList(headers, version, _clock.GetUtcNow(), Labels(request)))
+        if (_inbox.RecordList(headers, version, _clock.GetUtcNow(), Labels(request), request.Complete == true))
         {
             // Somebody signed in again, or the page is known again: the page says so at once.
             _trigger.Request();
@@ -228,6 +231,13 @@ public sealed partial class ExtensionService
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
             .ToList();
+        // The history is walked slowly (SPEC §6.3): a few conversations that were never seen, below the ones that a pass looks at. Once they are all known nothing more is asked, so no flag says that it is done.
+        if (!disconnected)
+        {
+            wanted.AddRange(ConversationSelection.ToBackfill(headers, _reader.Value, id => _conversations.Get(id) is not null, header => _inbox.Has(header.Id) || _inbox.IsUnreadable(header)).Select(header => header.Id));
+        }
+
+        wanted = [.. wanted.Take(MaxOpenPerAnswer)];
         _inbox.Ask(wanted, _clock.GetUtcNow());
         return ExtensionPushResult.Ok(wanted);
     }

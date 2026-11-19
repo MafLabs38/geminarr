@@ -1,0 +1,41 @@
+.table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: var(--fontSizeBody);
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.meta {
+  margin: 12px 0 0;
+  color: var(--inkSoft);
+}
+
+.progress {
+  width: 100%;
+  max-width: 420px;
+  height: 10px;
+  margin-top: 8px;
+}

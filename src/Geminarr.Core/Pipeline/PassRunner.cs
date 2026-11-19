@@ -17,6 +17,9 @@ public sealed class PassRunner
     /// <summary>The positions Mnemarr holds are asked for at the first pass and about every hour (SPEC §5.3).</summary>
     private static readonly TimeSpan PositionsRefresh = TimeSpan.FromHours(1);
 
+    /// <summary>How far below the conversations that a pass looks at the backfill may reach: the most that a list holds (the extension sends no more).</summary>
+    private const int BackfillWindow = 500;
+
     /// <summary>How many waiting batches are read at a time.</summary>
     private const int OutboxPageSize = 20;
 
@@ -206,9 +209,14 @@ public sealed class PassRunner
                 return;
             }
 
-            var headers = await FromReader(() => _settings.Reader.ListRecentAsync(_settings.Reading.MaxListed, cancellationToken), cancellationToken);
+            var reading = _settings.Reading;
+            // The window goes past what a pass looks at when the history is walked (SPEC §6.3): the conversations below it are the backfill's.
+            var window = reading.BackfillPerPass > 0 ? reading.MaxListed + BackfillWindow : reading.MaxListed;
+            var headers = await FromReader(() => _settings.Reader.ListRecentAsync(window, cancellationToken), cancellationToken);
             state.Listed = headers.Count;
-            foreach (var header in Candidates(headers).Take(_settings.Reading.MaxOpenPerPass))
+            var recent = headers.Where(header => header.Rank < reading.MaxListed).ToList();
+            var older = headers.Where(header => header.Rank >= reading.MaxListed).ToList();
+            foreach (var header in Candidates(recent).Take(reading.MaxOpenPerPass).Concat(Backfill(older)))
             {
                 Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken));
                 state.Opened++;
@@ -250,6 +258,10 @@ public sealed class PassRunner
         _logger.LogWarning("A reader failed with an error that is not its own ({Type}).", failure);
         throw new ReaderException(reason, "The reader failed.");
     }
+
+    /// <summary>The conversations below the ones that a pass looks at that were never seen, in the order of the list: the history is walked from the newest to the oldest, a few at a pass.</summary>
+    private IEnumerable<ConversationHeader> Backfill(IReadOnlyList<ConversationHeader> older) =>
+        _positions is null ? [] : ConversationSelection.ToBackfill(older.OrderBy(header => header.Rank), _settings.Reading, id => _conversations.Get(id) is not null, _ => false);
 
     /// <summary>A conversation is a candidate when it is new, moved up the list, was renamed, or has turns that nothing is waiting to send (SPEC §6.2); best rank first.</summary>
     private IEnumerable<ConversationHeader> Candidates(IReadOnlyList<ConversationHeader> headers)

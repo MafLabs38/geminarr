@@ -24,6 +24,7 @@ async function load({
 } = {}) {
   const session = new Map();
   const calls = {
+    delays: [],
     fetch: [],
     created: [],
     removed: [],
@@ -95,8 +96,12 @@ async function load({
       return answer(url, init);
     },
     JSON,
-    setTimeout: (fn) => setImmediate(fn),
+    setTimeout: (fn, ms) => {
+      calls.delays.push(ms);
+      setImmediate(fn);
+    },
     AbortSignal,
+    crypto,
     Promise,
     Date,
     Number,
@@ -179,7 +184,7 @@ describe('what the extension opens and closes', () => {
     assert.ok(!session.has('workTab:100'));
   });
 
-  it('opens at most ten conversations for one answer, whatever the answer says', async () => {
+  it('opens at most twenty-five conversations for one answer, whatever the answer says', async () => {
     const many = Array.from({ length: 30 }, (_, i) => `c${i}`);
     const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({ open: many }) }) });
     listeners.startup();
@@ -187,9 +192,27 @@ describe('what the extension opens and closes', () => {
     calls.created.length = 0;
 
     listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
-    await flush();
+    // A pause lies between two pages (it takes no time here, but it is a turn of the loop).
+    for (let turn = 0; turn < 20; turn++) await flush();
 
-    assert.equal(calls.created.length, 10);
+    assert.equal(calls.created.length, 25);
+  });
+
+  it('opens the pages of one answer one after the other, with a pause of one to four seconds between two', async () => {
+    const { calls, listeners } = await load({
+      answer: () => ({ ok: true, json: async () => ({ open: ['a1', 'b2', 'c3'] }) }),
+    });
+    listeners.startup();
+    await flush();
+    calls.created.length = 0;
+    calls.delays.length = 0;
+
+    listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    for (let turn = 0; turn < 5; turn++) await flush();
+
+    assert.equal(calls.created.length, 3);
+    const pauses = calls.delays.filter((ms) => ms >= 1000 && ms < 4000);
+    assert.equal(pauses.length, 2, 'one pause between two pages, none before the first');
   });
 
   it('opens nothing, and still closes its page, when the answer asks for nothing', async () => {

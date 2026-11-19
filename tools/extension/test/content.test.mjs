@@ -93,6 +93,7 @@ describe('the list page', () => {
           { id: 'c1a2b3', title: 'One' },
           { id: 'd2b3c4', title: 'Two' },
         ],
+        complete: true,
         labels: [],
       },
     ]);
@@ -113,7 +114,7 @@ describe('the list page', () => {
   it('sends an empty list for an account that has no conversation, and that says it is signed in', async () => {
     const { sent } = await run(`${SIGNED_IN}${list('')}`, '/app');
 
-    assert.deepEqual(sent, [{ kind: 'list', items: [], labels: [] }]);
+    assert.deepEqual(sent, [{ kind: 'list', items: [], complete: true, labels: [] }]);
   });
 
   it('does not take for a conversation a link whose id is longer than the one that Geminarr takes', async () => {
@@ -184,6 +185,34 @@ describe('the list page', () => {
     });
 
     assert.equal(sent[0].items.length, 3);
+    assert.equal(sent[0].complete, true, 'a scroll that brought nothing more is the end of the list');
+  });
+
+  it('says that a list is not complete when the scrolls ran out before its end', async () => {
+    // Every scroll brings one more conversation: the list never ends within the scrolls that are allowed.
+    const { sent } = await run(`${SIGNED_IN}${list(link('c1a2b3'))}`, '/app', {
+      onWait: (n, document) =>
+        document.querySelector('infinite-scroller').insertAdjacentHTML('beforeend', link(`more${n}`)),
+    });
+
+    assert.equal(sent[0].complete, false);
+  });
+
+  it('takes a list of exactly what Geminarr takes whole, and says that it is complete', async () => {
+    const exact = Array.from({ length: 500 }, (_, i) => link(`c${i}`)).join('');
+    const { sent } = await run(SIGNED_IN + list(exact), '/app');
+
+    assert.equal(sent[0].items.length, 500);
+    assert.equal(sent[0].complete, true);
+  });
+
+  it('cuts a list at what Geminarr takes, the most recent first, and says that it is not complete', async () => {
+    const many = Array.from({ length: 501 }, (_, i) => link(`c${i}`)).join('');
+    const { sent } = await run(SIGNED_IN + list(many), '/app');
+
+    assert.equal(sent[0].items.length, 500);
+    assert.equal(sent[0].items[0].id, 'c0');
+    assert.equal(sent[0].complete, false);
   });
 
   it('does not make an error of a message that finds nobody to read it', async () => {

@@ -18,8 +18,8 @@ export interface MenuEntry {
 export const menuEntries: ReadonlyArray<MenuEntry> = [
   { to: '/', label: 'Overview', icon: icons.OVERVIEW, available: true },
   { to: '/connection', label: 'Connection', icon: icons.CONNECTION, available: true },
-  { to: '/conversations', label: 'Conversations', icon: icons.CONVERSATIONS, available: false },
-  { to: '/runs', label: 'Runs', icon: icons.RUNS, available: false },
+  { to: '/conversations', label: 'Conversations', icon: icons.CONVERSATIONS, available: true },
+  { to: '/runs', label: 'Runs', icon: icons.RUNS, available: true },
   { to: '/import', label: 'Import', icon: icons.IMPORT, available: false },
   { to: '/mnemarr', label: 'Mnemarr', icon: icons.MNEMARR, available: true },
   { to: '/settings', label: 'Settings', icon: icons.SETTINGS, available: true },

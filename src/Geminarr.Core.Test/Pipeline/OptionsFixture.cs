@@ -15,6 +15,8 @@ public sealed class OptionsFixture
     [InlineData("PollMinutes", 0)]
     [InlineData("MaxListed", 501)]
     [InlineData("MaxOpenPerPass", 0)]
+    [InlineData("BackfillPerPass", 21)]
+    [InlineData("BackfillPerPass", -1)]
     [InlineData("PassTimeoutMinutes", 121)]
     [InlineData("MaxBackoffMinutes", 0)]
     [InlineData("LoginFailures", 0)]
@@ -28,6 +30,14 @@ public sealed class OptionsFixture
 
         result.Failed.Should().BeTrue();
         result.FailureMessage.Should().Contain($"GEMINARR__READER__{setting.ToUpperInvariant()}");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(20)]
+    public void should_accept_the_ends_of_the_range_of_the_backfill_and_zero_switches_it_off(int value)
+    {
+        new ReaderOptionsValidator().Validate(null, new ReaderOptions { BackfillPerPass = value }).Succeeded.Should().BeTrue();
     }
 
     [Fact]

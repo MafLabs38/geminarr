@@ -16,6 +16,11 @@ interface Connection {
   signingIn: boolean;
 }
 
+interface ConversationsPage {
+  total: number;
+  backfill: { enabled: boolean; perPass: number; listed: number; known: number; listComplete: boolean; done: boolean };
+}
+
 interface Run {
   outcome: string | null;
   listed: number;
@@ -134,6 +139,54 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
         .toBe(Object.keys(before).length + 1);
       const after = await heldByMnemarr(playwright);
       for (const [session, lines] of Object.entries(before)) expect(after[session]).toBe(lines);
+    },
+  );
+
+  test(
+    'the history below the latest conversations is walked a few at a time, and the page says how far it is',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(1_300_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+      const assistant = await playwright.request.newContext();
+      const before = Object.keys(await heldByMnemarr(playwright)).length;
+      const read = async () => (await (await request.get('/api/v1/conversations')).json()) as ConversationsPage;
+
+      await assistant.post(`${ASSISTANT}/admin/history`);
+      // Four older ones are read in a round, whatever the list holds: after the first round some are in, and not yet all.
+      let firstRound = 0;
+      await expect
+        .poll(
+          async () => {
+            firstRound = Object.keys(await heldByMnemarr(playwright)).length - before;
+            return firstRound;
+          },
+          { timeout: 360_000, intervals: [3000], message: 'some of the older conversations reach Mnemarr' },
+        )
+        .toBeGreaterThan(0);
+      // A few at a time: not all nine in the first round.
+      expect(firstRound).toBeLessThan(9);
+      await expect
+        .poll(async () => Object.keys(await heldByMnemarr(playwright)).length - before, {
+          timeout: 600_000,
+          intervals: [5000],
+          message: 'all nine older conversations reach Mnemarr',
+        })
+        .toBe(9);
+      await expect
+        .poll(async () => (await read()).backfill.done, {
+          timeout: 120_000,
+          intervals: [3000],
+          message: 'the page says that the history is read',
+        })
+        .toBe(true);
+      const page = await read();
+      expect(page.backfill).toMatchObject({ enabled: true, perPass: 4, listComplete: true });
+      expect(page.backfill.known).toBe(page.backfill.listed);
+      // Metadata only: no title and no turn, whatever was read.
+      expect(JSON.stringify(page)).not.toMatch(/older conversation|old question|old answer/iu);
+      await assistant.dispose();
+      await request.dispose();
     },
   );
 
