@@ -184,15 +184,48 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
-    public void should_ask_for_the_sign_out_again_after_a_restart_when_the_record_says_that_the_operator_disconnected()
+    public void should_ask_for_the_sign_out_again_after_a_restart_only_when_the_record_says_that_it_was_not_confirmed()
     {
-        var record = new ConnectionRecord(ConnectionState.NotConnected, _clock.GetUtcNow(), null, 0, ConnectionReasons.Disconnected);
+        var pending = new ConnectionRecord(ConnectionState.NotConnected, _clock.GetUtcNow(), null, 0, ConnectionReasons.Disconnected, SignOutPending: true);
 
-        var restored = ExtensionInbox.Restored(record);
+        var restored = ExtensionInbox.Restored(pending);
 
         restored.Disconnected.Should().BeTrue();
         restored.SignOutPending.Should().BeTrue();
-        ExtensionInbox.Restored(record with { LastReason = ConnectionReasons.NotConnected }).Disconnected.Should().BeFalse();
+        var confirmed = ExtensionInbox.Restored(pending with { SignOutPending = false });
+        confirmed.Disconnected.Should().BeTrue("the disconnect stands until somebody signs in");
+        confirmed.SignOutPending.Should().BeFalse("the extension had confirmed it: a person who signed in since is not signed out");
+        ExtensionInbox.Restored(pending with { LastReason = ConnectionReasons.NotConnected, SignOutPending = false }).Disconnected.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_write_that_the_sign_out_is_confirmed_when_the_extension_says_that_nobody_is_signed_in()
+    {
+        var inbox = ExtensionInbox.Restored(_tracker.Disconnected(), signOutSettled: () => _tracker.SignOutSettled());
+        _tracker.Current().SignOutPending.Should().BeTrue();
+
+        inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _tracker.Current().SignOutPending.Should().BeTrue("a word of signed in is not the confirmation");
+        inbox.RecordSession(signedIn: false, "1.0.0", _clock.GetUtcNow());
+
+        _tracker.Current().SignOutPending.Should().BeFalse();
+        _tracker.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "the disconnect stands");
+        ExtensionInbox.Restored(_tracker.Current()).SignOutPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_forget_the_whole_disconnect_when_the_operator_cancels_it_during_a_pause()
+    {
+        var subject = Subject();
+        subject.Disconnect();
+        subject.Pause(null);
+
+        subject.CancelDisconnect();
+
+        ExtensionInbox.Restored(subject.Current()).Disconnected.Should().BeFalse();
+        subject.Resume();
+        ExtensionInbox.Restored(subject.Current()).Disconnected.Should().BeFalse("not after the resume either");
+        subject.Current().SignOutPending.Should().BeFalse();
     }
 
     [Fact]

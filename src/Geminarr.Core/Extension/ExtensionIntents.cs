@@ -32,6 +32,13 @@ internal sealed class ExtensionIntents
 
     public void RequestRound() => _roundAsked = true;
 
+    /// <summary>A Geminarr that restarts: the disconnect stands, and the sign-out is asked again only when the record says that the extension had not confirmed it.</summary>
+    public void RestoreDisconnected(bool signOutPending)
+    {
+        Disconnected = true;
+        _signOutAsked = signOutPending;
+    }
+
     public void RequestSignOut()
     {
         _signOutAsked = true;

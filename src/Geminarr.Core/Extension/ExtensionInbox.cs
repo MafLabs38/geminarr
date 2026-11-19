@@ -44,6 +44,7 @@ public sealed class ExtensionInbox
     private DateTimeOffset? _firstHello;
     private DateTimeOffset? _lastPausedHello;
     private readonly Func<bool> _isPaused = static () => false;
+    private readonly Action? _signOutSettled;
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
@@ -59,14 +60,22 @@ public sealed class ExtensionInbox
         _isPaused = isPaused;
     }
 
-    /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
-    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null)
+    private ExtensionInbox(Func<bool> isPaused, Action? signOutSettled) : this(isPaused)
     {
-        var inbox = new ExtensionInbox(isPaused ?? (static () => false));
+        _signOutSettled = signOutSettled;
+    }
+
+    /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
+    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null, Action? signOutSettled = null)
+    {
+        var inbox = new ExtensionInbox(isPaused ?? (static () => false), signOutSettled);
         // A pause keeps what the connection was before it: a sign-out that was not confirmed is still asked for after a restart in the middle of one.
         if (record.LastReason == ConnectionReasons.Disconnected || record.Before?.Reason == ConnectionReasons.Disconnected)
         {
-            inbox.RequestSignOut();
+            lock (inbox._gate)
+            {
+                inbox._intents.RestoreDisconnected(record.SignOutPending);
+            }
         }
 
         return inbox;
@@ -126,8 +135,10 @@ public sealed class ExtensionInbox
 
     public void RecordSession(bool signedIn, string? version, DateTimeOffset now, IReadOnlyList<string?>? labels = null)
     {
+        var settled = false;
         lock (_gate)
         {
+            var wasPending = _intents.SignOutPending;
             _session = new ExtensionSession(signedIn, version, now, Account: signedIn ? AccountLabel.Parse(labels ?? []) : null);
             if (signedIn)
             {
@@ -140,6 +151,14 @@ public sealed class ExtensionInbox
                 // Nobody is signed in: what was read for the account that was is not kept for the next one.
                 ForgetWhatWasRead();
             }
+
+            settled = wasPending && !_intents.SignOutPending;
+        }
+
+        // Told outside the lock: the connection has a lock of its own.
+        if (settled)
+        {
+            _signOutSettled?.Invoke();
         }
     }
 

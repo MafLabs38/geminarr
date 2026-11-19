@@ -73,6 +73,10 @@ public static class Schema
         ALTER TABLE connection ADD COLUMN before_reason TEXT;
         ALTER TABLE connection ADD COLUMN before_failures INTEGER;
         """,
+        // 3: a sign-out that the operator asked and the extension has not confirmed is a flag of its own, so that no other move of the connection forgets it.
+        """
+        ALTER TABLE connection ADD COLUMN sign_out_pending INTEGER NOT NULL DEFAULT 0;
+        """,
     ];
 
     /// <summary>The version this code writes: the number of its steps.</summary>
