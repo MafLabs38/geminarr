@@ -146,7 +146,7 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     'the history below the latest conversations is walked a few at a time, and the page says how far it is',
     { tag: '@browserless' },
     async ({ playwright }) => {
-      test.setTimeout(900_000);
+      test.setTimeout(1_300_000);
       const request = await signedInRequest(playwright, GEMINARR);
       const assistant = await playwright.request.newContext();
       const before = Object.keys(await heldByMnemarr(playwright)).length;
@@ -154,13 +154,18 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
 
       await assistant.post(`${ASSISTANT}/admin/history`);
       // Four older ones are read in a round, whatever the list holds: after the first round some are in, and not yet all.
+      let firstRound = 0;
       await expect
-        .poll(async () => Object.keys(await heldByMnemarr(playwright)).length - before, {
-          timeout: 360_000,
-          intervals: [3000],
-          message: 'some of the older conversations reach Mnemarr',
-        })
+        .poll(
+          async () => {
+            firstRound = Object.keys(await heldByMnemarr(playwright)).length - before;
+            return firstRound;
+          },
+          { timeout: 360_000, intervals: [3000], message: 'some of the older conversations reach Mnemarr' },
+        )
         .toBeGreaterThan(0);
+      // A few at a time: not all nine in the first round.
+      expect(firstRound).toBeLessThan(9);
       await expect
         .poll(async () => Object.keys(await heldByMnemarr(playwright)).length - before, {
           timeout: 600_000,

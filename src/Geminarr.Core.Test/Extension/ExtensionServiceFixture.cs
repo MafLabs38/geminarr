@@ -124,6 +124,16 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_ask_again_for_a_conversation_that_was_handed_over_and_waits_for_the_pass()
+    {
+        var subject = Subject(maxOpen: 1, maxListed: 2, backfill: 3);
+        subject.Handle(ListOfMany(7)).Open.Should().Equal("c0", "c2", "c3", "c4");
+        subject.Handle(ConversationOf("c3", new PushedTurn("user", "hi"))).Accepted.Should().BeTrue();
+
+        subject.Handle(ListOfMany(7)).Open.Should().Equal("c0", "c2", "c4", "c5");
+    }
+
+    [Fact]
     public void should_ask_for_no_older_conversation_when_the_history_is_switched_off()
     {
         Subject(maxOpen: 2, maxListed: 3, backfill: 0).Handle(ListOfMany(12)).Open.Should().Equal("c0", "c1");
