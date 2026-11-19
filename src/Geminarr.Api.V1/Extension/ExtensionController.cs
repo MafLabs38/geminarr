@@ -44,9 +44,9 @@ public sealed partial class ExtensionController : ControllerBase
     [ProducesResponseType<ExtensionPushResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult Push([FromBody] ExtensionPushRequest? request)
+    public async Task<IActionResult> Push([FromBody] ExtensionPushRequest? request, CancellationToken cancellationToken)
     {
-        var result = _service.Handle(request ?? new ExtensionPushRequest(null, null, null, null, null, null, null));
+        var result = await _service.HandleAsync(request ?? new ExtensionPushRequest(null, null, null, null, null, null, null), cancellationToken);
         if (result.Accepted)
         {
             if (request is { Kind: "broken", Step: { } step })
@@ -58,7 +58,7 @@ public sealed partial class ExtensionController : ControllerBase
         }
 
         // The kind is one of five words of ours or nothing: what the content said is not repeated.
-        LogRefusedContent(request?.Kind is "state" or "list" or "conversation" or "broken" or "hello" or "page" ? request.Kind : "unknown");
+        LogRefusedContent(request?.Kind is "state" or "list" or "conversation" or "broken" or "hello" or "page" or "listen" ? request.Kind : "unknown");
         return Problem(statusCode: StatusCodes.Status400BadRequest, title: result.Problem);
     }
 }

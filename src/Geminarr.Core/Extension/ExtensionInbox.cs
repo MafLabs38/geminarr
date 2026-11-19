@@ -44,6 +44,7 @@ public sealed class ExtensionInbox
     private DateTimeOffset? _lastHello;
     private DateTimeOffset? _firstHello;
     private DateTimeOffset? _lastPausedHello;
+    private TaskCompletionSource _wake = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Func<bool> _isPaused = static () => false;
     private readonly Action<Func<bool>>? _signOutSettled;
     private readonly ILiveNotifier _live = new NoLiveNotifier();
@@ -279,6 +280,44 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             _intents.BeginSigningIn(now);
+            Signal();
+        }
+    }
+
+    /// <summary>Completes when the operator asks something of the extension (a sign-in, a sign-out, a round, or gives one up): a request that waits for an order is answered at once. Taken before the hints are, so that no change is missed in between.</summary>
+    public Task Wake
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _wake.Task;
+            }
+        }
+    }
+
+    private void Signal()
+    {
+        var woken = _wake;
+        _wake = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        woken.TrySetResult();
+    }
+
+    /// <summary>What an extension that waits for an order is told now (see <see cref="ExtensionIntents.TakeListenHints"/>).</summary>
+    public (bool Round, bool SignOut) TakeListenHints(DateTimeOffset now, TimeSpan roundEvery)
+    {
+        // Asked before the lock: the connection has a lock of its own.
+        var paused = _isPaused();
+        lock (_gate)
+        {
+            _lastHello = now;
+            _firstHello ??= now;
+            if (paused)
+            {
+                _lastPausedHello = now;
+            }
+
+            return _intents.TakeListenHints(now, _session, roundEvery, paused);
         }
     }
 
@@ -297,6 +336,7 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             _intents.CancelSignOut();
+            Signal();
         }
     }
 
@@ -306,6 +346,7 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             _intents.RequestRound();
+            Signal();
         }
     }
 
@@ -316,6 +357,7 @@ public sealed class ExtensionInbox
         {
             _intents.RequestSignOut();
             ForgetWhatWasRead();
+            Signal();
         }
     }
 

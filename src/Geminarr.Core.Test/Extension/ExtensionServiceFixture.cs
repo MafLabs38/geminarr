@@ -530,6 +530,89 @@ public sealed class ExtensionServiceFixture : IDisposable
         _inbox.SigningIn(_clock.GetUtcNow()).Should().BeFalse();
     }
 
+    private static ExtensionPushRequest Listen() => new("listen", null, null, null, null, null, "1.0.0");
+
+    [Fact]
+    public async Task should_answer_a_request_that_waits_at_once_when_the_operator_asks_for_a_sign_out_while_it_waits()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        var waiting = subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
+        waiting.IsCompleted.Should().BeFalse("nothing is asked of the extension: it waits");
+
+        _inbox.RequestSignOut();
+        var answer = await waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        answer.SignOut.Should().BeTrue();
+        answer.Round.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task should_answer_a_request_that_waits_with_nothing_after_the_delay_and_at_once_when_something_is_asked_already()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        var waiting = subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
+
+        _clock.Advance(ExtensionService.ListenFor + TimeSpan.FromSeconds(1));
+        var nothing = await waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        nothing.Should().BeEquivalentTo(ExtensionPushResult.Hints(false, false));
+        _inbox.RequestRound();
+        var asked = await subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
+        asked.Round.Should().BeTrue("a round that was asked for is answered without waiting");
+    }
+
+    [Fact]
+    public async Task should_not_send_a_sign_out_again_at_once_to_a_request_that_waits_but_after_two_minutes()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        _inbox.RequestSignOut();
+        (await subject.HandleAsync(Listen(), TestContext.Current.CancellationToken)).SignOut.Should().BeTrue();
+
+        var waiting = subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
+        waiting.IsCompleted.Should().BeFalse("it was sent and is not confirmed: the request waits instead of coming back at once, again and again");
+        _clock.Advance(ExtensionService.ListenFor + TimeSpan.FromSeconds(1));
+        (await waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)).SignOut.Should().BeFalse("the two minutes have not passed");
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        (await subject.HandleAsync(Listen(), TestContext.Current.CancellationToken)).SignOut.Should().BeTrue("two minutes later it is sent again");
+    }
+
+    [Fact]
+    public async Task should_hold_only_a_few_requests_that_wait_and_refuse_to_wait_for_another_reader()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        var held = Enumerable.Range(0, 8).Select(_ => subject.HandleAsync(Listen(), TestContext.Current.CancellationToken)).ToList();
+
+        var ninth = await subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
+
+        ninth.Should().BeEquivalentTo(ExtensionPushResult.Hints(false, false), "no more than eight wait: the ninth is answered at once");
+        held.Should().OnlyContain(task => !task.IsCompleted);
+        (await Subject(ReaderKind.None).HandleAsync(Listen(), TestContext.Current.CancellationToken)).Accepted.Should().BeFalse();
+        _inbox.RequestSignOut();
+        await Task.WhenAll(held).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task should_answer_nothing_when_the_extension_goes_away_while_its_request_waits()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        using var gone = new CancellationTokenSource();
+
+        var waiting = subject.HandleAsync(Listen(), gone.Token);
+        await gone.CancelAsync();
+
+        (await waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)).Should().BeEquivalentTo(ExtensionPushResult.Hints(false, false));
+    }
+
     [Fact]
     public void should_ask_for_a_round_at_once_when_a_page_loads_in_front_of_a_person_who_signs_in()
     {

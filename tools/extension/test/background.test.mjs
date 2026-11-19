@@ -93,6 +93,7 @@ async function load({
       return answer(url, init);
     },
     JSON,
+    setTimeout: (fn) => setImmediate(fn),
     Promise,
     Date,
     Number,
@@ -414,6 +415,62 @@ describe('what the extension does when Geminarr asks', () => {
     await flush();
 
     assert.deepEqual(calls.fetch, []);
+  });
+
+  it('keeps one request open to Geminarr and does what it answers, at once, then asks again', async () => {
+    let calls = 0;
+    const managed = { geminarrUrl: 'https://geminarr.example/', token: 'the-token' };
+    const { calls: seen, listeners } = await load({
+      managed,
+      answer: () => {
+        calls++;
+        // The third request is the last: the loop ends when the settings are gone.
+        if (calls >= 3) delete managed.token;
+        return {
+          ok: true,
+          json: async () => ({ open: [], round: false, signOut: calls === 1 }),
+        };
+      },
+    });
+
+    listeners.alarm({ name: 'listen' });
+    for (let i = 0; i < 40 && seen.fetch.length < 3; i++) await flush();
+
+    const kinds = seen.fetch.map((call) => JSON.parse(call.init.body).kind);
+    assert.equal(kinds[0], 'listen');
+    assert.deepEqual(
+      plain(seen.cleared),
+      [[{ since: 0 }, { cookies: true }]],
+      'the sign-out it was told about was done',
+    );
+    assert.ok(kinds.filter((kind) => kind === 'listen').length >= 2, 'and it asks again');
+  });
+
+  it('starts only one request that waits, whatever wakes the worker', async () => {
+    const managed = { geminarrUrl: 'https://geminarr.example/', token: 'the-token' };
+    const { calls, listeners } = await load({
+      managed,
+      answer: () => {
+        // One request, then the settings are gone: if a second loop had started it would have asked too.
+        delete managed.token;
+        return { ok: true, json: async () => ({ open: [], round: false, signOut: false }) };
+      },
+    });
+
+    listeners.alarm({ name: 'listen' });
+    listeners.alarm({ name: 'listen' });
+    for (let i = 0; i < 10; i++) await flush();
+
+    assert.equal(calls.fetch.filter((call) => JSON.parse(call.init.body).kind === 'listen').length, 1);
+  });
+
+  it('does not ask without an address and a token', async () => {
+    const { calls, listeners } = await load({ managed: {}, answer: answering({ open: [] }) });
+
+    listeners.alarm({ name: 'listen' });
+    await flush();
+
+    assert.equal(calls.fetch.length, 0);
   });
 
   it('does not sign out without an address and a token', async () => {

@@ -39,6 +39,54 @@ public sealed partial class ExtensionService
         _clock = clock;
     }
 
+    /// <summary>How long a request that waits for an order is held before it is answered with nothing: shorter than the half minute after which a service worker of the browser is stopped.</summary>
+    public static readonly TimeSpan ListenFor = TimeSpan.FromSeconds(25);
+
+    // The extension keeps one such request open; a few more are allowed (a worker that restarted), no more.
+    private readonly SemaphoreSlim _listeners = new(8, 8);
+
+    /// <summary>
+    /// What the extension says, answered. A <c>listen</c> is a request that waits (<see cref="ListenFor"/> at most) until the operator asks something of the extension, so that an order (a sign-out, a round) reaches the browser at once and not at the
+    /// next heartbeat; everything else is answered as <see cref="Handle"/> does.
+    /// </summary>
+    public async Task<ExtensionPushResult> HandleAsync(ExtensionPushRequest request, CancellationToken cancellationToken)
+    {
+        if (request.Kind != "listen")
+        {
+            return Handle(request);
+        }
+
+        if (_reader.Value.Kind != ReaderKind.Web)
+        {
+            return ExtensionPushResult.Refused("The reader of this Geminarr is not the web one (GEMINARR__READER__KIND).");
+        }
+
+        var roundEvery = TimeSpan.FromMinutes(_options.Value.RoundMinutes);
+        var wake = _inbox.Wake;
+        var (round, signOut) = _inbox.TakeListenHints(_clock.GetUtcNow(), roundEvery);
+        if (round || signOut || !await _listeners.WaitAsync(0, cancellationToken))
+        {
+            return ExtensionPushResult.Hints(round, signOut);
+        }
+
+        try
+        {
+            await Task.WhenAny(wake, Task.Delay(ListenFor, _clock, cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            // The extension went away: nothing is asked of it.
+            return ExtensionPushResult.Hints(round: false, signOut: false);
+        }
+        finally
+        {
+            _listeners.Release();
+        }
+
+        (round, signOut) = _inbox.TakeListenHints(_clock.GetUtcNow(), roundEvery);
+        return ExtensionPushResult.Hints(round, signOut);
+    }
+
     public ExtensionPushResult Handle(ExtensionPushRequest request)
     {
         if (_reader.Value.Kind != ReaderKind.Web)

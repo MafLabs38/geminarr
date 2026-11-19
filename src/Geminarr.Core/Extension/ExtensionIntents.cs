@@ -20,6 +20,7 @@ internal sealed class ExtensionIntents
     private bool _roundAsked;
     private bool _signOutAsked;
     private DateTimeOffset? _lastRoundAsked;
+    private DateTimeOffset? _signOutSentAt;
 
     /// <summary>Whether the operator disconnected and nobody has signed in since the sign-out was over: while it is, whatever the page was said to show is not the session.</summary>
     public bool Disconnected { get; private set; }
@@ -45,6 +46,7 @@ internal sealed class ExtensionIntents
     public void RequestSignOut()
     {
         _signOutAsked = true;
+        _signOutSentAt = null;
         Disconnected = true;
         _signingInSince = null;
     }
@@ -52,6 +54,29 @@ internal sealed class ExtensionIntents
     /// <summary>Whether a sign-in that the operator started is being waited for: it ends when the extension says that somebody is signed in, and after <see cref="SigningInFor"/>.</summary>
     public bool SigningIn(DateTimeOffset now, ExtensionSession? session) =>
         _signingInSince is { } since && now - since < SigningInFor && !(session is { SignedIn: true } signedIn && signedIn.At >= since);
+
+    /// <summary>How long a sign-out that was sent and not confirmed is left alone by a request that waits, before it is sent again (the browser may be off, or the cookies refused to go).</summary>
+    public static readonly TimeSpan SignOutSentAgainAfter = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// What an extension that waits for an order is told (<see cref="TakeHints"/>), except that a sign-out that it has already been sent is not sent again at once: a request that waits would come back at once, again and again, for as long as the sign-out
+    /// is not confirmed.
+    /// </summary>
+    public (bool Round, bool SignOut) TakeListenHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery, bool paused)
+    {
+        var (round, signOut) = TakeHints(now, session, roundEvery, paused);
+        if (signOut && _signOutSentAt is { } sent && now - sent < SignOutSentAgainAfter)
+        {
+            signOut = false;
+        }
+
+        if (signOut)
+        {
+            _signOutSentAt = now;
+        }
+
+        return (round, signOut);
+    }
 
     /// <summary>The extension says that somebody is signed in: the sign-in is over, and the disconnect is too unless the sign-out is still pending (the page that said so was read before it).</summary>
     public void SaidSignedIn()

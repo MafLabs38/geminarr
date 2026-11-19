@@ -5,12 +5,16 @@ const SWEEP_ALARM = 'sweep';
 const UPDATE_ALARM = 'update';
 // The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (the interval of the rounds is over, a person is signing in, the operator asked) and whether to sign the account out. It is the only clock of the rounds, apart from the one at the browser's start or the extension's install, which looks once.
 const HELLO_ALARM = 'hello';
+// The alarm that starts the request that waits for an order, when the worker was stopped and the request with it.
+const LISTEN_ALARM = 'listen';
 const HELLO_MINUTES = 0.5;
 // Two loads of a page of the assistant closer than this are told to Geminarr once.
 const PAGE_EVENT_EVERY_MS = 5000;
+// A request that Geminarr holds until the operator asks something (a sign-out, a round): an order reaches the browser at once, not at the next heartbeat. When it comes back at once with nothing to do, or does not come back, the next one waits this long.
+const LISTEN_PAUSE_MS = 2000;
 const SIGN_OUT_KEY = 'signOutAt';
-// The sign-out is not started again for this long: Geminarr keeps asking until it hears that nobody is signed in.
-const SIGN_OUT_EVERY_MS = 2 * 60 * 1000;
+// The sign-out is not started again for this long (the same order, answered twice by two requests at once); a new *Disconnect* of the operator a moment later is done. Geminarr keeps asking until it hears that nobody is signed in.
+const SIGN_OUT_EVERY_MS = 10 * 1000;
 const WORK_TAB_PREFIX = 'workTab:';
 // A page that has not answered after this long is closed: a hung tab must not pile up.
 const TAB_LIFETIME_MS = 3 * 60 * 1000;
@@ -91,7 +95,7 @@ async function signOut() {
   try {
     await chrome.browsingData.remove({ since: 0 }, { cookies: true });
   } catch {
-    // The browser refused: Geminarr keeps asking, and the next time is in two minutes.
+    // The browser refused: Geminarr keeps asking, and the next time is in a few seconds.
     return;
   }
   // The pages of the assistant that a person has open still show the account that was signed in: they are loaded again, so that the desktop shows a page that is signed out (and the sign-in that follows is seen).
@@ -124,6 +128,28 @@ async function pageLoaded(tabId) {
   if ((await isWorkTab(tabId)) || Date.now() - lastPageEvent < PAGE_EVENT_EVERY_MS) return;
   lastPageEvent = Date.now();
   await actOn(await push({ kind: 'page' }));
+}
+
+let listening = false;
+/**
+ * Keeps one request open to Geminarr, which holds it (about 25 seconds) until the operator asks something of the extension, and does what it answers: so a *Disconnect* or a *Sign in* is acted on in the second, and the
+ * sign-out is over before a person looks at the desktop. A request that comes back, empty or not, starts the next one; an alarm starts the loop again when the worker was stopped.
+ */
+async function listen() {
+  if (listening) return;
+  listening = true;
+  try {
+    while (await settings()) {
+      const began = Date.now();
+      const answer = await push({ kind: 'listen' });
+      await actOn(answer);
+      const ordered = answer?.round === true || answer?.signOut === true;
+      if (!ordered && Date.now() - began < LISTEN_PAUSE_MS)
+        await new Promise((resolve) => setTimeout(resolve, LISTEN_PAUSE_MS));
+    }
+  } finally {
+    listening = false;
+  }
 }
 
 /** The extension says that it is there, and does what it is asked. */
@@ -191,6 +217,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     case HELLO_ALARM:
       void hello();
       break;
+    case LISTEN_ALARM:
+      void listen();
+      break;
     case UPDATE_ALARM:
       // The browser looks for a new version of an extension that a policy installs only every few hours: the extension asks for it itself, every hour.
       chrome.runtime.requestUpdateCheck().catch(() => {});
@@ -208,3 +237,4 @@ async function ensureAlarm(name, periodInMinutes) {
 void ensureAlarm(SWEEP_ALARM, 1); // NOSONAR
 void ensureAlarm(UPDATE_ALARM, 60); // NOSONAR
 void ensureAlarm(HELLO_ALARM, HELLO_MINUTES); // NOSONAR
+void ensureAlarm(LISTEN_ALARM, HELLO_MINUTES); // NOSONAR
