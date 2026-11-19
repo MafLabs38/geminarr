@@ -36,3 +36,17 @@ The need (VISION): bring the history of Gemini into Mnemarr, read-only, robustly
 - The extension reads **only the pages that it opened** (it asks its worker first): a page that a person opened is theirs.
 - After Geminarr restarts, the connection says `extension-silent` until the extension's next `hello` (half a minute at most), which asks for a round; a browser that is off says it too, after `Extension:SilentAfterMinutes`.
 - The voice conversations, a very long list (the list is scrolled up to a bound) and the lifetime of the session are measured with the real use, not here (Q-04, Q-05).
+
+## Amendment, 2026-11-19: the closed list of pages the browser's policy lets through
+
+The first real sign-in (the maintainer's, on the sandbox) showed that the policy, which allowed only the assistant and `accounts.google.com`, also blocked what a sign-in and the provider's own check need: the provider ends a sign-in with a page on its domain of the person's country, and may ask a person to solve a check. A person could not finish. **The maintainer decided on 2026-11-19 that these pages must not be blocked** ("il faut l'autoriser"). The list is closed, each entry has a reason, and a new one is a decision (an amendment here and a change of `deploy/browser/policy.example.json` and `docs/network.md` in the same pull request):
+
+| Host | Why |
+|---|---|
+| `gemini.google.com` | The assistant (D-30). |
+| `accounts.google.com` | The sign-in page. |
+| `accounts.google.de`, `accounts.google.fr` | The provider sets its cookies on the domain of the person's country at the end of a sign-in (observed: `.de` for a browser set to German, `.fr` for French); without them the browser shows "This page is blocked" at the last step. Another country is added the same way, as a decision. |
+| `www.google.com/sorry` | The provider's "unusual traffic" page: a person solves its check by hand in the desktop. |
+| `www.google.com/recaptcha`, `www.gstatic.com/recaptcha`, `www.recaptcha.net` | What that check loads. |
+
+Nothing else: the policy still blocks every other address, and the browser still holds only the dedicated account.

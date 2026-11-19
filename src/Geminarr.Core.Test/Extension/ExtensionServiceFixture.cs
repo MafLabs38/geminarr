@@ -592,7 +592,7 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         var ninth = await subject.HandleAsync(Listen(), TestContext.Current.CancellationToken);
 
-        ninth.Should().BeEquivalentTo(ExtensionPushResult.Hints(false, false), "no more than eight wait: the ninth is answered at once");
+        ninth.Accepted.Should().BeFalse("no more than eight wait: the ninth is refused at once, and the extension waits longer before it asks again");
         held.Should().OnlyContain(task => !task.IsCompleted);
         (await Subject(ReaderKind.None).HandleAsync(Listen(), TestContext.Current.CancellationToken)).Accepted.Should().BeFalse();
         _inbox.RequestSignOut();

@@ -12,6 +12,8 @@ const HELLO_MINUTES = 0.5;
 const PAGE_EVENT_EVERY_MS = 5000;
 // A request that Geminarr holds until the operator asks something (a sign-out, a round): an order reaches the browser at once, not at the next heartbeat. When it comes back at once with nothing to do, or does not come back, the next one waits this long.
 const LISTEN_PAUSE_MS = 2000;
+// When Geminarr cannot be reached, or refuses the request (another one already waits), the next one comes after this long.
+const LISTEN_RETRY_MS = 30 * 1000;
 const SIGN_OUT_KEY = 'signOutAt';
 // The sign-out is not started again for this long (the same order, answered twice by two requests at once); a new *Disconnect* of the operator a moment later is done. Geminarr keeps asking until it hears that nobody is signed in.
 const SIGN_OUT_EVERY_MS = 10 * 1000;
@@ -144,8 +146,10 @@ async function listen() {
       const answer = await push({ kind: 'listen' });
       await actOn(answer);
       const ordered = answer?.round === true || answer?.signOut === true;
-      if (!ordered && Date.now() - began < LISTEN_PAUSE_MS)
-        await new Promise((resolve) => setTimeout(resolve, LISTEN_PAUSE_MS));
+      let pause = 0;
+      if (answer === null) pause = LISTEN_RETRY_MS;
+      else if (!ordered && Date.now() - began < LISTEN_PAUSE_MS) pause = LISTEN_PAUSE_MS;
+      if (pause > 0) await new Promise((resolve) => setTimeout(resolve, pause));
     }
   } finally {
     listening = false;

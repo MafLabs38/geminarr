@@ -64,9 +64,15 @@ public sealed partial class ExtensionService
         var roundEvery = TimeSpan.FromMinutes(_options.Value.RoundMinutes);
         var wake = _inbox.Wake;
         var (round, signOut) = _inbox.TakeListenHints(_clock.GetUtcNow(), roundEvery);
-        if (round || signOut || !await _listeners.WaitAsync(0, cancellationToken))
+        if (round || signOut)
         {
             return ExtensionPushResult.Hints(round, signOut);
+        }
+
+        // No slot is not "nothing to do": the extension is told, and waits longer before it asks again.
+        if (!await _listeners.WaitAsync(0, cancellationToken))
+        {
+            return ExtensionPushResult.Refused("Too many requests that wait: one is enough.");
         }
 
         try
