@@ -15,6 +15,8 @@ const SELECTORS = {
 const ID_IN_LINK = /\/app\/([A-Za-z0-9_-]{1,64})$/;
 const SCROLL_MS = 1500;
 const MAX_SCROLLS = 30;
+// The most conversations that Geminarr takes in one list.
+const MAX_ITEMS = 500;
 const STABLE_ROUNDS = 6;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
@@ -69,17 +71,22 @@ async function readList() {
   if (who === 'out') return send({ kind: 'state', signedIn: false });
   const scroller = await listThatScrolls();
   if (!scroller) return send({ kind: 'broken', step: 'list' });
-  let seen = -1;
-  for (let i = 0; i < MAX_SCROLLS && conversationLinks().length !== seen; i++) {
-    seen = conversationLinks().length;
+  // The end of the list is when a scroll brings nothing more: a list that was cut because the scrolls ran out is not the whole history, and Geminarr is told which it is.
+  let complete = false;
+  for (let i = 0; i < MAX_SCROLLS && !complete; i++) {
+    const seen = conversationLinks().length;
     scroller.scrollTop = scroller.scrollHeight;
     await wait(SCROLL_MS);
+    complete = conversationLinks().length === seen;
   }
   const items = conversationLinks().map(({ link, match }) => ({ id: match[1], title: (link.innerText ?? '').trim() }));
   // The same conversation can be linked twice on a page: the first place is its place.
+  const unique = items.filter((item, index) => items.findIndex((other) => other.id === item.id) === index);
+  // Geminarr takes no more than MAX_ITEMS: a longer list is cut here (the most recent first), and is then not complete.
   return send({
     kind: 'list',
-    items: items.filter((item, index) => items.findIndex((other) => other.id === item.id) === index),
+    items: unique.slice(0, MAX_ITEMS),
+    complete: complete && unique.length <= MAX_ITEMS,
     labels: accountLabels(),
   });
 }

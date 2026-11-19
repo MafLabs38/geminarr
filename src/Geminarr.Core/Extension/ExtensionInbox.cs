@@ -52,6 +52,7 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
     private IReadOnlyList<ConversationHeader> _list = [];
+    private bool _listComplete;
 
     public ExtensionInbox() : this(MaxHeldCharacters)
     {
@@ -171,7 +172,7 @@ public sealed class ExtensionInbox
 
     /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account).</summary>
     /// <returns>Whether the session was signed out or broken at the page or the list before: news worth a pass. A list does not mend a break of the turns.</returns>
-    public bool RecordList(IReadOnlyList<ConversationHeader> list, string? version, DateTimeOffset now, IReadOnlyList<string?>? labels = null)
+    public bool RecordList(IReadOnlyList<ConversationHeader> list, string? version, DateTimeOffset now, IReadOnlyList<string?>? labels = null, bool complete = false)
     {
         lock (_gate)
         {
@@ -179,6 +180,7 @@ public sealed class ExtensionInbox
             var turnsBroken = _session?.Broken == ExtensionBrokenSteps.Turns;
             var wasNotWell = _session is { SignedIn: false } or { Broken: ExtensionBrokenSteps.Page or ExtensionBrokenSteps.List };
             _list = list;
+            _listComplete = complete;
             _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null, AccountLabel.Parse(labels ?? []) ?? _session?.Account);
             _intents.SaidSignedIn();
             return wasNotWell;
@@ -272,6 +274,7 @@ public sealed class ExtensionInbox
         _asked.Clear();
         _unreadable.Clear();
         _list = [];
+        _listComplete = false;
     }
 
     /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser, so the extension is asked for rounds, quickly, until it says that somebody is signed in (or <see cref="ExtensionIntents.SigningInFor"/> is over).</summary>
@@ -408,6 +411,18 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             return _list;
+        }
+    }
+
+    /// <summary>Whether the page said that its list ends there (it stopped growing when scrolled), and not that the extension stopped scrolling: the end of the backfill is told by this.</summary>
+    public bool ListComplete
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _listComplete;
+            }
         }
     }
 

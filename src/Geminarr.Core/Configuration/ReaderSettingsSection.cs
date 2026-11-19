@@ -23,5 +23,6 @@ public sealed class ReaderSettingsSection : ISettingsSection
         new("GEMINARR__READER__LOGINFAILURES", _reader.Value.LoginFailures.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__DEMOGROWSECONDS", _reader.Value.DemoGrowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
         new("GEMINARR__READER__MAXOPENPERPASS", _reader.Value.MaxOpenPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
+        new("GEMINARR__READER__BACKFILLPERPASS", _reader.Value.BackfillPerPass.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
     ];
 }

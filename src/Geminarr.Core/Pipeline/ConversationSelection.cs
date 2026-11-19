@@ -18,4 +18,11 @@ public static class ConversationSelection
             || !string.Equals(ConversationLines.TitleHashOf(header.Title), known.TitleHash, StringComparison.Ordinal)
             || (known.TurnsKnown > known.TurnsSent && !waitingToBeSent);
     }
+
+    /// <summary>
+    /// The conversations below the ones that a pass looks at (<see cref="ReaderOptions.MaxListed"/>) that were never seen, oldest part of the list last: what the backfill brings next (SPEC §6.3), at most
+    /// <see cref="ReaderOptions.BackfillPerPass"/> of them. <paramref name="isKnown"/> says whether Geminarr has seen the conversation; <paramref name="isHeldOrUnreadable"/> whether it waits to be taken or showed nothing.
+    /// </summary>
+    public static IEnumerable<ConversationHeader> ToBackfill(IEnumerable<ConversationHeader> headers, ReaderOptions options, Func<string, bool> isKnown, Func<ConversationHeader, bool> isHeldOrUnreadable) =>
+        headers.Where(header => header.Rank >= options.MaxListed && !isKnown(header.Id) && !isHeldOrUnreadable(header)).Take(options.BackfillPerPass);
 }

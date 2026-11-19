@@ -23,6 +23,7 @@ export interface Runs {
 }
 
 const path = '/runs?limit=5';
+const pagePath = '/runs?limit=50';
 
 export const RUNS_REFRESH_MS = 10_000;
 
@@ -30,11 +31,19 @@ export function useRuns() {
   return useApiQuery<Runs>(path, { refetchInterval: RUNS_REFRESH_MS });
 }
 
+/** The Runs page: more passes than the card of the overview shows. */
+export function useRunsPage() {
+  return useApiQuery<Runs>(pagePath, { refetchInterval: RUNS_REFRESH_MS });
+}
+
 /** "Run now": the pass runs in the background, and the list follows. */
 export function useRunNow() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => apiSend('POST', '/runs'),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['api', path] }),
+    onSuccess: () =>
+      client.invalidateQueries({
+        predicate: ({ queryKey }) => queryKey[0] === 'api' && String(queryKey[1]).startsWith('/runs'),
+      }),
   });
 }

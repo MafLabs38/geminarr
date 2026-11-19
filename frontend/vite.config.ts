@@ -11,6 +11,7 @@ const aliases = [
   'App',
   'Components',
   'Connection',
+  'Conversations',
   'Helpers',
   'Identity',
   'Live',

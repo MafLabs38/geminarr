@@ -184,6 +184,9 @@ services:
       GEMINARR__READER__KIND: Web
       # One pass that finds nobody signed in is enough to say "sign in again" (three by default), so that a test does not wait for three rounds.
       GEMINARR__READER__LOGINFAILURES: '1'
+      # Four conversations are looked at by a pass and four older ones are read in a pass, so that the history of nine is walked in three rounds (the defaults are 40 and 10).
+      GEMINARR__READER__MAXLISTED: '4'
+      GEMINARR__READER__BACKFILLPERPASS: '4'
       GEMINARR__EXTENSION__TOKENFILE: /run/extension-token
       GEMINARR__EXTENSION__PACKAGEFOLDER: /extension
       # A round every minute (fifteen by default), so that a test does not wait a quarter of an hour for a conversation that was added.

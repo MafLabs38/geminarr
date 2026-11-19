@@ -31,8 +31,8 @@ public sealed class ExtensionServiceFixture : IDisposable
         _workspace.Dispose();
     }
 
-    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5, int maxListed = 40, int roundMinutes = 15) =>
-        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen, MaxListed = maxListed }), Options.Of(new ExtensionOptions { RoundMinutes = roundMinutes }), _clock);
+    private ExtensionService Subject(ReaderKind kind = ReaderKind.Web, int maxOpen = 5, int maxListed = 40, int roundMinutes = 15, int backfill = 10) =>
+        new(_inbox, _conversations, _outbox, _trigger, Options.Of(new ReaderOptions { Kind = kind, MaxOpenPerPass = maxOpen, MaxListed = maxListed, BackfillPerPass = backfill }), Options.Of(new ExtensionOptions { RoundMinutes = roundMinutes }), _clock);
 
     private static PushedItem Item(string? id, string? title = "T") => new(id, title);
 
@@ -74,6 +74,58 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         result.Accepted.Should().BeTrue();
         _inbox.Session.Should().Be(new ExtensionSession(signedIn, kept, _clock.GetUtcNow()));
+    }
+
+    private static ExtensionPushRequest ListOfMany(int count, bool? complete = null) =>
+        new("list", null, null, null, [.. Enumerable.Range(0, count).Select(index => Item($"c{index}"))], null, "1.0.0", Complete: complete);
+
+    [Fact]
+    public void should_ask_for_a_few_older_conversations_besides_the_recent_ones_that_changed()
+    {
+        // Three are looked at by a pass (two opened), the rest of the list is the history: four of it at a time, from the newest.
+        var result = Subject(maxOpen: 2, maxListed: 3, backfill: 4).Handle(ListOfMany(12));
+
+        result.Open.Should().Equal("c0", "c1", "c3", "c4", "c5", "c6");
+    }
+
+    [Fact]
+    public void should_ask_for_the_next_older_ones_once_the_first_were_read_and_nothing_when_all_are_known()
+    {
+        var subject = Subject(maxOpen: 1, maxListed: 2, backfill: 3);
+        subject.Handle(ListOfMany(7)).Open.Should().Equal("c0", "c2", "c3", "c4");
+        foreach (var id in new[] { "c0", "c2", "c3", "c4" })
+        {
+            subject.Handle(ConversationOf(id, new PushedTurn("user", "hi"))).Accepted.Should().BeTrue();
+            var turns = _inbox.Take(id)!;
+            _conversations.Save(new ConversationRecord(id, null, _clock.GetUtcNow(), _clock.GetUtcNow(), _clock.GetUtcNow(), id == "c0" ? 0 : int.Parse(id[1..]), turns.Count, turns.Count, null, 0, "web", ConversationStates.Synced, null));
+        }
+
+        Subject(maxOpen: 1, maxListed: 2, backfill: 3).Handle(ListOfMany(7)).Open.Should().Equal("c0", "c5", "c6");
+    }
+
+    [Fact]
+    public void should_ask_for_no_older_conversation_when_the_history_is_switched_off()
+    {
+        Subject(maxOpen: 2, maxListed: 3, backfill: 0).Handle(ListOfMany(12)).Open.Should().Equal("c0", "c1");
+    }
+
+    [Fact]
+    public void should_ask_for_no_older_conversation_while_the_operator_is_disconnected()
+    {
+        _inbox.RequestSignOut();
+
+        Subject(maxOpen: 2, maxListed: 3, backfill: 4).Handle(ListOfMany(12)).Open.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, false)]
+    public void should_keep_whether_the_page_said_that_its_list_ends_there(bool? said, bool kept)
+    {
+        Subject().Handle(ListOfMany(2, said));
+
+        _inbox.ListComplete.Should().Be(kept);
     }
 
     [Fact]
@@ -267,7 +319,7 @@ public sealed class ExtensionServiceFixture : IDisposable
     [Fact]
     public void should_choose_what_to_open_only_among_the_conversations_that_a_pass_looks_at()
     {
-        var result = Subject(maxListed: 2).Handle(ListOf(Item("a"), Item("b"), Item("c"), Item("d")));
+        var result = Subject(maxListed: 2, backfill: 0).Handle(ListOf(Item("a"), Item("b"), Item("c"), Item("d")));
 
         result.Open.Should().Equal("a", "b");
     }

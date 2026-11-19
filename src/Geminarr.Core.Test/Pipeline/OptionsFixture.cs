@@ -15,6 +15,8 @@ public sealed class OptionsFixture
     [InlineData("PollMinutes", 0)]
     [InlineData("MaxListed", 501)]
     [InlineData("MaxOpenPerPass", 0)]
+    [InlineData("BackfillPerPass", 21)]
+    [InlineData("BackfillPerPass", -1)]
     [InlineData("PassTimeoutMinutes", 121)]
     [InlineData("MaxBackoffMinutes", 0)]
     [InlineData("LoginFailures", 0)]

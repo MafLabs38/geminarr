@@ -1,5 +1,5 @@
 // A fake assistant for the end-to-end tests: synthetic pages shaped like the ones the extension reads (a list of conversations, and the turns of one), on a plain-HTTP host of the test network. Nothing here is real.
-// POST /admin/signin makes the next visitor a person who signs in (a cookie is given); POST /admin/signout ends every session, as an expiry would; GET /admin/guests counts the pages shown to a visitor; GET /admin/reach?host=&port= says whether a port of another container opens; POST /admin/break shows a page that is neither (a page whose shape changed); POST /admin/add adds a conversation at the top of the list.
+// POST /admin/signin makes the next visitor a person who signs in (a cookie is given); POST /admin/signout ends every session, as an expiry would; GET /admin/guests counts the pages shown to a visitor; GET /admin/reach?host=&port= says whether a port of another container opens; POST /admin/break shows a page that is neither (a page whose shape changed); POST /admin/add adds a conversation at the top of the list; POST /admin/history adds nine older ones at the bottom of it.
 import http from 'node:http';
 import net from 'node:net';
 
@@ -104,6 +104,19 @@ function admin(path, response) {
     armed = true;
   }
   if (path === '/admin/break') mode = 'broken';
+  if (path === '/admin/history') {
+    // The past: older conversations below the ones that a pass looks at, as an account that has been used for a long time has.
+    for (let n = 1; n <= 9; n += 1) {
+      conversations.push({
+        id: `a1b2c3d4e5f${n}`,
+        title: `An older conversation ${n}`,
+        turns: [
+          ['user', `An old question ${n}.`],
+          ['assistant', `An old answer ${n}.`],
+        ],
+      });
+    }
+  }
   if (path === '/admin/add') {
     added += 1;
     conversations.unshift({

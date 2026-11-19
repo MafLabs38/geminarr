@@ -10,7 +10,7 @@ export const livePath = '/api/v1/live';
 const topicPaths: Readonly<Record<string, readonly string[]>> = {
   connection: ['/connection'],
   status: ['/health', '/system/status'],
-  runs: ['/runs'],
+  runs: ['/runs', '/conversations'],
   mnemarr: ['/mnemarr'],
 };
 

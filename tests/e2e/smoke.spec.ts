@@ -165,6 +165,28 @@ test.describe('smoke @smoke', () => {
     await expect(page.getByRole('region', { name: 'Settings' }).getByText('e2e-operator')).toHaveCount(0);
   });
 
+  test('the Conversations and Runs pages open from the menu, and read nothing of a conversation', async ({ page }) => {
+    const problems: string[] = [];
+    await signIn(page);
+    // What the pages ask for after the sign-in (the 401 of the page before it is the normal start).
+    page.on('console', (message) => message.type() === 'error' && problems.push(message.text()));
+    page.on(
+      'response',
+      (response) => response.status() >= 400 && problems.push(`${response.status()} ${response.url()}`),
+    );
+
+    await page.getByRole('link', { name: 'Conversations' }).click();
+    await expect(page.getByRole('heading', { name: 'Conversations', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The history' })).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    await page.getByRole('link', { name: 'Runs' }).click();
+    await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Run now' })).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
   test('the menu ends with who this environment is: its name, its picture and the version', async ({
     page,
     request,
@@ -189,7 +211,13 @@ test.describe('smoke @smoke', () => {
   });
 
   test('the Mnemarr page is closed without a sign-in', { tag: '@browserless' }, async ({ request }) => {
-    for (const path of ['/api/v1/mnemarr', '/api/v1/mnemarr/pairing', '/api/v1/runs', '/api/v1/connection']) {
+    for (const path of [
+      '/api/v1/mnemarr',
+      '/api/v1/mnemarr/pairing',
+      '/api/v1/runs',
+      '/api/v1/conversations',
+      '/api/v1/connection',
+    ]) {
       expect((await request.get(path)).status(), path).toBe(401);
     }
     expect((await request.post('/api/v1/mnemarr/pairing')).status()).toBe(403);

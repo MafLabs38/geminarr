@@ -51,6 +51,47 @@ public sealed class PassRunnerFixture : IDisposable
 
     private static string Session(string id) => ConversationLines.Session(id);
 
+    private void SayMany(int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            _reader.Say($"c{index}", $"Title {index}", "question", "answer");
+        }
+    }
+
+    [Fact]
+    public async Task should_walk_the_history_a_few_older_conversations_at_a_pass_after_the_recent_ones()
+    {
+        SayMany(9);
+        var subject = Subject(options: new ReaderOptions { MaxListed = 2, MaxOpenPerPass = 2, BackfillPerPass = 3 });
+
+        var first = await subject.RunAsync(TestContext.Current.CancellationToken);
+        _reader.Opened.Should().Equal("c0", "c1", "c2", "c3", "c4");
+        _reader.Opened.Clear();
+        var second = await subject.RunAsync(TestContext.Current.CancellationToken);
+        var secondOpened = _reader.Opened.ToList();
+        _reader.Opened.Clear();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        first!.Opened.Should().Be(5);
+        // The newest is looked at every time; the next older ones follow, from where the last pass stopped.
+        secondOpened.Should().Equal("c0", "c5", "c6", "c7");
+        second!.Opened.Should().Be(4);
+        _reader.Opened.Should().Equal("c0", "c8");
+        _conversations.Count().Should().Be(9);
+        _sink.Sent.Select(sent => sent.Session).Should().Contain(Session("c8"), "an old conversation reaches Mnemarr like a new one");
+    }
+
+    [Fact]
+    public async Task should_not_walk_the_history_when_it_is_switched_off()
+    {
+        SayMany(6);
+
+        await Subject(options: new ReaderOptions { MaxListed = 2, MaxOpenPerPass = 2, BackfillPerPass = 0 }).RunAsync(TestContext.Current.CancellationToken);
+
+        _reader.Opened.Should().Equal("c0", "c1");
+    }
+
     [Fact]
     public async Task should_mask_a_secret_in_a_title_and_in_a_turn_whatever_the_reader_before_anything_is_queued()
     {
