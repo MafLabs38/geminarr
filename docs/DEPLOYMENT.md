@@ -15,7 +15,6 @@ Same as the other applications of the cluster:
 | `namespace.yaml`                 | The namespace `geminarr`                                                                                                                                                                                                                                        | —                                                                                                                                                                                                               |
 | `secret-extension.enc.yaml`      | The token of the extension (32 characters or more, random), mounted as a file: `GEMINARR__EXTENSION__TOKENFILE`, **and the same token in the browser's policy**                                                                                                 | SOPS-encrypted. Rotating it is two changes (this and the policy), one after the other                                                                                                                           |
 | `secret-browser-policy.enc.yaml` | The policy of the browser container, mounted in `/etc/chromium/policies/managed/` of the browser container: it installs the extension, gives it the address of Geminarr (the loopback of the pod) and its token, and keeps the browser to the assistant's pages | Made by your tooling from [deploy/browser/policy.example.json](../deploy/browser/policy.example.json) (the id of the extension is in the update manifest of Geminarr); SOPS-encrypted, since it holds the token |
-
 | `pvc.yaml` | `geminarr-data` (database, outbox, Mnemarr key; ~2 Gi) **and `geminarr-browser`** (the configuration of the browser container, **its profile included: the signed-in session**; ~1 Gi) | Two claims on **local** storage with a retaining class, on the same node as the pod. **The browser claim is never backed up in the clear**: it is the session of a Google account |
 | `secret-mnemarr.enc.yaml` (optional) | The key that Mnemarr gave to this machine, or a one-time code, mounted as a file: `GEMINARR__MNEMARR__KEYFILE` or `GEMINARR__MNEMARR__ENROLMENTCODEFILE` | SOPS-encrypted. The key is ingest-only and bound to the machine. Without either, the operator pairs on the page _Mnemarr_ (the key is then written in the data folder) |
 | `identity/` (optional) | The picture of the menu (a png, webp or svg), mounted as a file: `GEMINARR__IDENTITY__LOGOFILE`, with `GEMINARR__IDENTITY__NAME` | The same files as Portarr's and Mnemarr's GitOps folders hold; the picture is personal and never goes in this repository |
@@ -46,13 +45,10 @@ The reader is an extension in a browser that a person signed in to ([ADR 0022](a
 ## Order of a first deployment (vertical 7)
 
 1. The release `0.1.0` exists and its image is public (or the pull secret is in the folder).
-2. The folder is added to the GitOps repository; Flux applies it; the pod starts; `/health/ready` is green; the state is `not-connected`.
-3. The operator opens the page (single sign-on, then Geminarr's login), pairs it with Mnemarr (or the key/code was provided), and signs in to the dedicated account **in the browser's container** (the live view of Geminarr's page comes with vertical 4).
-
-4. The folder is added to the GitOps repository; Flux applies it; the pod starts; `/health/ready` is green; the browser container is up; the state is `not-connected` (or asks to sign in).
-5. The operator opens Geminarr's page (the proxy's single sign-on if there is one, then its own login), pairs it with Mnemarr (or the key/code was provided), then presses **Sign in** on the page _Connection_, which opens the browser's desktop in a window (its own origin, opened by a ticket of the session: no second login), and **signs in by hand to the dedicated account**. The next pass finds the session: `connected`.
-6. Mnemarr shows the machine `gemini` online; the first pass sends the recent conversations; the backfill walks the rest slowly.
-7. Portarr registers the application and checks its health endpoint.
+2. The folder is added to the GitOps repository; Flux applies it; the pod starts; `/health/ready` is green; the browser container is up; the state is `not-connected` (or asks to sign in).
+3. The operator opens Geminarr's page (the proxy's single sign-on if there is one, then its own login), pairs it with Mnemarr (or the key/code was provided), then presses **Sign in** on the page _Connection_, which opens the browser's desktop in a window (its own origin, opened by a ticket of the session: no second login), and **signs in by hand to the dedicated account**. The next pass finds the session: `connected`.
+4. Mnemarr shows the machine `gemini` online; the first pass sends the recent conversations; the backfill walks the rest slowly.
+5. Portarr registers the application and checks its health endpoint.
 
 ## Test instances
 

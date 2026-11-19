@@ -20,6 +20,7 @@ async function load({
   answer = () => ({ ok: true, json: async () => ({ open: [] }) }),
   alarms = {},
   openTabs = [],
+  failToOpen = false,
 } = {}) {
   const session = new Map();
   const calls = {
@@ -53,6 +54,7 @@ async function load({
     },
     tabs: {
       create: async (options) => {
+        if (failToOpen) throw new Error('refused');
         calls.created.push(options);
         return { id: nextTab++ };
       },
@@ -444,6 +446,25 @@ describe('what the extension does when Geminarr asks', () => {
       'the sign-out it was told about was done',
     );
     assert.ok(kinds.filter((kind) => kind === 'listen').length >= 2, 'and it asks again');
+  });
+
+  it('goes on asking when a round cannot open its page', async () => {
+    let calls = 0;
+    const managed = { geminarrUrl: 'https://geminarr.example/', token: 'the-token' };
+    const { calls: seen, listeners } = await load({
+      managed,
+      answer: () => {
+        calls++;
+        if (calls >= 3) delete managed.token;
+        return { ok: true, json: async () => ({ open: [], round: true, signOut: false }) };
+      },
+      failToOpen: true,
+    });
+
+    listeners.alarm({ name: 'listen' });
+    for (let i = 0; i < 40 && seen.fetch.length < 3; i++) await flush();
+
+    assert.equal(seen.fetch.filter((call) => JSON.parse(call.init.body).kind === 'listen').length, 3);
   });
 
   it('starts only one request that waits, whatever wakes the worker', async () => {

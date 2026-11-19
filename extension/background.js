@@ -74,8 +74,12 @@ async function hasWorkTab() {
 
 /** A round: one page of the list. What it finds, and what Geminarr asks for, is done by the messages below. */
 async function openTheList() {
-  // A round that finds the last one still reading (a slow page) waits: the sweep closes what hangs.
-  if ((await settings()) && !(await hasWorkTab())) await openInBackground('/app');
+  try {
+    // A round that finds the last one still reading (a slow page) waits: the sweep closes what hangs.
+    if ((await settings()) && !(await hasWorkTab())) await openInBackground('/app');
+  } catch {
+    // The browser could not open the page: the next round asks again. A failed round never stops the request that waits for the orders of Geminarr.
+  }
 }
 
 // One at a time: the alarm, the start of the browser and the install can wake the worker together, and two rounds that look before either has opened its tab would open two.
@@ -144,7 +148,11 @@ async function listen() {
     while (await settings()) {
       const began = Date.now();
       const answer = await push({ kind: 'listen' });
-      await actOn(answer);
+      try {
+        await actOn(answer);
+      } catch {
+        // What was asked could not be done (the browser refused): the loop goes on, and Geminarr asks again.
+      }
       const ordered = answer?.round === true || answer?.signOut === true;
       let pause = 0;
       if (answer === null) pause = LISTEN_RETRY_MS;
