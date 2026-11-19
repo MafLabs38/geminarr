@@ -13,6 +13,9 @@ internal sealed class ExtensionIntents
     /// <summary>How old what the extension said last may be, while a person signs in, before it is asked for a round again.</summary>
     public static readonly TimeSpan SigningInRoundEvery = TimeSpan.FromSeconds(20);
 
+    /// <summary>How old what the extension said last may be, while a person signs in, before a page that has just loaded asks for a round.</summary>
+    public static readonly TimeSpan SigningInPageRoundEvery = TimeSpan.FromSeconds(3);
+
     private DateTimeOffset? _signingInSince;
     private bool _roundAsked;
     private bool _signOutAsked;
@@ -68,13 +71,15 @@ internal sealed class ExtensionIntents
     /// what it said last is old, none of them while the reading is paused) and the sign-out. A round is asked at most once in an interval whatever the page answers: when the assistant's page does not answer (a block, an outage) the extension must not be sent to
     /// it again at every heartbeat. A round that the operator asked for is asked once, at once.
     /// </summary>
-    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery, bool paused = false)
+    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery, bool paused = false, bool pageLoaded = false)
     {
         var sinceAsked = _lastRoundAsked is { } asked ? now - asked : TimeSpan.MaxValue;
         var sinceSaid = session is null ? TimeSpan.MaxValue : now - session.At;
         // While the operator has paused the reading (or a block paused it), the page of the assistant is visited for nobody but the operator who asks for a round.
         var due = !paused && sinceSaid >= roundEvery && sinceAsked >= roundEvery;
-        var signingIn = !paused && SigningIn(now, session) && sinceSaid >= SigningInRoundEvery && sinceAsked >= SigningInRoundEvery;
+        // A page of the assistant that has just loaded in front of a person who is signing in (the sign-in ends on one) is the moment to look: the short pace of a page event, not the one of the heartbeat.
+        var every = pageLoaded ? SigningInPageRoundEvery : SigningInRoundEvery;
+        var signingIn = !paused && SigningIn(now, session) && sinceSaid >= every && sinceAsked >= every;
         var round = _roundAsked || due || signingIn;
         _roundAsked = false;
         if (round)

@@ -55,7 +55,8 @@ public sealed partial class ExtensionService
                 "list" => List(request, version),
                 "conversation" => Conversation(request, version),
                 "broken" => Broken(request, version),
-                "hello" => Hello(),
+                "hello" => Hello(pageLoaded: false),
+                "page" => Hello(pageLoaded: true),
                 _ => ExtensionPushResult.Refused("Unknown kind."),
             };
         }
@@ -66,10 +67,10 @@ public sealed partial class ExtensionService
         }
     }
 
-    /// <summary>The extension says that it is there: it is told whether to run a round now, and whether to sign the account out. Nothing is recorded of the session by it.</summary>
-    private ExtensionPushResult Hello()
+    /// <summary>The extension says that it is there (<c>hello</c>, every half minute), or that a page of the assistant that a person has open has just loaded (<c>page</c>: a sign-in ends on one): it is told whether to run a round now, and whether to sign the account out. Nothing is recorded of the session by it.</summary>
+    private ExtensionPushResult Hello(bool pageLoaded)
     {
-        var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(_options.Value.RoundMinutes));
+        var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(_options.Value.RoundMinutes), pageLoaded);
         return ExtensionPushResult.Hints(round, signOut);
     }
 

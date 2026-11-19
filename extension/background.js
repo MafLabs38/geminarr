@@ -6,6 +6,8 @@ const UPDATE_ALARM = 'update';
 // The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (the interval of the rounds is over, a person is signing in, the operator asked) and whether to sign the account out. It is the only clock of the rounds, apart from the one at the browser's start or the extension's install, which looks once.
 const HELLO_ALARM = 'hello';
 const HELLO_MINUTES = 0.5;
+// Two loads of a page of the assistant closer than this are told to Geminarr once.
+const PAGE_EVENT_EVERY_MS = 5000;
 const SIGN_OUT_KEY = 'signOutAt';
 // The sign-out is not started again for this long: Geminarr keeps asking until it hears that nobody is signed in.
 const SIGN_OUT_EVERY_MS = 2 * 60 * 1000;
@@ -116,6 +118,14 @@ async function actOn(answer) {
   if (answer?.round === true) await round();
 }
 
+let lastPageEvent = 0;
+/** A page of the assistant that a person has open has just loaded (a sign-in ends on one): Geminarr is told at once, not at the next half minute, and may ask for a round. The pages that this extension opened do not count. */
+async function pageLoaded(tabId) {
+  if ((await isWorkTab(tabId)) || Date.now() - lastPageEvent < PAGE_EVENT_EVERY_MS) return;
+  lastPageEvent = Date.now();
+  await actOn(await push({ kind: 'page' }));
+}
+
 /** The extension says that it is there, and does what it is asked. */
 async function hello() {
   await actOn(await push({ kind: 'hello' }));
@@ -167,6 +177,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
   void onMessage(message, sender);
   return false;
+});
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url?.startsWith(`${ORIGIN}/`)) void pageLoaded(tabId);
 });
 chrome.runtime.onInstalled.addListener(() => void round());
 chrome.runtime.onStartup.addListener(() => void round());

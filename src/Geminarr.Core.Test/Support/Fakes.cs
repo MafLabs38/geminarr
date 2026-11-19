@@ -158,6 +158,14 @@ public sealed class FakeBrowser : IBrowserHost
 /// <summary>The state machine of the connection, built the way the tests need it.</summary>
 public static class Tracking
 {
-    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock) =>
-        new(store, options, clock);
+    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock, Geminarr.Core.Live.ILiveNotifier? live = null) =>
+        new(store, options, clock, live);
+}
+
+/// <summary>What was said to the screens, in order.</summary>
+public sealed class RecordingNotifier : Geminarr.Core.Live.ILiveNotifier
+{
+    public List<string> Topics { get; } = [];
+
+    public void Publish(string topic) => Topics.Add(topic);
 }

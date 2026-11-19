@@ -531,6 +531,32 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_ask_for_a_round_at_once_when_a_page_loads_in_front_of_a_person_who_signs_in()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", false, null, null, null, null, "1.0.0"));
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+        var page = new ExtensionPushRequest("page", null, null, null, null, null, "1.0.0");
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+
+        _clock.Advance(TimeSpan.FromSeconds(5));
+        subject.Handle(hello).Round.Should().BeFalse("the heartbeat waits for twenty seconds");
+        subject.Handle(page).Round.Should().BeTrue("a page has just loaded: the sign-in may have ended on it");
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        subject.Handle(page).Round.Should().BeFalse("a round that was just asked for is not asked again");
+    }
+
+    [Fact]
+    public void should_not_ask_for_a_round_when_a_page_loads_and_nobody_is_signing_in()
+    {
+        var subject = Subject();
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+
+        subject.Handle(new ExtensionPushRequest("page", null, null, null, null, null, "1.0.0")).Round.Should().BeFalse("the interval of the rounds is not over");
+    }
+
+    [Fact]
     public void should_give_up_a_pending_sign_out_only_when_the_operator_cancels_it()
     {
         var subject = Subject();

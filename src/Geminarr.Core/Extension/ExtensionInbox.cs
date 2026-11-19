@@ -1,5 +1,6 @@
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 
 namespace Geminarr.Core.Extension;
@@ -45,6 +46,7 @@ public sealed class ExtensionInbox
     private DateTimeOffset? _lastPausedHello;
     private readonly Func<bool> _isPaused = static () => false;
     private readonly Action<Func<bool>>? _signOutSettled;
+    private readonly ILiveNotifier _live = new NoLiveNotifier();
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
@@ -60,15 +62,16 @@ public sealed class ExtensionInbox
         _isPaused = isPaused;
     }
 
-    private ExtensionInbox(Func<bool> isPaused, Action<Func<bool>>? signOutSettled) : this(isPaused)
+    private ExtensionInbox(Func<bool> isPaused, Action<Func<bool>>? signOutSettled, ILiveNotifier? live) : this(isPaused)
     {
         _signOutSettled = signOutSettled;
+        _live = live ?? new NoLiveNotifier();
     }
 
     /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
-    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null, Action<Func<bool>>? signOutSettled = null)
+    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null, Action<Func<bool>>? signOutSettled = null, ILiveNotifier? live = null)
     {
-        var inbox = new ExtensionInbox(isPaused ?? (static () => false), signOutSettled);
+        var inbox = new ExtensionInbox(isPaused ?? (static () => false), signOutSettled, live);
         // A pause keeps what the connection was before it: a sign-out that was not confirmed is still asked for after a restart in the middle of one.
         if (record.IsDisconnected)
         {
@@ -160,6 +163,9 @@ public sealed class ExtensionInbox
         {
             _signOutSettled?.Invoke(() => SignOutPending);
         }
+
+        // Who is signed in, or that nobody is, is what the page of the connection shows.
+        _live.Publish(LiveTopics.Connection);
     }
 
     /// <summary>The list as the page showed it, most recent first: a rank is a place in it. A list is also a word about the session (the page that showed it is the page of an account).</summary>
@@ -254,6 +260,8 @@ public sealed class ExtensionInbox
         {
             _session = new ExtensionSession(_session?.SignedIn ?? true, version, now, step, _session?.Account);
         }
+
+        _live.Publish(LiveTopics.Status);
     }
 
     /// <summary>What was read for an account is not kept for the next one (nobody is signed in, or the operator disconnected).</summary>
@@ -336,7 +344,7 @@ public sealed class ExtensionInbox
     }
 
     /// <summary>What the extension is asked when it says that it is there: a round now, and the sign-out (see <see cref="ExtensionIntents.TakeHints"/>).</summary>
-    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, TimeSpan roundEvery)
+    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, TimeSpan roundEvery, bool pageLoaded = false)
     {
         // Asked before the lock: the connection has a lock of its own.
         var paused = _isPaused();
@@ -349,7 +357,7 @@ public sealed class ExtensionInbox
                 _lastPausedHello = now;
             }
 
-            return _intents.TakeHints(now, _session, roundEvery, paused);
+            return _intents.TakeHints(now, _session, roundEvery, paused, pageLoaded);
         }
     }
 

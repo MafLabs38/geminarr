@@ -1,5 +1,6 @@
 using Geminarr.Core.Browser;
 using Geminarr.Core.Extension;
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -14,13 +15,15 @@ public sealed class ConnectionService
     private readonly ExtensionInbox _inbox;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly TimeProvider _clock;
+    private readonly ILiveNotifier _live;
 
-    public ConnectionService(ConnectionTracker tracker, ExtensionInbox inbox, IOptions<ReaderOptions> reader, TimeProvider clock)
+    public ConnectionService(ConnectionTracker tracker, ExtensionInbox inbox, IOptions<ReaderOptions> reader, TimeProvider clock, ILiveNotifier? live = null)
     {
         _tracker = tracker;
         _inbox = inbox;
         _reader = reader;
         _clock = clock;
+        _live = live ?? new NoLiveNotifier();
     }
 
     /// <summary>Whether a browser reads this Geminarr: without it there is nothing to pause or to disconnect.</summary>
@@ -29,13 +32,18 @@ public sealed class ConnectionService
     public ConnectionRecord Current() => _tracker.Current();
 
     /// <summary>The operator pressed *Sign in*: a person is about to sign in to the browser by hand, so the extension is asked for rounds until it says that somebody is.</summary>
-    public void BeginSigningIn() => _inbox.BeginSigningIn(_clock.GetUtcNow());
+    public void BeginSigningIn()
+    {
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+        _live.Publish(LiveTopics.Connection);
+    }
 
     /// <summary>The operator gives a pending sign-out up (the extension never confirmed it, or it was a mistake): the record forgets it too, so that a restart does not ask again.</summary>
     public void CancelDisconnect()
     {
         _inbox.CancelSignOut();
         _tracker.GaveUpTheDisconnect();
+        _live.Publish(LiveTopics.Connection);
     }
 
     /// <summary>Whether a sign-in that the operator started is being waited for (and the session is not good yet).</summary>
@@ -55,6 +63,7 @@ public sealed class ConnectionService
     {
         _inbox.RequestSignOut();
         _tracker.Disconnected();
+        _live.Publish(LiveTopics.Connection);
     }
 
     /// <summary>Quiet until a moment, or until the operator resumes.</summary>

@@ -1,3 +1,4 @@
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -14,13 +15,23 @@ public sealed class ConnectionTracker
     private readonly TimeProvider _clock;
     private readonly Lock _gate = new();
     private readonly AsyncLocal<long?> _passEpoch = new();
+    private readonly ILiveNotifier _live;
     private long _epoch;
 
-    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock)
+    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock, ILiveNotifier? live = null)
     {
         _store = store;
         _options = options;
         _clock = clock;
+        _live = live ?? new NoLiveNotifier();
+    }
+
+    /// <summary>Writes the record and tells the screens that the connection changed (and with it the health, which says it).</summary>
+    private void Persist(ConnectionRecord record)
+    {
+        _store.Save(record);
+        _live.Publish(LiveTopics.Connection);
+        _live.Publish(LiveTopics.Status);
     }
 
     /// <summary>The state as it is now: a read, which writes nothing. A pause whose moment has come has ended by itself, and what is read is what the resume will give; it is written by <see cref="Settle"/> (the passes do) or by the next move.</summary>
@@ -73,7 +84,7 @@ public sealed class ConnectionTracker
         var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.Disconnected, SignOutPending: true);
         if (record != current)
         {
-            _store.Save(record);
+            Persist(record);
         }
 
         return record;
@@ -94,7 +105,7 @@ public sealed class ConnectionTracker
             Before = current.Before?.Reason == ConnectionReasons.Disconnected ? current.Before with { Reason = ConnectionReasons.NotConnected } : current.Before,
             SignOutPending = false,
         };
-        _store.Save(record);
+        Persist(record);
         return record;
     });
 
@@ -215,7 +226,7 @@ public sealed class ConnectionTracker
     {
         if (next != current)
         {
-            _store.Save(next);
+            Persist(next);
         }
 
         return next;

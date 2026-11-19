@@ -6,6 +6,7 @@ using Geminarr.Core.Pipeline;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
+using Geminarr.Host.Live;
 using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,10 @@ builder.Services.AddSingleton<Geminarr.Core.Browser.IEgressProbe, Geminarr.Host.
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<LiveBroadcaster>();
+builder.Services.AddSingleton<Geminarr.Core.Live.ILiveNotifier>(provider => provider.GetRequiredService<LiveBroadcaster>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<LiveBroadcaster>());
 builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
@@ -106,6 +111,7 @@ app.UseGeminarrFrontendFiles();
 app.UseRouting();
 app.UseGeminarrSecurity();
 app.MapControllers();
+app.MapHub<LiveHub>(LiveHub.Path);
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();

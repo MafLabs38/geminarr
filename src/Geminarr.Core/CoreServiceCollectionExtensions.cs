@@ -5,6 +5,7 @@ using Geminarr.Core.Connection;
 using Geminarr.Core.Extension;
 using Geminarr.Core.Identity;
 using Geminarr.Core.Link;
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 using Geminarr.Core.Storage;
 using Geminarr.Core.SystemInfo;
@@ -40,6 +41,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IOutboxStore, OutboxStore>();
+        services.TryAddSingleton<ILiveNotifier, NoLiveNotifier>();
         services.AddSingleton<IRunStore, RunStore>();
         services.AddSingleton<IDestinationStore, DestinationStore>();
         services.AddSingleton<IKeyStore, KeyStore>();
@@ -72,7 +74,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton(provider =>
         {
             var tracker = provider.GetRequiredService<ConnectionTracker>();
-            return ExtensionInbox.Restored(tracker.Current(), () => tracker.Current().State == ConnectionState.Paused, stillPending => tracker.SignOutSettled(stillPending));
+            return ExtensionInbox.Restored(tracker.Current(), () => tracker.Current().State == ConnectionState.Paused, stillPending => tracker.SignOutSettled(stillPending), provider.GetRequiredService<ILiveNotifier>());
         });
         services.AddSingleton<ExtensionService>();
         services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch

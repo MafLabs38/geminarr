@@ -1,3 +1,4 @@
+using Geminarr.Core.Live;
 using Geminarr.Core.Storage;
 using Microsoft.Data.Sqlite;
 
@@ -8,10 +9,12 @@ public sealed class RunStore : IRunStore
     private const string Columns = "id, kind, started_at, ended_at, outcome, reason, listed, opened, turns_sent, duration_ms";
 
     private readonly IDatabase _database;
+    private readonly ILiveNotifier _live;
 
-    public RunStore(IDatabase database)
+    public RunStore(IDatabase database, ILiveNotifier? live = null)
     {
         _database = database;
+        _live = live ?? new NoLiveNotifier();
     }
 
     public long Start(string kind, DateTimeOffset at)
@@ -38,6 +41,10 @@ public sealed class RunStore : IRunStore
         command.Parameters.AddWithValue("$ms", outcome.DurationMs);
         command.Parameters.AddWithValue("$id", id);
         command.ExecuteNonQuery();
+        // A pass or a heartbeat has ended: what the runs, the status and the link to Mnemarr show may have changed.
+        _live.Publish(LiveTopics.Runs);
+        _live.Publish(LiveTopics.Status);
+        _live.Publish(LiveTopics.Mnemarr);
     }
 
     public IReadOnlyList<RunRecord> Recent(int limit) => Select("SELECT " + Columns + " FROM runs ORDER BY id DESC LIMIT $limit;", ("$limit", limit));

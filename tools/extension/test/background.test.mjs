@@ -85,6 +85,7 @@ async function load({
       onStartup: { addListener: (fn) => (listeners.startup = fn) },
     },
   };
+  chrome.tabs.onUpdated = { addListener: (fn) => (listeners.updated = fn) };
   const context = vm.createContext({
     chrome,
     fetch: async (url, init) => {
@@ -382,6 +383,37 @@ describe('what the extension does when Geminarr asks', () => {
     await flush();
 
     assert.deepEqual(plain(calls.reloaded), []);
+  });
+
+  it('tells Geminarr at once when a page of the assistant that a person has open has loaded, once in a few seconds, and not for its own pages', async () => {
+    const { calls, listeners } = await load({ answer: answering({ open: [], round: true, signOut: false }) });
+    const kinds = () => calls.fetch.map((call) => JSON.parse(call.init.body).kind);
+
+    listeners.updated(5, { status: 'loading' }, { url: `${ORIGIN}/app` });
+    listeners.updated(5, { status: 'complete' }, { url: 'https://elsewhere.example/app' });
+    await flush();
+    assert.deepEqual(kinds(), [], 'neither a page that is still loading nor another origin');
+
+    listeners.updated(5, { status: 'complete' }, { url: `${ORIGIN}/app` });
+    await flush();
+    listeners.updated(5, { status: 'complete' }, { url: `${ORIGIN}/app/abc` });
+    await flush();
+    assert.deepEqual(kinds(), ['page'], 'the second load is too close to the first');
+    assert.equal(calls.created.length, 1, 'and what Geminarr answers is acted on: a round');
+  });
+
+  it('does not tell Geminarr about a page that it opened itself', async () => {
+    const { calls, listeners } = await load({ answer: answering({ open: [], round: false, signOut: false }) });
+    listeners.alarm({ name: 'sweep' });
+    await listeners.startup();
+    await flush();
+    const opened = 100;
+    calls.fetch.length = 0;
+
+    listeners.updated(opened, { status: 'complete' }, { url: `${ORIGIN}/app` });
+    await flush();
+
+    assert.deepEqual(calls.fetch, []);
   });
 
   it('does not sign out without an address and a token', async () => {

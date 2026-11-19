@@ -1,6 +1,7 @@
 using Geminarr.Core.Browser;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Extension;
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 using Geminarr.Core.Test.Access;
 using Geminarr.Core.Test.Support;
@@ -211,6 +212,30 @@ public sealed class ConnectionServiceFixture : IDisposable
         _tracker.Current().SignOutPending.Should().BeFalse();
         _tracker.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "the disconnect stands");
         ExtensionInbox.Restored(_tracker.Current()).SignOutPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_tell_the_screens_at_each_move_of_the_connection_and_when_a_sign_in_begins_or_a_sign_out_is_asked_or_given_up()
+    {
+        var notifier = new RecordingNotifier();
+        var tracker = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { Kind = ReaderKind.Web }), _clock, notifier);
+        var inbox = ExtensionInbox.Restored(tracker.Current(), live: notifier);
+        var subject = new ConnectionService(tracker, inbox, Options.Of(new ReaderOptions { Kind = ReaderKind.Web }), _clock, notifier);
+
+        subject.BeginSigningIn();
+        notifier.Topics.Should().Equal(LiveTopics.Connection);
+        notifier.Topics.Clear();
+
+        subject.Disconnect();
+        notifier.Topics.Should().Contain(LiveTopics.Connection).And.Contain(LiveTopics.Status, "the health says that the connection changed");
+        notifier.Topics.Clear();
+
+        subject.CancelDisconnect();
+        notifier.Topics.Should().Contain(LiveTopics.Connection);
+        notifier.Topics.Clear();
+
+        inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        notifier.Topics.Should().Equal(LiveTopics.Connection);
     }
 
     [Fact]
