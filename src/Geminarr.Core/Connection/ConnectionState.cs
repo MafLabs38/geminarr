@@ -46,7 +46,11 @@ public static class ConnectionReasons
 }
 
 /// <summary>The row of the connection: its state, since when, the last pass that worked, the failures in a row, and why.</summary>
-public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason, DateTimeOffset? PausedUntil = null, ConnectionBefore? Before = null, bool SignOutPending = false);
+public sealed record ConnectionRecord(ConnectionState State, DateTimeOffset Since, DateTimeOffset? LastOkAt, int ConsecutiveFailures, string? LastReason, DateTimeOffset? PausedUntil = null, ConnectionBefore? Before = null, bool SignOutPending = false)
+{
+    /// <summary>Whether the operator disconnected and nobody has connected since: the reason says so, and a pause keeps it in the state it took over.</summary>
+    public bool IsDisconnected => LastReason == ConnectionReasons.Disconnected || Before?.Reason == ConnectionReasons.Disconnected;
+}
 
 /// <summary>What the connection was before a pause took it over, so that it goes back to it: trying to sign in, or asking for quiet, does not change what is known of the session.</summary>
 public sealed record ConnectionBefore(ConnectionState State, string? Reason, int Failures);

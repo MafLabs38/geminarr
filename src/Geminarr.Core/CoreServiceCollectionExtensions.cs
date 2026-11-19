@@ -72,7 +72,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton(provider =>
         {
             var tracker = provider.GetRequiredService<ConnectionTracker>();
-            return ExtensionInbox.Restored(tracker.Current(), () => tracker.Current().State == ConnectionState.Paused, () => tracker.SignOutSettled());
+            return ExtensionInbox.Restored(tracker.Current(), () => tracker.Current().State == ConnectionState.Paused, stillPending => tracker.SignOutSettled(stillPending));
         });
         services.AddSingleton<ExtensionService>();
         services.AddSingleton(provider => new ReaderProvider(provider.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind switch

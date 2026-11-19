@@ -44,7 +44,7 @@ public sealed class ExtensionInbox
     private DateTimeOffset? _firstHello;
     private DateTimeOffset? _lastPausedHello;
     private readonly Func<bool> _isPaused = static () => false;
-    private readonly Action? _signOutSettled;
+    private readonly Action<Func<bool>>? _signOutSettled;
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
@@ -60,17 +60,17 @@ public sealed class ExtensionInbox
         _isPaused = isPaused;
     }
 
-    private ExtensionInbox(Func<bool> isPaused, Action? signOutSettled) : this(isPaused)
+    private ExtensionInbox(Func<bool> isPaused, Action<Func<bool>>? signOutSettled) : this(isPaused)
     {
         _signOutSettled = signOutSettled;
     }
 
     /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
-    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null, Action? signOutSettled = null)
+    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null, Action<Func<bool>>? signOutSettled = null)
     {
         var inbox = new ExtensionInbox(isPaused ?? (static () => false), signOutSettled);
         // A pause keeps what the connection was before it: a sign-out that was not confirmed is still asked for after a restart in the middle of one.
-        if (record.LastReason == ConnectionReasons.Disconnected || record.Before?.Reason == ConnectionReasons.Disconnected)
+        if (record.IsDisconnected)
         {
             lock (inbox._gate)
             {
@@ -158,7 +158,7 @@ public sealed class ExtensionInbox
         // Told outside the lock: the connection has a lock of its own.
         if (settled)
         {
-            _signOutSettled?.Invoke();
+            _signOutSettled?.Invoke(() => SignOutPending);
         }
     }
 

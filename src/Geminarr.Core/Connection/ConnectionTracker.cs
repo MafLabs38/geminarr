@@ -83,8 +83,7 @@ public sealed class ConnectionTracker
     public ConnectionRecord GaveUpTheDisconnect() => Atomically(() =>
     {
         var current = _store.Get();
-        var disconnected = current.LastReason == ConnectionReasons.Disconnected || current.Before?.Reason == ConnectionReasons.Disconnected;
-        if (!disconnected && !current.SignOutPending)
+        if (!current.IsDisconnected && !current.SignOutPending)
         {
             return current;
         }
@@ -100,10 +99,11 @@ public sealed class ConnectionTracker
     });
 
     /// <summary>The extension said that nobody is signed in, or that somebody is: the sign-out that was asked is over and is not asked again after a restart. The disconnect itself stands until somebody signs in.</summary>
-    public ConnectionRecord SignOutSettled() => Atomically(() =>
+    public ConnectionRecord SignOutSettled(Func<bool> stillPending) => Atomically(() =>
     {
         var current = _store.Get();
-        return current.SignOutPending ? Save(current with { SignOutPending = false }, current) : current;
+        // Asked inside the lock of the connection: a *Disconnect* that came after the confirmation (and before this call) is a sign-out that is asked again, and it stays so.
+        return current.SignOutPending && !stillPending() ? Save(current with { SignOutPending = false }, current) : current;
     });
 
     /// <summary>The session is good and the pass read what it came for.</summary>

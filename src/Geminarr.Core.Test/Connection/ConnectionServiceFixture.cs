@@ -201,7 +201,7 @@ public sealed class ConnectionServiceFixture : IDisposable
     [Fact]
     public void should_write_that_the_sign_out_is_confirmed_when_the_extension_says_that_nobody_is_signed_in()
     {
-        var inbox = ExtensionInbox.Restored(_tracker.Disconnected(), signOutSettled: () => _tracker.SignOutSettled());
+        var inbox = ExtensionInbox.Restored(_tracker.Disconnected(), signOutSettled: stillPending => _tracker.SignOutSettled(stillPending));
         _tracker.Current().SignOutPending.Should().BeTrue();
 
         inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
@@ -211,6 +211,19 @@ public sealed class ConnectionServiceFixture : IDisposable
         _tracker.Current().SignOutPending.Should().BeFalse();
         _tracker.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "the disconnect stands");
         ExtensionInbox.Restored(_tracker.Current()).SignOutPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_not_forget_a_second_disconnect_that_comes_between_the_confirmation_and_its_writing()
+    {
+        var subject = Subject();
+        subject.Disconnect();
+
+        // The extension confirmed and the inbox released its lock; the operator disconnects again; then the confirmation is written.
+        subject.Disconnect();
+        _tracker.SignOutSettled(() => _inbox.SignOutPending);
+
+        _tracker.Current().SignOutPending.Should().BeTrue("the second sign-out is asked and not confirmed");
     }
 
     [Fact]
