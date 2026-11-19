@@ -408,6 +408,17 @@ describe('a conversation that Geminarr holds whole', () => {
     assert.equal(calls.fetch.length, before);
   });
 
+  it('hands over nothing of an end that a page read before the account was signed out', async () => {
+    const { calls, listeners, session } = await listed(() => ({}));
+    const before = calls.fetch.length;
+    session.set('signOutAt', Date.now() + 60_000);
+
+    assert.deepEqual(plain(await ask(listeners, 'part', { id: 101 }, { id: 'abc', title: 'T', turns })), {
+      taken: false,
+    });
+    assert.equal(calls.fetch.length, before);
+  });
+
   it('closes the page that says that it is done, and says nothing to Geminarr', async () => {
     const { calls, listeners } = await listed(() => ({}));
     const before = calls.fetch.length;

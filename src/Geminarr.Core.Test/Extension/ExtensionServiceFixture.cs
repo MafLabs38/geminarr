@@ -141,6 +141,21 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_take_an_end_that_holds_a_secret_as_joining_what_was_sent_with_the_secret_masked()
+    {
+        // What was sent was masked by the service and again by the pass: the end, masked once by the service, still finds its anchor.
+        var secret = "my token is ghp_" + new string('a', 36);
+        var masked = Geminarr.Core.Masking.SecretMasker.Mask(Geminarr.Core.Masking.SecretMasker.Mask(secret));
+        Holds("c1", 5, "a", "b", "c", masked, "e");
+        AskFor("c1");
+
+        var result = Subject().Handle(EndOf("c1", Said("c", secret, "e", "f")));
+
+        result.More.Should().BeFalse();
+        _inbox.Take("c1")!.First.Should().Be(2);
+    }
+
+    [Fact]
     public void should_ask_for_the_whole_conversation_when_the_end_does_not_join_what_was_sent()
     {
         Holds("c1", 5, "a", "b", "c", "d", "e");

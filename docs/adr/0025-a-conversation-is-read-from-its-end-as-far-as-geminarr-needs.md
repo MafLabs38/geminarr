@@ -27,6 +27,7 @@ The assistant keeps only the turns near the screen in the page, so a conversatio
 
 ## Consequences
 
-- A conversation continued two days later costs the screen or two that hold the new turns, whatever its length. The first reading of a long conversation still goes to its beginning, and once only.
+- A conversation continued two days later costs the screens that hold the new turns, whatever its length, as long as fewer than about seven turns were added (the end that is read first holds ten turns, three of them the anchor): more than that, Geminarr answers `more` and the whole conversation is read, as before. The first reading of a long conversation still goes to its beginning, and once only.
 - Two small risks, accepted: three turns in a row that are identical in the end of a conversation would be taken for the anchor in the latest place (a conversation of the same three turns said twice in a row); and a turn rewritten before the anchor is not seen. Both are as rare as they are harmless to what Mnemarr holds (it is never sent anything twice).
+- `complete` means two things by the kind of the push, on purpose, with the same words: on a `list`, "the list reaches its end" (absent: no); on a `conversation`, "the whole conversation" (absent: yes, which is what every extension before this one sent), and `false` is a part.
 - The protocol has two additions that an older extension ignores (`anchored`, `more`) and one that an older Geminarr ignores (`complete`): the two sides can be updated in any order; a part that an older Geminarr takes for a whole conversation would be at the wrong positions, which is why a Geminarr that does not know `anchored` never asks for a part.
