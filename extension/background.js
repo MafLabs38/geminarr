@@ -92,9 +92,22 @@ async function signOut() {
     // The browser refused: Geminarr keeps asking, and the next time is in two minutes.
     return;
   }
+  // The pages of the assistant that a person has open still show the account that was signed in: they are loaded again, so that the desktop shows a page that is signed out (and the sign-in that follows is seen).
+  await reloadAssistantTabs();
   // The cookies are gone: nobody is signed in, whatever the page shows next (this does not depend on a selector of the page). A round follows, to see what it shows.
   await push({ kind: 'state', signedIn: false });
   await round();
+}
+
+/** Loads again the tabs of the assistant that are open (a host permission is all that finding them takes): what they show comes from before the cookies were deleted. */
+async function reloadAssistantTabs() {
+  try {
+    for (const tab of await chrome.tabs.query({ url: `${ORIGIN}/*` })) {
+      if (typeof tab.id === 'number') await chrome.tabs.reload(tab.id);
+    }
+  } catch {
+    // A tab that is gone, or a browser that refuses: the round that follows says what the page shows.
+  }
 }
 
 /** What Geminarr asked for in its answer: a round of reading now, and the sign-out. Nothing else in an answer is acted on. */

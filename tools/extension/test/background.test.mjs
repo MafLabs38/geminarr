@@ -19,9 +19,19 @@ async function load({
   managed = { geminarrUrl: 'https://geminarr.example/', token: 'the-token' },
   answer = () => ({ ok: true, json: async () => ({ open: [] }) }),
   alarms = {},
+  openTabs = [],
 } = {}) {
   const session = new Map();
-  const calls = { fetch: [], created: [], removed: [], alarmsCreated: [], updateChecks: 0, cleared: [] };
+  const calls = {
+    fetch: [],
+    created: [],
+    removed: [],
+    alarmsCreated: [],
+    updateChecks: 0,
+    cleared: [],
+    queried: [],
+    reloaded: [],
+  };
   const listeners = {};
   let nextTab = 100;
   const chrome = {
@@ -47,6 +57,11 @@ async function load({
         return { id: nextTab++ };
       },
       remove: async (id) => calls.removed.push(id),
+      query: async (filter) => {
+        calls.queried.push(filter);
+        return openTabs;
+      },
+      reload: async (id) => calls.reloaded.push(id),
     },
     browsingData: {
       remove: async (options, types) => {
@@ -341,6 +356,32 @@ describe('what the extension does when Geminarr asks', () => {
       [{ url: `${ORIGIN}/app`, active: false }],
       'a round follows, to see what the page shows',
     );
+  });
+
+  it('loads again the tabs of the assistant that a person has open, once the cookies are gone', async () => {
+    const { calls, listeners } = await load({
+      answer: answering({ open: [], round: false, signOut: true }),
+      openTabs: [{ id: 7 }, { id: 8 }],
+    });
+
+    listeners.alarm({ name: 'hello' });
+    await flush();
+
+    assert.deepEqual(plain(calls.queried), [{ url: `${ORIGIN}/*` }]);
+    assert.deepEqual(plain(calls.reloaded), [7, 8], 'they showed the account that was signed in');
+  });
+
+  it('does not reload anything when the browser refuses to delete the cookies', async () => {
+    const { calls, listeners } = await load({
+      answer: answering({ open: [], round: false, signOut: true }),
+      openTabs: [{ id: 7 }],
+    });
+    calls.refuse = true;
+
+    listeners.alarm({ name: 'hello' });
+    await flush();
+
+    assert.deepEqual(plain(calls.reloaded), []);
   });
 
   it('does not sign out without an address and a token', async () => {
