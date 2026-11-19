@@ -50,3 +50,18 @@ The first real sign-in (the maintainer's, on the sandbox) showed that the policy
 | `www.google.com/recaptcha`, `www.gstatic.com/recaptcha`, `www.recaptcha.net` | What that check loads. |
 
 Nothing else: the policy still blocks every other address, and the browser still holds only the dedicated account.
+
+## Amendment, 2026-11-19: a conversation is read whole, in a window of its own, and without what the page says to a screen reader
+
+Comparing what Mnemarr held with the conversations of the assistant, one by one, on the real account, showed two defects of the reader, both found by a person and not by a test:
+
+- **Conversations without their beginning.** The assistant keeps in the page only the turns near the screen and brings the older ones in as the conversation is scrolled up, and it does so only for a page that is *shown*: a page of a tab in the background is not. The extension read what the page showed when it had loaded, so a conversation came with its last two turns only (a conversation of four turns, and another of four, were both sent as two). Sent like that, the turns would also have been at the wrong positions in Mnemarr, whose positions count lines from the beginning.
+- **A turn that began with "You said" and was said twice.** The page puts a label and a summary of the message, for a screen reader only, in the element of the turn; the text of the element took them.
+
+What the reader does now:
+
+1. **A conversation is read in a window of its own, not focused** (`chrome.windows.create`, `focused: false`), closed once read. The list is still read in a tab that is not active; a tab that a person looks at (a sign-in) is never taken for a read. The window is the only place where the extension shows something on the browser's desktop, for the seconds that a conversation takes; no new permission is needed.
+2. **It is read from its end to its beginning**, a window of the page at a time (each step a share of the height of the screen, so that the windows overlap), and joined by the turns that two windows have in common. It is handed over only once the top has stayed the top for a few looks; a conversation whose beginning cannot be reached is given up (`giveup`), never sent in part. A tab lives five minutes at most (it was three).
+3. **What the page says to a screen reader only is left out** of the text of a turn (the elements marked `visually-hidden` or `sr-only`).
+
+Consequence to know: reading a very long conversation takes as many steps as it has screens (200 at most); a longer one is not handed over until a later version raises the bound or reads it by another way.

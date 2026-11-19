@@ -18,6 +18,12 @@ const MAX_SCROLLS = 30;
 // The most conversations that Geminarr takes in one list.
 const MAX_ITEMS = 500;
 const STABLE_ROUNDS = 6;
+// A conversation is read from its end to its beginning, a window at a time: each step is this share of the height of the screen (the windows overlap), the page gets this long to show what it brings in, and the top must stay
+// the top for a few looks. A conversation that takes more steps than this is not handed over (a tab of a hidden page may wait a second at each step).
+const CHAT_STEP = 0.7;
+const CHAT_SCROLL_MS = 300;
+const CHAT_STEADY_LOOKS = 3;
+const MAX_CHAT_STEPS = 200;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
 // The page takes time to say who is signed in: it is asked about for up to 30 seconds, and a sign-in link must have been there for 5 before it is believed.
@@ -91,13 +97,76 @@ async function readList() {
   });
 }
 
+// What the page says to a screen reader only (the label "You said", a summary of the message): it is not what was said, and it would come first in the text of a turn.
+const SCREEN_READER_ONLY = /visually-hidden|sr-only/;
+
+/** The text of an element as a person sees it: what the page shows to a screen reader only is left out (it is hidden for the length of the read, and shown again). */
+function visibleText(element) {
+  const hidden = [...element.querySelectorAll('*')].filter((node) =>
+    SCREEN_READER_ONLY.test(node.getAttribute('class') ?? ''),
+  );
+  const before = hidden.map((node) => node.style.display);
+  for (const node of hidden) node.style.setProperty('display', 'none');
+  try {
+    return element.innerText.trim();
+  } finally {
+    hidden.forEach((node, index) => node.style.setProperty('display', before[index]));
+  }
+}
+
 function readTurns() {
   return [...document.querySelectorAll(SELECTORS.turn)]
     .map((element) => ({
       role: element.tagName === 'USER-QUERY' ? 'user' : 'assistant',
-      text: (element.querySelector(SELECTORS.turnText) ?? element).innerText.trim(),
+      text: visibleText(element.querySelector(SELECTORS.turnText) ?? element),
     }))
     .filter((turn) => turn.text);
+}
+
+const sameTurn = (a, b) => a.role === b.role && a.text === b.text;
+
+/** The turns that the page showed earlier in the conversation, put before the ones that were already read: the two windows overlap by the turns that both showed. */
+function joinEarlier(earlier, later) {
+  const most = Math.min(earlier.length, later.length);
+  for (let overlap = most; overlap > 0; overlap--) {
+    if (earlier.slice(-overlap).every((turn, index) => sameTurn(turn, later[index])))
+      return [...earlier.slice(0, -overlap), ...later];
+  }
+  return [...earlier, ...later];
+}
+
+/** The element that scrolls the conversation: the first ancestor of a turn that has more to show than its height. */
+function chatScroller() {
+  for (let node = document.querySelector(SELECTORS.turn)?.parentElement; node; node = node.parentElement) {
+    if (
+      node.scrollHeight > node.clientHeight + 1 &&
+      /auto|scroll/.test(document.defaultView.getComputedStyle(node).overflowY)
+    )
+      return node;
+  }
+  return null;
+}
+
+/**
+ * The page keeps in the document only the turns near the screen, and brings the older ones in as the conversation is scrolled up: what is shown when the page has loaded is the end of the conversation.
+ * The whole of it is read from the end to the beginning, a window at a time (each overlapping the last), and handed over only once the beginning was reached: a conversation without its beginning would put
+ * turns at the wrong positions in Mnemarr. Gives nothing (null) when the beginning could not be reached.
+ */
+async function readWholeConversation() {
+  let turns = readTurns();
+  const scroller = chatScroller();
+  if (!scroller) return turns;
+  let steady = 0;
+  for (let step = 0; step < MAX_CHAT_STEPS; step++) {
+    const height = scroller.scrollHeight;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop - Math.floor(scroller.clientHeight * CHAT_STEP));
+    await wait(CHAT_SCROLL_MS);
+    turns = joinEarlier(readTurns(), turns);
+    // At the top, older turns may still come in: the end is a top that stays the top for a few looks.
+    steady = scroller.scrollTop === 0 && scroller.scrollHeight === height ? steady + 1 : 0;
+    if (steady >= CHAT_STEADY_LOOKS) return turns;
+  }
+  return null;
 }
 
 // A conversation is read when what it shows has stopped changing: the page fills in as it loads (a partial answer is never handed over).
@@ -110,7 +179,11 @@ async function readConversation(id) {
     const snapshot = JSON.stringify(turns);
     stable = turns.length > 0 && snapshot === last ? stable + 1 : 0;
     last = snapshot;
-    if (stable >= STABLE_ROUNDS) return send({ kind: 'conversation', id, title: document.title, turns });
+    if (stable >= STABLE_ROUNDS) {
+      const whole = await readWholeConversation();
+      // The beginning could not be reached: nothing is handed over, the page is closed, and the next round tries again.
+      return whole ? send({ kind: 'conversation', id, title: document.title, turns: whole }) : send({ kind: 'giveup' });
+    }
   }
   // One that shows nothing is a conversation with nothing to read (or, if several do, a page that changed: Geminarr counts); one that never stops changing is read at the next round, and its page is closed now.
   return send(last === '[]' ? { kind: 'broken', step: 'turns', id } : { kind: 'giveup' });

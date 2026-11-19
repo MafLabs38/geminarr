@@ -20,10 +20,15 @@ const link = (id, title = id) => `<a href="/app/${id}">${title}</a>`;
  */
 async function run(html, path, { onWait = () => {}, rejectSends = false, mine = true } = {}) {
   const dom = new JSDOM(html, { url: `${ORIGIN}${path}` });
-  // jsdom does not implement innerText: what a page shows is its text.
+  // jsdom does not implement innerText: what a page shows is its text, without what is not displayed.
+  function shown(node) {
+    if (node.nodeType === 3) return node.textContent;
+    if (node.nodeType !== 1 || node.style.display === 'none') return '';
+    return [...node.childNodes].map(shown).join('');
+  }
   Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
     get() {
-      return this.textContent;
+      return shown(this);
     },
   });
   const sent = [];
@@ -240,6 +245,78 @@ describe('the page of a conversation', () => {
         ],
       },
     ]);
+  });
+
+  it('leaves out what the page says to a screen reader only, and puts back what it hid', async () => {
+    const page =
+      '<user-query><user-query-content><span class="cdk-visually-hidden">You said</span><p>Hello there</p></user-query-content></user-query>' +
+      '<model-response><message-content>Hi</message-content></model-response>';
+    const { sent } = await run(page, '/app/c1a2b3');
+
+    assert.deepEqual(sent[0].turns, [
+      { role: 'user', text: 'Hello there' },
+      { role: 'assistant', text: 'Hi' },
+    ]);
+  });
+
+  describe('a conversation that the page keeps only in part', () => {
+    const all = Array.from({ length: 6 }, (_, i) => [i % 2 === 0 ? 'user' : 'assistant', `Turn ${i}`]);
+    const render = (document, first, count) => {
+      document.getElementById('chat').innerHTML = all
+        .slice(first, first + count)
+        .map(([role, text]) =>
+          role === 'user'
+            ? `<user-query><user-query-content>${text}</user-query-content></user-query>`
+            : `<model-response><message-content>${text}</message-content></model-response>`,
+        )
+        .join('');
+    };
+    // A chat of a height of 100 seen through a screen of 40 (so a step of 28), that shows two turns at a time: the turn at the top of the screen is the one of the scroll position.
+    const chat = (document, { canScroll = true } = {}) => {
+      const element = document.getElementById('chat');
+      element.setAttribute('style', 'overflow-y: auto');
+      Object.defineProperty(element, 'scrollHeight', { value: 100 });
+      Object.defineProperty(element, 'clientHeight', { value: 40 });
+      let top = 100;
+      Object.defineProperty(element, 'scrollTop', {
+        get: () => top,
+        set: (value) => {
+          if (canScroll) top = value;
+        },
+      });
+      return () => render(document, Math.min(4, Math.floor(top / 20)), 2);
+    };
+
+    it('reads it from its end to its beginning and hands over every turn once, in order', async () => {
+      let show;
+      const { sent } = await run('<div id="chat"></div>', '/app/c1a2b3', {
+        onWait: (n, document) => {
+          show ??= chat(document);
+          show();
+        },
+      });
+
+      assert.deepEqual(
+        sent[0].turns.map((turn) => turn.text),
+        ['Turn 0', 'Turn 1', 'Turn 2', 'Turn 3', 'Turn 4', 'Turn 5'],
+      );
+      assert.deepEqual(
+        sent[0].turns.map((turn) => turn.role),
+        ['user', 'assistant', 'user', 'assistant', 'user', 'assistant'],
+      );
+    });
+
+    it('hands over nothing, and gives up, when its beginning cannot be reached', async () => {
+      let show;
+      const { sent } = await run('<div id="chat"></div>', '/app/c1a2b3', {
+        onWait: (n, document) => {
+          show ??= chat(document, { canScroll: false });
+          show();
+        },
+      });
+
+      assert.deepEqual(sent, [{ kind: 'giveup' }]);
+    });
   });
 
   it('says which conversation shows no turn at all, and leaves it to Geminarr to tell a page that changed from a conversation with nothing to read', async () => {

@@ -66,6 +66,13 @@ async function load({
       },
       reload: async (id) => calls.reloaded.push(id),
     },
+    windows: {
+      create: async (options) => {
+        if (failToOpen) throw new Error('refused');
+        calls.created.push(options);
+        return { tabs: [{ id: nextTab++ }] };
+      },
+    },
     browsingData: {
       remove: async (options, types) => {
         if (calls.refuse) throw new Error('refused');
@@ -215,6 +222,27 @@ describe('what the extension opens and closes', () => {
     assert.equal(pauses.length, 2, 'one pause between two pages, none before the first');
   });
 
+  it('reads a conversation in a window of its own that is not focused, and the list in a tab that is not active', async () => {
+    const { calls, listeners, session } = await load({
+      answer: () => ({ ok: true, json: async () => ({ open: ['abc'] }) }),
+    });
+    listeners.startup();
+    await flush();
+    calls.created.length = 0;
+
+    listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    for (let turn = 0; turn < 5; turn++) await flush();
+
+    const [conversation] = plain(calls.created);
+    assert.equal(conversation.url, `${ORIGIN}/app/abc`);
+    assert.equal(conversation.focused, false);
+    assert.equal(conversation.active, undefined, 'a window, not a tab that a person is looking at');
+    assert.ok(
+      [...session.keys()].some((key) => key.startsWith('workTab:')),
+      'it is one of the pages of this extension itself, read and closed',
+    );
+  });
+
   it('opens nothing, and still closes its page, when the answer asks for nothing', async () => {
     const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({}) }) });
     listeners.startup();
@@ -294,9 +322,9 @@ describe('what the extension opens and closes', () => {
     assert.deepEqual(calls.removed, []);
   });
 
-  it('closes a page that has not answered in three minutes, and keeps the others', async () => {
+  it('closes a page that has not answered in five minutes, and keeps the others', async () => {
     const { calls, listeners, session } = await load();
-    session.set('workTab:7', Date.now() - 4 * 60 * 1000);
+    session.set('workTab:7', Date.now() - 6 * 60 * 1000);
     session.set('workTab:8', Date.now() - 1000);
     session.set('somethingElse', 0);
 
