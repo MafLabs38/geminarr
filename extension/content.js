@@ -195,9 +195,9 @@ async function handOver(id) {
     }
   }
 
-  // From where the end was read, so that nothing is read twice; the beginning could not be reached: nothing is handed over, the page is closed, and the next round tries again.
+  // From where the end was read, so that nothing is read twice; the beginning could not be reached: nothing is handed over, and Geminarr is told (it marks the conversation and does not ask again for some hours).
   const whole = read?.top ? read : await readFromEnd({ have: read?.turns ?? null });
-  return whole ? send({ kind: 'conversation', id, title, turns: whole.turns }) : send({ kind: 'giveup' });
+  return whole ? send({ kind: 'conversation', id, title, turns: whole.turns }) : send({ kind: 'unfinished', id });
 }
 
 // A conversation is read when what it shows has stopped changing: the page fills in as it loads (a partial answer is never handed over).
@@ -216,10 +216,25 @@ async function readConversation(id) {
   return send(last === '[]' ? { kind: 'broken', step: 'turns', id } : { kind: 'giveup' });
 }
 
+/**
+ * A page of this extension takes no input: whatever window it is in and whichever window has the focus, what a person types, pastes or drops goes nowhere. The extension never submits a prompt (rule 4), and a person at
+ * the desktop (signing in) must not be able to write one by accident into a conversation that is being read. The prompt box is also let go of.
+ */
+function refuseInput() {
+  const swallow = (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  for (const type of ['keydown', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'drop', 'compositionstart'])
+    document.addEventListener(type, swallow, true);
+  document.activeElement?.blur?.();
+}
+
 // Only the pages that the worker opened are read: a page that a person opened is theirs, and is neither scrolled nor read.
 async function start() {
   const mine = await chrome.runtime.sendMessage({ kind: 'mine?' }).catch(() => false);
   if (!mine) return;
+  refuseInput();
   const conversation = ID_IN_LINK.exec(location.pathname);
   if (conversation) await readConversation(conversation[1]);
   else if (location.pathname === '/app') await readList();

@@ -114,6 +114,8 @@ const en = {
   ConversationStateSynced: 'Up to date',
   ConversationStateGone: 'Gone',
   ConversationStateError: 'Error',
+  ConversationUnfinished:
+    'Could not be read to its beginning (it is very long, or the page stopped following): it is tried again in a few hours.',
   BackfillTitle: 'The history',
   BackfillOff:
     'Reading the history is switched off (GEMINARR__READER__BACKFILLPERPASS is 0): only the latest conversations are read.',

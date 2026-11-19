@@ -398,6 +398,16 @@ describe('a conversation that Geminarr holds whole', () => {
     assert.deepEqual(plain(refusal), { taken: false });
   });
 
+  it('hands over no end for a page of its own that was not marked to read the end of its conversation', async () => {
+    const { calls, listeners } = await listed(() => ({}));
+    const before = calls.fetch.length;
+
+    assert.deepEqual(plain(await ask(listeners, 'part', { id: 102 }, { id: 'def', title: 'T', turns })), {
+      taken: false,
+    });
+    assert.equal(calls.fetch.length, before);
+  });
+
   it('hands over nothing for a page that is not its own', async () => {
     const { calls, listeners } = await listed(() => ({}));
     const before = calls.fetch.length;

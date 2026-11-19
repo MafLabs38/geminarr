@@ -24,6 +24,12 @@
   font-size: var(--fontSizeMeta);
 }
 
+.note {
+  margin: 4px 0 0;
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+}
+
 .scroll {
   overflow-x: auto;
 }

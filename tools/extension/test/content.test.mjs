@@ -68,7 +68,7 @@ async function run(
   vm.runInContext(SOURCE, context); // NOSONAR
   await flush();
   // What the script built lives in another realm: a plain copy is what is compared.
-  return { sent: JSON.parse(JSON.stringify(sent)), waits };
+  return { sent: JSON.parse(JSON.stringify(sent)), waits, dom };
 }
 
 describe('which pages are read', () => {
@@ -256,6 +256,31 @@ describe('the page of a conversation', () => {
     ]);
   });
 
+  describe('input', () => {
+    const page =
+      '<div id="prompt" contenteditable="true"></div><user-query><user-query-content>Hi</user-query-content></user-query>';
+    const typeInto = (dom) => {
+      const prompt = dom.window.document.getElementById('prompt');
+      let reached = false;
+      prompt.addEventListener('keydown', () => (reached = true));
+      const event = new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      prompt.dispatchEvent(event);
+      return { prevented: event.defaultPrevented, reached };
+    };
+
+    it('is taken by no page that it reads: what a person types goes nowhere, and no prompt can be submitted', async () => {
+      const { dom } = await run(page, '/app/c1a2b3');
+
+      assert.deepEqual(typeInto(dom), { prevented: true, reached: false });
+    });
+
+    it('is left to a page that a person opened', async () => {
+      const { dom } = await run(page, '/app/c1a2b3', { mine: false });
+
+      assert.deepEqual(typeInto(dom), { prevented: false, reached: true });
+    });
+  });
+
   it('leaves out what the page says to a screen reader only, and puts back what it hid', async () => {
     const page =
       '<user-query><user-query-content><span class="cdk-visually-hidden">You said</span><p>Hello there</p></user-query-content></user-query>' +
@@ -379,7 +404,7 @@ describe('the page of a conversation', () => {
       it('gives up when the page does not follow the scroll', async () => {
         const { sent } = await readIt(60, { probe: true, canScroll: false });
 
-        assert.deepEqual(sent, [{ kind: 'giveup' }]);
+        assert.deepEqual(sent, [{ kind: 'unfinished', id: 'c1a2b3' }]);
       });
     });
 
@@ -395,7 +420,7 @@ describe('the page of a conversation', () => {
     it('hands over nothing, and gives up, when the page does not follow the scroll', async () => {
       const { sent } = await readIt(6, { canScroll: false });
 
-      assert.deepEqual(sent, [{ kind: 'giveup' }]);
+      assert.deepEqual(sent, [{ kind: 'unfinished', id: 'c1a2b3' }]);
     });
   });
 

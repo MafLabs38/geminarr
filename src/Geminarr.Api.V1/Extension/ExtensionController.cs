@@ -77,7 +77,7 @@ public sealed partial class ExtensionController : ControllerBase
         }
 
         // The kind is one of five words of ours or nothing: what the content said is not repeated.
-        LogRefusedContent(request?.Kind is "state" or "list" or "conversation" or "broken" or "hello" or "page" or "listen" ? request.Kind : "unknown");
+        LogRefusedContent(request?.Kind is "state" or "list" or "conversation" or "broken" or "unfinished" or "hello" or "page" or "listen" ? request.Kind : "unknown");
         return Problem(statusCode: StatusCodes.Status400BadRequest, title: result.Problem);
     }
 }

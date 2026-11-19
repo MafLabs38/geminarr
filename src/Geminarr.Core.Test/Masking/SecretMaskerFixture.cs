@@ -41,6 +41,16 @@ public sealed partial class SecretMaskerFixture
         SecretMasker.Mask(Expand(sample.GetProperty("input").GetString()!)).Should().Be(Expand(sample.GetProperty("expected").GetString()!));
     }
 
+    [Theory]
+    [MemberData(nameof(Names))]
+    public void should_give_the_same_text_when_it_masks_what_it_has_already_masked_for_every_shared_sample(string name)
+    {
+        var sample = Samples().EnumerateArray().Single(candidate => candidate.GetProperty("name").GetString() == name);
+        var once = SecretMasker.Mask(Expand(sample.GetProperty("input").GetString()!));
+
+        SecretMasker.Mask(once).Should().Be(once);
+    }
+
     [Fact]
     public void should_give_the_same_text_when_it_masks_a_text_that_it_has_masked()
     {

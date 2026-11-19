@@ -76,6 +76,12 @@ async function isWorkTab(tabId) {
   return workTabKey(tabId) in (await chrome.storage.session.get(workTabKey(tabId)));
 }
 
+async function isProbeTab(tabId) {
+  return (
+    (await isWorkTab(tabId)) && Boolean((await chrome.storage.session.get(probeTabKey(tabId)))[probeTabKey(tabId)])
+  );
+}
+
 async function openInBackground(path) {
   const tab = await chrome.tabs.create({ url: `${ORIGIN}${path}`, active: false });
   await chrome.storage.session.set({ [workTabKey(tab.id)]: Date.now() });
@@ -236,7 +242,8 @@ async function startedBeforeSignOut(tabId) {
 /** The end of a conversation, handed over by a page of this extension: whether Geminarr took it (it joins what it holds). Nothing of a page that was read before the sign-out is handed over. */
 async function part(message, sender) {
   try {
-    if (!sender.tab || !(await isWorkTab(sender.tab.id)) || (await startedBeforeSignOut(sender.tab.id)))
+    // Only a page that was marked to read the end of its conversation may hand it over as an end (the mark and the permission are one check).
+    if (!sender.tab || !(await isProbeTab(sender.tab.id)) || (await startedBeforeSignOut(sender.tab.id)))
       return { taken: false };
     const answer = await push({
       kind: 'conversation',
@@ -288,10 +295,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
   // A page of a conversation that Geminarr holds whole asks whether it may read the end only.
   if (message.kind === 'probe?') {
-    void (async () =>
-      Boolean((await chrome.storage.session.get(probeTabKey(sender.tab?.id)))[probeTabKey(sender.tab?.id)]))().then(
-      respond,
-    );
+    void isProbeTab(sender.tab?.id).then(respond);
     return true;
   }
 

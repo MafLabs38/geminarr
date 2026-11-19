@@ -16,6 +16,9 @@ public sealed partial class ExtensionService
 
     /// <summary>The most conversations that one answer asks the extension to open: the extension opens no more (`MAX_TABS_PER_ANSWER`), so what is asked past it would be lost. The recent ones come first, the backfill takes what is left.</summary>
     public const int MaxOpenPerAnswer = 25;
+
+    /// <summary>What <c>last_error</c> of a conversation says when it could not be read to its beginning.</summary>
+    public const string UnfinishedReason = "unfinished-read";
     public const int MaxTitleLength = 300;
     public const int MaxTurns = 2_000;
     public const int MaxTurnLength = 200_000;
@@ -112,6 +115,7 @@ public sealed partial class ExtensionService
                 "list" => List(request, version),
                 "conversation" => Conversation(request, version),
                 "broken" => Broken(request, version),
+                "unfinished" => Unfinished(request),
                 "hello" => Hello(pageLoaded: false),
                 "page" => Hello(pageLoaded: true),
                 _ => ExtensionPushResult.Refused("Unknown kind."),
@@ -149,6 +153,26 @@ public sealed partial class ExtensionService
             _trigger.Request();
         }
 
+        return ExtensionPushResult.Ok();
+    }
+
+    /// <summary>
+    /// The extension could not read a conversation to its beginning (it is too long for the time of a read, or the page stopped following the scroll): the conversation is marked in error, with a reason of ours that the page of the
+    /// conversations shows, and it is not asked for again for a few hours: a failure that is a state, not a window opened at every round for nothing (ADR 0025).
+    /// </summary>
+    private ExtensionPushResult Unfinished(ExtensionPushRequest request)
+    {
+        if (!IsId(request.Id) || !_inbox.WasAsked(request.Id!))
+        {
+            return ExtensionPushResult.Refused("Geminarr did not ask for that conversation.");
+        }
+
+        var now = _clock.GetUtcNow();
+        _inbox.RecordUnfinished(request.Id!, now);
+        var known = _conversations.Get(request.Id!);
+        _conversations.Save(known is null
+            ? new ConversationRecord(request.Id!, null, now, now, null, null, 0, 0, null, 0, ConversationSources.Web, ConversationStates.Error, UnfinishedReason)
+            : known with { State = ConversationStates.Error, LastError = UnfinishedReason, LastSeenAt = now });
         return ExtensionPushResult.Ok();
     }
 
@@ -227,14 +251,14 @@ public sealed partial class ExtensionService
         // What is asked for is chosen among the conversations that a pass looks at (`MaxListed`), never deeper: the past is the backfill's.
         var wanted = headers
             .Take(disconnected ? 0 : _reader.Value.MaxListed)
-            .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
+            .Where(header => !_inbox.Has(header.Id) && !_inbox.IsUnreadable(header) && !_inbox.IsUnfinished(header.Id, _clock.GetUtcNow()) && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id)))
             .Take(_reader.Value.MaxOpenPerPass)
             .Select(header => header.Id)
             .ToList();
         // The history is walked slowly (SPEC §6.3): a few conversations that were never seen, below the ones that a pass looks at. Once they are all known nothing more is asked, so no flag says that it is done.
         if (!disconnected)
         {
-            wanted.AddRange(ConversationSelection.ToBackfill(headers, _reader.Value, id => _conversations.Get(id) is not null, header => _inbox.Has(header.Id) || _inbox.IsUnreadable(header)).Select(header => header.Id));
+            wanted.AddRange(ConversationSelection.ToBackfill(headers, _reader.Value, id => _conversations.Get(id) is not null, header => _inbox.Has(header.Id) || _inbox.IsUnreadable(header) || _inbox.IsUnfinished(header.Id, _clock.GetUtcNow())).Select(header => header.Id));
         }
 
         wanted = [.. wanted.Take(MaxOpenPerAnswer)];

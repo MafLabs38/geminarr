@@ -155,6 +155,52 @@ public sealed class ExtensionServiceFixture : IDisposable
         _inbox.Take("c1")!.First.Should().Be(2);
     }
 
+    private static ExtensionPushRequest Unfinished(string id) => new("unfinished", null, id, null, null, null, "1.0.0");
+
+    [Fact]
+    public void should_mark_a_conversation_that_could_not_be_read_to_its_beginning_and_not_ask_for_it_again_for_some_hours()
+    {
+        AskFor("c0");
+
+        Subject().Handle(Unfinished("c0")).Accepted.Should().BeTrue();
+
+        var record = _conversations.Get("c0")!;
+        (record.State, record.LastError).Should().Be((ConversationStates.Error, ExtensionService.UnfinishedReason));
+        Subject().Handle(ListOf(Item("c0"), Item("c1"))).Open.Should().Equal("c1");
+        _clock.Advance(ExtensionInbox.UnfinishedFor + TimeSpan.FromMinutes(1));
+        Subject().Handle(ListOf(Item("c0"), Item("c1"))).Open.Should().Equal("c0", "c1");
+    }
+
+    [Fact]
+    public void should_keep_what_it_holds_of_a_conversation_that_could_not_be_read_whole_again_and_say_only_that_it_is_in_error()
+    {
+        Holds("c0", 5, "a", "b", "c", "d", "e");
+        AskFor("c0");
+
+        Subject().Handle(Unfinished("c0"));
+
+        var record = _conversations.Get("c0")!;
+        (record.TurnsKnown, record.TurnsSent, record.State).Should().Be((5, 5, ConversationStates.Error));
+    }
+
+    [Fact]
+    public void should_refuse_that_a_conversation_it_did_not_ask_for_could_not_be_read()
+    {
+        Subject().Handle(Unfinished("c0")).Accepted.Should().BeFalse();
+        _conversations.Get("c0").Should().BeNull();
+    }
+
+    [Fact]
+    public void should_forget_that_a_conversation_could_not_be_read_once_it_has_been_read()
+    {
+        _inbox.RecordUnfinished("c0", _clock.GetUtcNow());
+        _inbox.IsUnfinished("c0", _clock.GetUtcNow()).Should().BeTrue();
+
+        _inbox.RecordConversation("c0", "T", [new Turn("user", null, "hi")], _clock.GetUtcNow());
+
+        _inbox.IsUnfinished("c0", _clock.GetUtcNow()).Should().BeFalse();
+    }
+
     [Fact]
     public void should_ask_for_the_whole_conversation_when_the_end_does_not_join_what_was_sent()
     {
