@@ -43,13 +43,13 @@ export default function LiveUpdates() {
       .build();
 
     connection.on('changed', (topic: string) => {
-      void invalidateTopic(queryClient, topic);
+      invalidateTopic(queryClient, topic).catch(() => undefined);
     });
     connection.onreconnecting(() => liveStatus.set('reconnecting'));
     connection.onreconnected(() => {
       liveStatus.set('live');
       // What changed while the channel was down was not announced: everything is read again.
-      void queryClient.invalidateQueries();
+      queryClient.invalidateQueries().catch(() => undefined);
     });
     connection.onclose(() => {
       if (!stopped) {
@@ -68,7 +68,7 @@ export default function LiveUpdates() {
         if (!stopped) {
           liveStatus.set('live');
           // Between the first read and the opening of the channel, something may have changed.
-          void queryClient.invalidateQueries();
+          queryClient.invalidateQueries().catch(() => undefined);
         }
       } catch {
         if (!stopped) {
