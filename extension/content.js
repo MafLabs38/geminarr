@@ -19,11 +19,12 @@ const MAX_SCROLLS = 30;
 const MAX_ITEMS = 500;
 const STABLE_ROUNDS = 6;
 // A conversation is read from its end to its beginning, a window at a time: each step is this share of the height of the screen (the windows overlap), the page gets this long to show what it brings in, and the top must stay
-// the top for a few looks. A conversation that takes more steps than this is not handed over (a tab of a hidden page may wait a second at each step).
+// the top for a few looks. There is no bound on the length of a conversation, which is only text: a read is bounded by its time (the tab lives five minutes), and by a page that stops answering the scroll.
 const CHAT_STEP = 0.7;
 const CHAT_SCROLL_MS = 300;
 const CHAT_STEADY_LOOKS = 3;
-const MAX_CHAT_STEPS = 200;
+const CHAT_STUCK_LOOKS = 5;
+const CHAT_READ_MS = 4 * 60 * 1000;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
 // The page takes time to say who is signed in: it is asked about for up to 30 seconds, and a sign-in link must have been there for 5 before it is believed.
@@ -150,21 +151,27 @@ function chatScroller() {
 /**
  * The page keeps in the document only the turns near the screen, and brings the older ones in as the conversation is scrolled up: what is shown when the page has loaded is the end of the conversation.
  * The whole of it is read from the end to the beginning, a window at a time (each overlapping the last), and handed over only once the beginning was reached: a conversation without its beginning would put
- * turns at the wrong positions in Mnemarr. Gives nothing (null) when the beginning could not be reached.
+ * turns at the wrong positions in Mnemarr. Gives nothing (null) when the beginning could not be reached: the page stopped following the scroll, or the time of the read was over.
  */
 async function readWholeConversation() {
   let turns = readTurns();
   const scroller = chatScroller();
   if (!scroller) return turns;
   let steady = 0;
-  for (let step = 0; step < MAX_CHAT_STEPS; step++) {
+  let stuck = 0;
+  const until = Date.now() + CHAT_READ_MS;
+  while (Date.now() < until) {
     const height = scroller.scrollHeight;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop - Math.floor(scroller.clientHeight * CHAT_STEP));
+    const before = scroller.scrollTop;
+    scroller.scrollTop = Math.max(0, before - Math.floor(scroller.clientHeight * CHAT_STEP));
     await wait(CHAT_SCROLL_MS);
     turns = joinEarlier(readTurns(), turns);
     // At the top, older turns may still come in: the end is a top that stays the top for a few looks.
     steady = scroller.scrollTop === 0 && scroller.scrollHeight === height ? steady + 1 : 0;
     if (steady >= CHAT_STEADY_LOOKS) return turns;
+    // A page that does not follow the scroll (it is not where the position goes up) is not a long conversation: it is given up.
+    stuck = before > 0 && scroller.scrollTop === before ? stuck + 1 : 0;
+    if (stuck >= CHAT_STUCK_LOOKS) return null;
   }
   return null;
 }

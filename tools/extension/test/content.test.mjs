@@ -49,6 +49,7 @@ async function run(html, path, { onWait = () => {}, rejectSends = false, mine = 
     chrome,
     JSON,
     Promise,
+    Date,
     setTimeout: (callback) => {
       onWait(++waits, dom.window.document);
       queueMicrotask(callback);
@@ -260,10 +261,12 @@ describe('the page of a conversation', () => {
   });
 
   describe('a conversation that the page keeps only in part', () => {
-    const all = Array.from({ length: 6 }, (_, i) => [i % 2 === 0 ? 'user' : 'assistant', `Turn ${i}`]);
-    const render = (document, first, count) => {
+    // A chat of a height of 20 per turn seen through a screen of 40 (a step of 28), that shows two turns at a time: the turn at the top of the screen is the one of the scroll position.
+    const conversation = (count) =>
+      Array.from({ length: count }, (_, i) => [i % 2 === 0 ? 'user' : 'assistant', `Turn ${i}`]);
+    const render = (document, all, first) => {
       document.getElementById('chat').innerHTML = all
-        .slice(first, first + count)
+        .slice(first, first + 2)
         .map(([role, text]) =>
           role === 'user'
             ? `<user-query><user-query-content>${text}</user-query-content></user-query>`
@@ -271,30 +274,33 @@ describe('the page of a conversation', () => {
         )
         .join('');
     };
-    // A chat of a height of 100 seen through a screen of 40 (so a step of 28), that shows two turns at a time: the turn at the top of the screen is the one of the scroll position.
-    const chat = (document, { canScroll = true } = {}) => {
+    const chat = (document, count, { canScroll = true } = {}) => {
+      const all = conversation(count);
       const element = document.getElementById('chat');
       element.setAttribute('style', 'overflow-y: auto');
-      Object.defineProperty(element, 'scrollHeight', { value: 100 });
+      Object.defineProperty(element, 'scrollHeight', { value: count * 20 });
       Object.defineProperty(element, 'clientHeight', { value: 40 });
-      let top = 100;
+      let top = count * 20;
       Object.defineProperty(element, 'scrollTop', {
         get: () => top,
         set: (value) => {
           if (canScroll) top = value;
         },
       });
-      return () => render(document, Math.min(4, Math.floor(top / 20)), 2);
+      return () => render(document, all, Math.min(count - 2, Math.floor(top / 20)));
     };
-
-    it('reads it from its end to its beginning and hands over every turn once, in order', async () => {
+    const readIt = async (count, options) => {
       let show;
-      const { sent } = await run('<div id="chat"></div>', '/app/c1a2b3', {
+      return run('<div id="chat"></div>', '/app/c1a2b3', {
         onWait: (n, document) => {
-          show ??= chat(document);
+          show ??= chat(document, count, options);
           show();
         },
       });
+    };
+
+    it('reads it from its end to its beginning and hands over every turn once, in order', async () => {
+      const { sent } = await readIt(6);
 
       assert.deepEqual(
         sent[0].turns.map((turn) => turn.text),
@@ -306,14 +312,16 @@ describe('the page of a conversation', () => {
       );
     });
 
-    it('hands over nothing, and gives up, when its beginning cannot be reached', async () => {
-      let show;
-      const { sent } = await run('<div id="chat"></div>', '/app/c1a2b3', {
-        onWait: (n, document) => {
-          show ??= chat(document, { canScroll: false });
-          show();
-        },
-      });
+    it('reads a very long one whole: its length is not a reason to give it up', async () => {
+      const { sent } = await readIt(1500);
+
+      assert.equal(sent[0].turns.length, 1500);
+      assert.equal(sent[0].turns[0].text, 'Turn 0');
+      assert.equal(sent[0].turns[1499].text, 'Turn 1499');
+    });
+
+    it('hands over nothing, and gives up, when the page does not follow the scroll', async () => {
+      const { sent } = await readIt(6, { canScroll: false });
 
       assert.deepEqual(sent, [{ kind: 'giveup' }]);
     });
