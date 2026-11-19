@@ -504,6 +504,16 @@ describe('what the extension does when Geminarr asks', () => {
     assert.equal(calls.fetch.length, 0);
   });
 
+  it('signs out once when the same order is answered to two requests at once', async () => {
+    const { calls, listeners } = await load({ answer: answering({ open: [], round: false, signOut: true }) });
+
+    listeners.alarm({ name: 'hello' });
+    listeners.alarm({ name: 'hello' });
+    await flush();
+
+    assert.equal(calls.cleared.length, 1);
+  });
+
   it('does not sign out without an address and a token', async () => {
     const { calls, listeners } = await load({
       managed: {},

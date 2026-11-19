@@ -98,7 +98,19 @@ function round() {
  * Signs the account out, when the operator disconnected: the cookies of the browser are cleared (the permission `browsingData` only deletes, it reads nothing), which ends the session of the dedicated account (this
  * browser holds no other), and a round follows to see what the page shows. A sign-out page of the account provider cannot do it: it asks for a click, and this extension clicks nothing.
  */
+// One at a time, decided before the first await: the request that waits and the heartbeat can both be told the same order together.
+let signingOut = false;
 async function signOut() {
+  if (signingOut) return;
+  signingOut = true;
+  try {
+    await doSignOut();
+  } finally {
+    signingOut = false;
+  }
+}
+
+async function doSignOut() {
   if (!(await settings())) return;
   const { [SIGN_OUT_KEY]: last } = await chrome.storage.session.get(SIGN_OUT_KEY);
   if (typeof last === 'number' && Date.now() - last < SIGN_OUT_EVERY_MS) return;
