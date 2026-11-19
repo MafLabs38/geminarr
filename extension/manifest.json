@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Geminarr reader",
+  "version": "0.0.0",
+  "description": "Reads the conversations of the assistant in the browser that a person signed in to, and hands them to Geminarr. It reads and writes nothing else; it deletes the cookies of its browser when the operator disconnects.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "alarms", "browsingData"],
+  "host_permissions": ["__ASSISTANT_ORIGIN__/*"],
+  "storage": { "managed_schema": "schema.json" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["__ASSISTANT_ORIGIN__/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

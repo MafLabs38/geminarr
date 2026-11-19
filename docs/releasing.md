@@ -6,13 +6,13 @@ Geminarr's versions are decided by [semantic-release](https://semantic-release.o
 
 On every push to `main`, after the whole pipeline is green, the `release` job reads the commits since the last `v*` tag:
 
-| Commit | Version |
-|---|---|
-| `feat(…): …` | minor: `0.1.0` → `0.2.0` |
-| `fix(…)`, `perf(…)`, `revert(…)` | patch: `0.1.0` → `0.1.1` |
-| a breaking change (`!` after the type, or a `BREAKING CHANGE:` footer), **of any type** | minor while below 1.0, major from 1.0: a breaking `refactor!:` or `docs!:` must not ride in a patch |
-| `chore(deps)` (a non-development dependency, as Dependabot titles it) | patch: a fixed vulnerability must reach a version. A NuGet bump counts even when only the tests use the package (Dependabot cannot tell) |
-| `chore`, `docs`, `test`, `refactor`, `style`, `build`, `ci`, `chore(deps-dev)` | no release (unless marked breaking, above) |
+| Commit                                                                                  | Version                                                                                                                                  |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `feat(…): …`                                                                            | minor: `0.1.0` → `0.2.0`                                                                                                                 |
+| `fix(…)`, `perf(…)`, `revert(…)`                                                        | patch: `0.1.0` → `0.1.1`                                                                                                                 |
+| a breaking change (`!` after the type, or a `BREAKING CHANGE:` footer), **of any type** | minor while below 1.0, major from 1.0: a breaking `refactor!:` or `docs!:` must not ride in a patch                                      |
+| `chore(deps)` (a non-development dependency, as Dependabot titles it)                   | patch: a fixed vulnerability must reach a version. A NuGet bump counts even when only the tests use the package (Dependabot cannot tell) |
+| `chore`, `docs`, `test`, `refactor`, `style`, `build`, `ci`, `chore(deps-dev)`          | no release (unless marked breaking, above)                                                                                               |
 
 Two consequences of this to know. The title is what counts: git's default `Revert "feat: x"` is not a Conventional Commit (the title check fails it), retitle the pull request `revert: …`. And a bump of a build tool such as `vite` or `typescript` is a development dependency (`chore(deps-dev)`) and releases nothing, although it changes the bundle in the image; a grouped Dependabot pull request that contains a production dependency is titled `chore(deps)` and releases a patch even when most of the group is test-only.
 
@@ -36,21 +36,19 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 
 What the jobs do, by the result of the gates (`release` and `image` are skipped on a pull request):
 
-| Push to | Gates | `release` | `image` |
-|---|---|---|---|
-| `develop` | all passed (Sonar passed or not configured) | skipped | `develop` and `sha-` tags |
-| `develop` | one failed or was cancelled | skipped | skipped |
-| `main` | all passed, Sonar included | runs, tags if a commit deserves it | `main` and `sha-` tags, plus `X.Y.Z` and `latest` after a release |
-| `main` | one failed or was cancelled | skipped | skipped |
-| `main` | Sonar not configured | skipped | skipped: **`main` publishes nothing without Sonar** |
+| Push to   | Gates                                       | `release`                          | `image`                                                           |
+| --------- | ------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `develop` | all passed (Sonar passed or not configured) | skipped                            | `develop` and `sha-` tags                                         |
+| `develop` | one failed or was cancelled                 | skipped                            | skipped                                                           |
+| `main`    | all passed, Sonar included                  | runs, tags if a commit deserves it | `main` and `sha-` tags, plus `X.Y.Z` and `latest` after a release |
+| `main`    | one failed or was cancelled                 | skipped                            | skipped                                                           |
+| `main`    | Sonar not configured                        | skipped                            | skipped: **`main` publishes nothing without Sonar**               |
 
 CodeQL runs in its own workflow and gates the pull request (once it is a required check), not the release.
 
 ## What is published
 
 `ghcr.io/<owner>/geminarr`, for `linux/amd64` and `linux/arm64`. Only an `X.Y.Z` image (and `latest`) carries a meaningful version; the `main`, `develop` and `sha-` images of a push that released nothing show `0.0.0-<branch>.<run>`. Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`. Pull requests publish nothing, and neither does a push whose tests, scans or Sonar analysis failed. The base images of the Dockerfile are pinned by digest, and a release is built without the layer cache.
-
-
 
 ## Following the releases
 

@@ -188,52 +188,6 @@ test.describe('smoke @smoke', () => {
     expect((await request.get(src)).status()).toBe(401);
   });
 
-  test('the overview says nobody has signed in to the browser and that nothing is linked, shows the passes, and runs one on request', async ({
-    page,
-  }) => {
-    await signIn(page);
-
-    const connection = page.getByRole('region', { name: 'Connection' });
-    // Nobody has signed in to the browser: not connected before the first pass, degraded if that pass ran before the browser container was up, and asking for a sign-in once a pass has found nobody signed in.
-    await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
-    await expect(connection.getByText('Not linked')).toBeVisible();
-    // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
-    const passes = page.getByRole('region', { name: 'Latest passes' });
-    await expect(passes.getByText(/turns sent/).first()).toBeVisible({ timeout: 20_000 });
-    // The card holds a few rows only, so a count could not grow: the id of the latest run does.
-    const latestRunId = async (): Promise<number> =>
-      ((await (await page.request.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ?? 0;
-    const before = await latestRunId();
-    await connection.getByRole('button', { name: 'Run now' }).click();
-    await expect(async () => expect(await latestRunId()).toBeGreaterThan(before)).toPass({ timeout: 20_000 });
-    // The health names what is not there yet, with a sentence and no code.
-    const health = page.getByRole('region', { name: 'Health' });
-    await expect(health.getByText(/No Mnemarr is linked: nothing is sent/)).toBeVisible();
-    await expect(health.getByText('Database')).toBeVisible();
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  });
-
-  test('the Mnemarr page asks for an address, keeps it (the browsers share one server), and offers to pair', async ({
-    page,
-  }) => {
-    await signIn(page);
-    try {
-      await page.getByRole('link', { name: 'Mnemarr' }).first().click();
-
-      await expect(page.getByRole('heading', { name: 'Mnemarr', level: 1 })).toBeVisible();
-      await page.getByLabel('Address of Mnemarr').fill('https://mnemarr.homelab.example');
-      await page.getByRole('button', { name: 'Save the address' }).click();
-      await expect(page.getByText('https://mnemarr.homelab.example', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Pair with Mnemarr' })).toBeEnabled();
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-    } finally {
-      // The browsers share one server: the address does not stay for the tests that read "Not linked".
-      expect((await page.request.delete('/api/v1/mnemarr', { headers: { 'X-Geminarr-Request': '1' } })).status()).toBe(
-        204,
-      );
-    }
-  });
-
   test('the Mnemarr page is closed without a sign-in', { tag: '@browserless' }, async ({ request }) => {
     for (const path of ['/api/v1/mnemarr', '/api/v1/mnemarr/pairing', '/api/v1/runs', '/api/v1/connection']) {
       expect((await request.get(path)).status(), path).toBe(401);
@@ -243,16 +197,11 @@ test.describe('smoke @smoke', () => {
 
   test("the Connection page opens the browser's desktop, where a person signs in by hand", async ({
     page,
-    playwright,
-    baseURL,
     browserName,
   }) => {
     // One browser container and one server: the page is walked once, in one browser project.
     test.skip(browserName !== 'chromium', 'one browser container, one server');
     test.setTimeout(120_000);
-    // Another test may have given an address of Mnemarr: a pass would wait for a Mnemarr that is not there, and this test is about the desktop.
-    const api = await signedInRequest(playwright, required(baseURL));
-    expect((await api.delete('/api/v1/mnemarr')).status()).toBe(204);
     await signIn(page);
     await page.getByRole('link', { name: 'Connection' }).first().click();
 
@@ -430,4 +379,55 @@ test.describe('smoke @smoke', () => {
       await signedIn.dispose();
     },
   );
+  // A fresh deployment (no reader, no browser, no Mnemarr): the other instance of the stack, which no journey changes.
+  test.describe('on a fresh deployment', () => {
+    test.use({ baseURL: process.env.GEMINARR_FRESH_URL ?? 'http://localhost:8284' });
+
+    test('the overview of a fresh deployment says that nothing is connected and nothing is linked, shows the passes, and runs one on request', async ({
+      page,
+    }) => {
+      await signIn(page);
+
+      const connection = page.getByRole('region', { name: 'Connection' });
+      // Nothing is read: not connected, and nothing to ask a person to sign in to. (Nobody has signed in to a browser either way: the instance that has one is the other.)
+      await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
+      await expect(connection.getByText('Not linked')).toBeVisible();
+      // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
+      const passes = page.getByRole('region', { name: 'Latest passes' });
+      await expect(passes.getByText(/turns sent/).first()).toBeVisible({ timeout: 20_000 });
+      // The card holds a few rows only, so a count could not grow: the id of the latest run does.
+      const latestRunId = async (): Promise<number> =>
+        ((await (await page.request.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ??
+        0;
+      const before = await latestRunId();
+      await connection.getByRole('button', { name: 'Run now' }).click();
+      await expect(async () => expect(await latestRunId()).toBeGreaterThan(before)).toPass({ timeout: 20_000 });
+      // The health names what is not there yet, with a sentence and no code.
+      const health = page.getByRole('region', { name: 'Health' });
+      await expect(health.getByText(/No Mnemarr is linked: nothing is sent/)).toBeVisible();
+      await expect(health.getByText('Database')).toBeVisible();
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    });
+
+    test('the Mnemarr page asks for an address, keeps it (the browsers share one server), and offers to pair', async ({
+      page,
+    }) => {
+      await signIn(page);
+      try {
+        await page.getByRole('link', { name: 'Mnemarr' }).first().click();
+
+        await expect(page.getByRole('heading', { name: 'Mnemarr', level: 1 })).toBeVisible();
+        await page.getByLabel('Address of Mnemarr').fill('https://mnemarr.homelab.example');
+        await page.getByRole('button', { name: 'Save the address' }).click();
+        await expect(page.getByText('https://mnemarr.homelab.example', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Pair with Mnemarr' })).toBeEnabled();
+        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      } finally {
+        // The browsers share one server: the address does not stay for the tests that read "Not linked".
+        expect(
+          (await page.request.delete('/api/v1/mnemarr', { headers: { 'X-Geminarr-Request': '1' } })).status(),
+        ).toBe(204);
+      }
+    });
+  });
 });

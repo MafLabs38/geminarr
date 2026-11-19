@@ -2,7 +2,7 @@
 
 > A satellite of Mnemarr: brings the conversation history of a web assistant (Gemini) into Mnemarr's memory, in the spirit of the *arr suite.
 
-**Project stage: foundation and operator access.** The architecture and the security model are decided: the decisions are in [docs/SPEC.md](docs/SPEC.md) and [docs/adr/](docs/adr/README.md) (see [docs/VISION.md](docs/VISION.md) for the original need). The foundation (pipeline, quality chain, a walking skeleton) and the operator access (sign-in, a closed API, health, settings) are built, and Mnemarr's side of the contract is delivered ([ROADMAP.md](docs/ROADMAP.md)); **how Gemini can be read from a container is not known yet** and is the object of spike S1 ([docs/ROADMAP.md](docs/ROADMAP.md)): do not design the reader beyond SPEC §6 before it has been answered.
+**Project stage: foundation and operator access.** The architecture and the security model are decided: the decisions are in [docs/SPEC.md](docs/SPEC.md) and [docs/adr/](docs/adr/README.md) (see [docs/VISION.md](docs/VISION.md) for the original need). The foundation (pipeline, quality chain, a walking skeleton) and the operator access (sign-in, a closed API, health, settings) are built, and Mnemarr's side of the contract is delivered ([ROADMAP.md](docs/ROADMAP.md)); **Gemini is read by an extension** in a browser that a person signed in to ([ADR 0022](docs/adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)): Geminarr holds no session, starts no browser and uses no debugging port; do not add one. The browser is a container of its own that a person signs in to by hand, through the desktop that Geminarr relays on its Connection page ([ADR 0016](docs/adr/0016-the-browser-is-a-container-of-its-own.md), [0019](docs/adr/0019-the-desktop-has-an-origin-of-its-own-opened-by-a-ticket.md)); who is signed in, the end of a sign-in and the sign-out are the extension's word and doing.
 
 This file is read automatically by Claude Code. It applies to every task in this repository. It is the same as [Mnemarr's](https://github.com/MafLabs38/mnemarr/blob/develop/CLAUDE.md), adapted: where it differs, it says so.
 
@@ -20,7 +20,7 @@ This file is read automatically by Claude Code. It applies to every task in this
 
 Same as Mnemarr and Portarr, so the products share conventions ([ADR 0002](docs/adr/0002-the-family-stack-and-structure.md)):
 
-- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`. The browser is a container of its own and Geminarr has no debugging port to it (ADR 0021).
+- **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, FluentValidation. Layers: `Geminarr.Core` (no ASP.NET, no browser), `Geminarr.Api.V1`, `Geminarr.Host`, and `extension/` (the reader in the browser, [ADR 0022](docs/adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)). The browser is a container of its own and Geminarr has no debugging port to it (ADR 0021).
 - **Frontend**: React, TypeScript (strict), Vite, TanStack Query, CSS Modules
 - **Tests**: xUnit v3 + NSubstitute + AwesomeAssertions, Vitest + Testing Library, Playwright
 - **CI/CD**: GitHub Actions, single multi-arch container image on GHCR, semantic-release

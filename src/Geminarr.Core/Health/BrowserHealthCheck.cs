@@ -23,28 +23,27 @@ public sealed class BrowserHealthCheck : IHealthCheck
         _exposure = exposure;
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         // Whatever the reader is: a browser container that something else could reach is the most serious state there is (it says nothing when no browser is configured).
         if (_exposure.Check() is { IsExposed: true } exposure)
         {
-            return Task.FromResult(HealthReasons.Degraded(exposure.Reason, exposure.Describe()));
+            return HealthReasons.Degraded(exposure.Reason, exposure.Describe());
         }
 
         if (_reader.Value.Kind != ReaderKind.Web)
         {
-            return Task.FromResult(HealthCheckResult.Healthy());
+            return HealthCheckResult.Healthy();
         }
 
         var state = _browser.State();
         if (!state.Configured)
         {
-            return Task.FromResult(HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__DESKTOPURL)."));
+            return HealthReasons.Degraded(ConnectionReasons.NotConnected, "The reader is the browser but no browser is configured (GEMINARR__BROWSER__DESKTOPURL).");
         }
 
-        return Task.FromResult(
-            state.Reachable == false
-                ? HealthReasons.Degraded(ConnectionReasons.BrowserFailed, "The browser container could not be reached: is it started, and is its desktop address right?")
-                : HealthCheckResult.Healthy());
+        return await _browser.ProbeAsync(cancellationToken)
+            ? HealthCheckResult.Healthy()
+            : HealthReasons.Degraded(ConnectionReasons.BrowserFailed, "The browser container could not be reached: is it started, and is its desktop address right?");
     }
 }

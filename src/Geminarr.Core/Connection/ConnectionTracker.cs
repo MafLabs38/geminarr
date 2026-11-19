@@ -1,3 +1,4 @@
+using Geminarr.Core.Live;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
@@ -14,13 +15,23 @@ public sealed class ConnectionTracker
     private readonly TimeProvider _clock;
     private readonly Lock _gate = new();
     private readonly AsyncLocal<long?> _passEpoch = new();
+    private readonly ILiveNotifier _live;
     private long _epoch;
 
-    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock)
+    public ConnectionTracker(IConnectionStore store, IOptions<ReaderOptions> options, TimeProvider clock, ILiveNotifier? live = null)
     {
         _store = store;
         _options = options;
         _clock = clock;
+        _live = live ?? new NoLiveNotifier();
+    }
+
+    /// <summary>Writes the record and tells the screens that the connection changed (and with it the health, which says it).</summary>
+    private void Persist(ConnectionRecord record)
+    {
+        _store.Save(record);
+        _live.Publish(LiveTopics.Connection);
+        _live.Publish(LiveTopics.Status);
     }
 
     /// <summary>The state as it is now: a read, which writes nothing. A pause whose moment has come has ended by itself, and what is read is what the resume will give; it is written by <see cref="Settle"/> (the passes do) or by the next move.</summary>
@@ -63,20 +74,47 @@ public sealed class ConnectionTracker
     }
 
     /// <summary>No reader is configured, or the pass found no browser configured: nothing is read. A person who is signing in is not interrupted by a pass.</summary>
-    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)));
+    public ConnectionRecord NotConnected() => Atomically(() => WhenNotPaused(() => Move(ConnectionState.NotConnected, _store.Get().LastReason == ConnectionReasons.Disconnected ? ConnectionReasons.Disconnected : ConnectionReasons.NotConnected, failures: 0, ok: false)));
 
-    /// <summary>The operator disconnected: the profile is gone, whatever else was going on.</summary>
+    /// <summary>The operator disconnected: the session is being signed out, whatever else was going on. The record says so (<see cref="ConnectionReasons.Disconnected"/>) until somebody connects again.</summary>
     public ConnectionRecord Disconnected() => Atomically(() =>
     {
         _epoch++;
         var current = _store.Get();
-        var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.NotConnected);
+        var record = new ConnectionRecord(ConnectionState.NotConnected, current.State == ConnectionState.NotConnected ? current.Since : _clock.GetUtcNow(), LastOkAt: null, 0, ConnectionReasons.Disconnected, SignOutPending: true);
         if (record != current)
         {
-            _store.Save(record);
+            Persist(record);
         }
 
         return record;
+    });
+
+    /// <summary>The operator gave a pending sign-out up (by pressing *Sign in*, or *Cancel the sign-out*): the record no longer says that a sign-out is asked or that a disconnect stands, so that a restart does not ask for it again, a pause or not.</summary>
+    public ConnectionRecord GaveUpTheDisconnect() => Atomically(() =>
+    {
+        var current = _store.Get();
+        if (!current.IsDisconnected && !current.SignOutPending)
+        {
+            return current;
+        }
+
+        var record = current with
+        {
+            LastReason = current.LastReason == ConnectionReasons.Disconnected ? ConnectionReasons.NotConnected : current.LastReason,
+            Before = current.Before?.Reason == ConnectionReasons.Disconnected ? current.Before with { Reason = ConnectionReasons.NotConnected } : current.Before,
+            SignOutPending = false,
+        };
+        Persist(record);
+        return record;
+    });
+
+    /// <summary>The extension said that nobody is signed in, or that somebody is: the sign-out that was asked is over and is not asked again after a restart. The disconnect itself stands until somebody signs in.</summary>
+    public ConnectionRecord SignOutSettled(Func<bool> stillPending) => Atomically(() =>
+    {
+        var current = _store.Get();
+        // Asked inside the lock of the connection: a *Disconnect* that came after the confirmation (and before this call) is a sign-out that is asked again, and it stays so.
+        return current.SignOutPending && !stillPending() ? Save(current with { SignOutPending = false }, current) : current;
     });
 
     /// <summary>The session is good and the pass read what it came for.</summary>
@@ -131,8 +169,10 @@ public sealed class ConnectionTracker
             return Build(current, before.State, before.Reason, before.Failures, ok: false);
         }
 
+        // A disconnect that the extension has not confirmed is kept through a pause: a restart after the resume must still ask for the sign-out.
+        var reason = current.Before is { Reason: ConnectionReasons.Disconnected } ? ConnectionReasons.Disconnected : ConnectionReasons.NotConnected;
         return current.Before is { State: ConnectionState.NotConnected } || current.LastOkAt is null
-            ? Build(current, ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)
+            ? Build(current, ConnectionState.NotConnected, reason, failures: 0, ok: false)
             : Build(current, ConnectionState.Connected, reason: null, failures: 0, ok: false);
     }
 
@@ -178,7 +218,7 @@ public sealed class ConnectionTracker
     private ConnectionRecord Build(ConnectionRecord current, ConnectionState state, string? reason, int failures, bool ok, DateTimeOffset? pausedUntil = null, ConnectionBefore? before = null)
     {
         var now = _clock.GetUtcNow();
-        return new ConnectionRecord(state, state == current.State ? current.Since : now, ok ? now : current.LastOkAt, failures, reason, pausedUntil, before);
+        return new ConnectionRecord(state, state == current.State ? current.Since : now, ok ? now : current.LastOkAt, failures, reason, pausedUntil, before, current.SignOutPending);
     }
 
     /// <summary>Writes the record when it differs from <paramref name="current"/>, which the caller has just read under the same lock: a move reads the record once and hands it here.</summary>
@@ -186,7 +226,7 @@ public sealed class ConnectionTracker
     {
         if (next != current)
         {
-            _store.Save(next);
+            Persist(next);
         }
 
         return next;

@@ -6,6 +6,9 @@ import AppRoutes from 'App/AppRoutes';
 import { menuEntries } from 'App/navigation';
 import Page from 'Components/Page/Page';
 
+// The channel that announces changes is tested on its own: here a page is shown, not a WebSocket opened.
+vi.mock('Live/LiveUpdates', () => ({ default: () => null }));
+
 const health = {
   status: 'Healthy',
   checks: [{ name: 'data-folder', status: 'Healthy', reason: null, description: null }],

@@ -17,7 +17,8 @@ const en = {
   ConnectionPaused: 'Paused',
   ConnectionSince: 'Since',
   Disconnect: 'Disconnect',
-  DisconnectConfirm: 'Really disconnect? The session is destroyed; you sign in again to read again.',
+  CancelSignOut: 'Cancel the sign-out',
+  DisconnectConfirm: 'Really disconnect? The account is signed out of the browser; you sign in again to read again.',
   DisconnectNow: 'Yes, disconnect',
   NoBrowserNotice: 'No browser reads this Geminarr: set GEMINARR__READER__KIND to Web to sign in to an assistant.',
   PauseHours: 'Pause for {hours} hours',
@@ -35,6 +36,7 @@ const en = {
   ConnectionNotConnected: 'Not connected',
   SignInInTheBrowser:
     'Sign in by hand, in the page of the browser container: Geminarr never types a credential. This page notices by itself when you are done, and then shows the account.',
+  SignedInAs: 'Signed in as {who}',
   SignedInUnknownAccount: 'Signed in (the account is not read yet)',
   NotSignedIn: 'Not signed in',
   SessionEnded: 'The session has ended: sign in again',
@@ -43,6 +45,10 @@ const en = {
   DesktopNeedsHttps:
     "The browser's desktop works over HTTPS only (its video needs a secure page), so it cannot be shown on this address.",
   OpenThisPageOverHttps: 'Open this page over HTTPS',
+  SigningOutNow: 'Signing out of the browser… (waiting for its extension)',
+  SigningInNow: 'Signing in…',
+  SigningInHint:
+    'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',
   SignInDedicated: 'Use the dedicated account, never your main one.',
   BrowserPageNotGiven: 'No browser desktop is given to relay (GEMINARR__BROWSER__DESKTOPURL).',
   ConnectionConnected: 'Connected',
@@ -114,6 +120,7 @@ const en = {
   ReasonMnemarrUnreachable: 'Mnemarr does not answer: what waits is kept and goes when it does.',
   ReasonNeedsLogin: 'The session has expired: sign in again.',
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
+  ReasonDisconnected: 'Disconnected: the account is signed out of the browser. Sign in again when you want it read.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',
   ReasonBrowserFailed:
     'The browser container does not answer: check that it runs and that its desktop address is the one Geminarr is given.',
@@ -121,6 +128,8 @@ const en = {
     'A port of the browser container listens off the loopback: its desktop is closed until it is fixed (see the runbook).',
   ReasonEgressUnguarded:
     "Geminarr's own egress is not limited (the egress guard is missing): its desktop is closed and nothing is read until it is back (see the runbook).",
+  ReasonExtensionSilent:
+    "The browser's extension has not said anything for a while: check that the browser runs and reaches Geminarr.",
   ReasonReaderBroken: "The assistant's page is no longer what the reader knows.",
   ReasonUnreachable: 'The assistant could not be reached: Geminarr tries again.',
   ReasonPaused: 'Reading is paused: nothing is read until the pause ends or you resume.',

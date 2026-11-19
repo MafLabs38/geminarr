@@ -1,6 +1,4 @@
 using Geminarr.Core.Browser;
-using Geminarr.Core.Connection;
-using Geminarr.Core.Pipeline;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -37,11 +35,11 @@ public sealed class DesktopBrowserHostFixture : IAsyncDisposable
     }
 
     [Fact]
-    public async Task should_say_that_it_checks_nothing_of_the_session_while_the_desktop_answers()
+    public async Task should_say_that_the_desktop_answers()
     {
         var subject = await SubjectAsync("/", redirect: false);
 
-        (await subject.CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser);
+        (await subject.ProbeAsync(TestContext.Current.CancellationToken)).Should().BeTrue();
 
         subject.State().Should().Be(new BrowserState(Configured: true, Reachable: true));
     }
@@ -51,7 +49,7 @@ public sealed class DesktopBrowserHostFixture : IAsyncDisposable
     {
         var subject = await SubjectAsync("/", redirect: true);
 
-        (await subject.CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser);
+        (await subject.ProbeAsync(TestContext.Current.CancellationToken)).Should().BeTrue("an answer is an answer");
 
         _followed.Should().Be(0);
     }
@@ -62,28 +60,19 @@ public sealed class DesktopBrowserHostFixture : IAsyncDisposable
         var subject = await SubjectAsync("/", redirect: false);
         await _desktop!.StopAsync(TestContext.Current.CancellationToken);
 
-        var failure = await Assert.ThrowsAsync<ReaderException>(() => subject.CheckSessionAsync(TestContext.Current.CancellationToken));
+        (await subject.ProbeAsync(TestContext.Current.CancellationToken)).Should().BeFalse();
 
-        failure.Reason.Should().Be(ConnectionReasons.BrowserFailed);
         subject.State().Reachable.Should().BeFalse();
     }
 
     [Fact]
-    public async Task should_refuse_to_disconnect_with_a_sentence_of_ours()
-    {
-        var subject = await SubjectAsync("/", redirect: false);
-
-        await Assert.ThrowsAsync<ConnectionRefusedException>(() => subject.DisconnectAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task should_have_nothing_to_check_without_a_desktop()
+    public async Task should_have_nothing_to_look_at_without_a_desktop()
     {
         var services = new ServiceCollection();
         services.AddHttpClient(nameof(DesktopBrowserHost));
         var subject = new DesktopBrowserHost(Options.Create(new BrowserOptions()), services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>());
 
-        (await subject.CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser);
+        (await subject.ProbeAsync(TestContext.Current.CancellationToken)).Should().BeTrue();
 
         subject.State().Configured.Should().BeFalse();
     }

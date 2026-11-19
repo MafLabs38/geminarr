@@ -16,6 +16,9 @@ const connection: Connection = {
   hasBrowser: false,
   pausedUntil: null,
   hasDesktop: false,
+  account: null,
+  signingIn: false,
+  signOutPending: false,
 };
 const linkedState = {
   url: 'https://mnemarr.homelab.example',
@@ -56,6 +59,26 @@ describe('ConnectionCard', () => {
     expect(await screen.findByText('The session has expired: sign in again.')).toBeInTheDocument();
     expect(await screen.findByText('Linked to mnemarr.homelab.example')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mnemarr' })).toHaveAttribute('href', '/mnemarr');
+  });
+
+  it('says why the browser of the reader is silent, and why the page is no longer the one the reader knows', async () => {
+    for (const [reason, sentence] of [
+      [
+        'extension-silent',
+        "The browser's extension has not said anything for a while: check that the browser runs and reaches Geminarr.",
+      ],
+      ['reader-broken', "The assistant's page is no longer what the reader knows."],
+    ] as const) {
+      serveApi({
+        'GET /connection': () => ({ ...connection, state: 'Degraded', reason }),
+        'GET /mnemarr': () => linkedState,
+        'GET /runs': () => idle,
+      });
+      const view = renderAt(<ConnectionCard />);
+
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it('says it is not linked', async () => {

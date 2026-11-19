@@ -12,7 +12,11 @@ http
       return;
     }
     let answered = false;
-    const socket = net.connect({ host: url.searchParams.get('host'), port: Number(url.searchParams.get('port')), timeout: 3000 });
+    const socket = net.connect({
+      host: url.searchParams.get('host'),
+      port: Number(url.searchParams.get('port')),
+      timeout: 3000,
+    });
     const answer = (open) => {
       if (answered) return;
       answered = true;

@@ -13,7 +13,7 @@ The failure this protocol exists to prevent: push a small change, wait for CI an
 ### 1. Slice (before any code)
 
 - Write the vertical as **one demo sentence**: what the maintainer will be able to do or see. If it needs "and" three times, it is two verticals.
-- List what is **in** and what is **not now**. Anything the demo does not need goes to the *not now* list (it becomes a follow-up, not scope). Adding a feature in response to a review comment is scope creep: it is a new item, not a fix.
+- List what is **in** and what is **not now**. Anything the demo does not need goes to the _not now_ list (it becomes a follow-up, not scope). Adding a feature in response to a review comment is scope creep: it is a new item, not a fix.
 - Prefer a **narrow** vertical (read-only before read-write, one provider before several, one screen before the family).
 
 ### 2. Build in large steps, locally
@@ -39,17 +39,17 @@ The failure this protocol exists to prevent: push a small change, wait for CI an
 
 - Push, open the PR. The CI runs. Do not push "to see what the CI says": that is what step 3 is for.
 - **The reports of the pipeline's review agents (`ai-review.yml`, posted as comments on the PR) are the review. They are always read, in full, and every finding is answered.** They are paid for: skipping them wastes what they cost. A local review (agents run by hand before the push) is welcome, but it **does not replace** the pipeline's: its reports are on the head commit and they are the ones the maintainer sees. Read them, even when your own agents covered the same ground.
-- **Round 1**: the agents of the pipeline run on the head commit. Triage **every finding in the code** before accepting or declining it, and write the answer to each (fixed, declined with the reason, or discussed with the maintainer) in the *Review* section of the PR.
-- **Batch the corrections.** Collect *all* the findings, decide each one, fix them **together** in one change, run the local gates, push **once**. One finding per push is forbidden.
+- **Round 1**: the agents of the pipeline run on the head commit. Triage **every finding in the code** before accepting or declining it, and write the answer to each (fixed, declined with the reason, or discussed with the maintainer) in the _Review_ section of the PR.
+- **Batch the corrections.** Collect _all_ the findings, decide each one, fix them **together** in one change, run the local gates, push **once**. One finding per push is forbidden.
 - **Round 2 (only if round 1 had a blocker, critical or high finding)**: run the agents to confirm the fixes. Otherwise skip it.
-- **At most two rounds.** After that the PR goes to the maintainer with what is still open written in its *Review* section. A finding that appears in round 2 and is not a regression of the fix is a follow-up, not a blocker.
+- **At most two rounds.** After that the PR goes to the maintainer with what is still open written in its _Review_ section. A finding that appears in round 2 and is not a regression of the fix is a follow-up, not a blocker.
 
 ### Never skip, never obey blindly: when it is too much, talk
 
 Critical reading is expected: a finding can be wrong, out of the threat model, or not worth its price, and then it is declined **with the reason written**. What is not allowed is to **ignore** a report. Two cases:
 
 - **The finding is cheap and right**: fix it, in the batch.
-- **There are too many findings, or fixing one means a large change that costs a lot of tokens** (a redesign, a new layer, a rewrite of what was just built): **stop and tell the maintainer** which findings, what each would cost, and what you recommend. Decide together whether to do it or to skip it. The decision is the maintainer's, and it is written in the *Review* section of the PR. Never decide silently, in either direction.
+- **There are too many findings, or fixing one means a large change that costs a lot of tokens** (a redesign, a new layer, a rewrite of what was just built): **stop and tell the maintainer** which findings, what each would cost, and what you recommend. Decide together whether to do it or to skip it. The decision is the maintainer's, and it is written in the _Review_ section of the PR. Never decide silently, in either direction.
 
 ### 6. Merge
 
@@ -57,29 +57,29 @@ Per the rules of the repository (`CLAUDE.md`, the ADR on who merges what). Then 
 
 ## How to triage a finding
 
-Calibrate to the **threat model and the audience**, not to the reviewer's tone. A self-hosted tool whose notes are written by its operator is not exposed to the same risks as a public service; a finding that needs an attacker the product does not have is *declined with the reason written*.
+Calibrate to the **threat model and the audience**, not to the reviewer's tone. A self-hosted tool whose notes are written by its operator is not exposed to the same risks as a public service; a finding that needs an attacker the product does not have is _declined with the reason written_.
 
-| Finding | Action |
-|---|---|
-| Blocker, critical, high; a real bug; a data-loss or secret-leak path | Fix, with a failing test first. Always. |
-| Medium that is a confirmed defect and cheap to fix | Fix in the batch. |
-| Medium that is a hardening beyond the threat model, a refactor, or a preference | Decline with the reason, or record as a follow-up. |
-| Minor, nitpick | Fix only if it is free in the batch; otherwise ignore. |
-| "Add feature X", "also handle Y" | Not a finding: it goes to the *not now* list. |
-| Architecture verdict "no" | Blocks. Resolve it, or decide and write why. |
+| Finding                                                                         | Action                                                 |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Blocker, critical, high; a real bug; a data-loss or secret-leak path            | Fix, with a failing test first. Always.                |
+| Medium that is a confirmed defect and cheap to fix                              | Fix in the batch.                                      |
+| Medium that is a hardening beyond the threat model, a refactor, or a preference | Decline with the reason, or record as a follow-up.     |
+| Minor, nitpick                                                                  | Fix only if it is free in the batch; otherwise ignore. |
+| "Add feature X", "also handle Y"                                                | Not a finding: it goes to the _not now_ list.          |
+| Architecture verdict "no"                                                       | Blocks. Resolve it, or decide and write why.           |
 
 The CI gates that **block** (tests, the SonarQube quality gate, CodeQL, dependency and secret scans) are not negotiable and are met in step 3 before the first push. The AI review is advisory.
 
 ## Budget
 
-| Per vertical | Target |
-|---|---|
+| Per vertical         | Target                                                               |
+| -------------------- | -------------------------------------------------------------------- |
 | Pushes to the branch | 3 or fewer (open the PR, one batch of corrections, at most one more) |
-| Review rounds | 2 at most |
-| Local commits | as many as useful |
-| CI waits | one per push, and only after the local gates were green |
+| Review rounds        | 2 at most                                                            |
+| Local commits        | as many as useful                                                    |
+| CI waits             | one per push, and only after the local gates were green              |
 
-If a vertical is heading past this budget, **stop and cut scope** (move the remainder to *not now*) instead of continuing to iterate.
+If a vertical is heading past this budget, **stop and cut scope** (move the remainder to _not now_) instead of continuing to iterate.
 
 ## Anti-patterns
 

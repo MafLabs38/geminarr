@@ -137,41 +137,35 @@ public sealed class FakeKeys : IKeyStore
     }
 }
 
-/// <summary>A browser in memory: what the attachment finds is what the test says.</summary>
+/// <summary>A browser in memory: what the look at its desktop finds is what the test says.</summary>
 public sealed class FakeBrowser : IBrowserHost
 {
     public bool Configured { get; set; } = true;
 
     public bool? Reachable { get; set; }
 
-    public SessionCheck Check { get; set; } = SessionCheck.SignedIn;
-
-    public Exception? FailCheck { get; set; }
-
-    public Exception? FailDisconnect { get; set; }
-
-    public int Checks { get; private set; }
-
-    public int Disconnected { get; private set; }
+    public int Probes { get; private set; }
 
     public BrowserState State() => new(Configured, Reachable);
 
-    public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
+    public Task<bool> ProbeAsync(CancellationToken cancellationToken)
     {
-        Checks++;
-        return FailCheck is not null ? throw FailCheck : Task.FromResult(Check);
-    }
-
-    public Task DisconnectAsync(CancellationToken cancellationToken)
-    {
-        Disconnected++;
-        return FailDisconnect is not null ? throw FailDisconnect : Task.CompletedTask;
+        Probes++;
+        return Task.FromResult(Reachable != false);
     }
 }
 
 /// <summary>The state machine of the connection, built the way the tests need it.</summary>
 public static class Tracking
 {
-    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock) =>
-        new(store, options, clock);
+    public static ConnectionTracker Of(IConnectionStore store, Microsoft.Extensions.Options.IOptions<Geminarr.Core.Pipeline.ReaderOptions> options, TimeProvider clock, Geminarr.Core.Live.ILiveNotifier? live = null) =>
+        new(store, options, clock, live);
+}
+
+/// <summary>What was said to the screens, in order.</summary>
+public sealed class RecordingNotifier : Geminarr.Core.Live.ILiveNotifier
+{
+    public List<string> Topics { get; } = [];
+
+    public void Publish(string topic) => Topics.Add(topic);
 }

@@ -11,8 +11,20 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL, trace: 'on-first-retry' },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: /journey\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
     // Requests that need no browser give the same answer in each: they run once, in the first project.
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, grepInvert: /@browserless/ },
+    {
+      name: 'firefox',
+      testIgnore: /journey\.spec\.ts/,
+      use: { ...devices['Desktop Firefox'] },
+      grepInvert: /@browserless/,
+    },
+    // The journey changes what the fake assistant shows and what the extension reports (signed in, signed out, disconnected): it runs when the other tests have passed, alone.
+    {
+      name: 'journey',
+      testMatch: /journey\.spec\.ts/,
+      dependencies: ['chromium', 'firefox'],
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 });

@@ -1,9 +1,12 @@
 using Geminarr.Api.V1;
 using Geminarr.Core;
 using Geminarr.Core.Access;
+using Geminarr.Core.Extension;
+using Geminarr.Core.Pipeline;
 using Geminarr.Core.SystemInfo;
 using Geminarr.Host.Health;
 using Geminarr.Host.Http;
+using Geminarr.Host.Live;
 using Geminarr.Host.Pipeline;
 using Geminarr.Host.Security;
 using Microsoft.Extensions.Options;
@@ -30,6 +33,10 @@ builder.Services.AddSingleton<Geminarr.Core.Browser.IEgressProbe, Geminarr.Host.
 builder.Services.AddSingleton<Geminarr.Core.Browser.IBrowserExposure, Geminarr.Host.Http.ProcBrowserExposure>();
 builder.Services.AddGeminarrHealthChecks();
 builder.Services.AddHostedService<PassScheduler>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<LiveBroadcaster>();
+builder.Services.AddSingleton<Geminarr.Core.Live.ILiveNotifier>(provider => provider.GetRequiredService<LiveBroadcaster>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<LiveBroadcaster>());
 builder.Services.AddGeminarrSecurity();
 builder.Services.AddGeminarrApiV1();
 builder.Services.AddProblemDetails();
@@ -55,6 +62,13 @@ _ = app.Services.GetRequiredService<ISystemStatusService>();
 if (app.Services.GetRequiredService<IOperatorCredentials>().Status is var operatorStatus and not OperatorStatus.Ready)
 {
     app.Logger.LogWarning("Nobody can sign in ({Status}); everything but the probes stays closed. The reason codes are in docs/runbook.md.", operatorStatus);
+}
+
+// The reader is the extension but nothing it sends can be accepted without a token: the log says why, since the extension is only ever "silent" from the outside.
+if (app.Services.GetRequiredService<IOptions<ReaderOptions>>().Value.Kind == ReaderKind.Web
+    && app.Services.GetRequiredService<IExtensionToken>().Status is var tokenStatus and not ExtensionTokenStatus.Ready)
+{
+    app.Logger.LogWarning("The extension cannot be heard ({Status}): set GEMINARR__EXTENSION__TOKENFILE to a file with a token of at least {Length} characters.", tokenStatus, ExtensionToken.MinLength);
 }
 
 // A lightened guard is said at each start (ADR 0018): a deployment copied from a sandbox must not run like it without a trace.
@@ -91,11 +105,13 @@ app.UseExceptionHandler();
 app.UseGeminarrDesktopOrigin();
 app.UseGeminarrSecurityHeaders();
 app.UseMiddleware<AllowedHostsMiddleware>();
+app.UseMiddleware<ExtensionCorsMiddleware>();
 app.UseStatusCodePages();
 app.UseGeminarrFrontendFiles();
 app.UseRouting();
 app.UseGeminarrSecurity();
 app.MapControllers();
+app.MapHub<LiveHub>(LiveHub.Path);
 // The description of the API is behind the sign-in like the rest (the fallback policy).
 app.MapOpenApi();
 app.MapGeminarrHealthChecks();

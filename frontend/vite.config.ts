@@ -13,6 +13,7 @@ const aliases = [
   'Connection',
   'Helpers',
   'Identity',
+  'Live',
   'Login',
   'Mnemarr',
   'Overview',

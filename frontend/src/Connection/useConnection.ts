@@ -19,6 +19,12 @@ export interface Connection {
   pausedUntil: string | null;
   /** A desktop of the browser is there, where a person signs in by hand (ADR 0017, 0019): it is opened by an address that is asked for, not a path of this page. */
   hasDesktop: boolean;
+  /** Who the browser is signed in as (an address, and a name when the assistant's page gives one), or null when nobody is or when no check has found out yet. */
+  account: { name: string | null; email: string } | null;
+  /** A person is signing in right now: a tab of the browser is on the sign-in page of the account provider. */
+  signingIn: boolean;
+  /** The operator disconnected and the extension has not yet said that nobody is signed in (the browser may be off). */
+  signOutPending: boolean;
 }
 
 export const CONNECTION_REFRESH_MS = 15_000;
@@ -52,6 +58,11 @@ export function useResume() {
 /** The address to open the desktop of the browser by: an origin of its own, with a ticket that is worth one opening (ADR 0019). */
 export function useOpenDesktop() {
   return useMutation({ mutationFn: () => apiSend<{ url: string }>('POST', `${connectionPath}/desktop`) });
+}
+
+/** Gives up a sign-out that the extension has not confirmed. */
+export function useCancelDisconnect() {
+  return useWrite(() => apiSend<Connection>('POST', `${connectionPath}/disconnect/cancel`));
 }
 
 export function useDisconnect() {

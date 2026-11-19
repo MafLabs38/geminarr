@@ -34,8 +34,8 @@ public sealed class SchemaFixture : IDisposable
     {
         using (var connection = _workspace.Database.Open())
         {
-            // A database as the first step left it: the columns of the second are not there yet.
-            foreach (var column in new[] { "paused_until", "before_state", "before_reason", "before_failures" })
+            // A database as the first step left it: the columns of the next ones are not there yet.
+            foreach (var column in new[] { "sign_out_pending", "paused_until", "before_state", "before_reason", "before_failures" })
             {
                 Run(connection, $"ALTER TABLE connection DROP COLUMN {column};");
             }
@@ -48,10 +48,10 @@ public sealed class SchemaFixture : IDisposable
 
         Schema.CurrentVersion(upgraded).Should().Be(Schema.Version);
         using var command = upgraded.CreateCommand();
-        command.CommandText = "SELECT state, consecutive_failures, paused_until, before_state FROM connection WHERE id = 1;";
+        command.CommandText = "SELECT state, consecutive_failures, paused_until, before_state, sign_out_pending FROM connection WHERE id = 1;";
         using var reader = command.ExecuteReader();
         reader.Read().Should().BeTrue();
-        (reader.GetString(0), reader.GetInt32(1), reader.IsDBNull(2), reader.IsDBNull(3)).Should().Be(("NeedsLogin", 2, true, true));
+        (reader.GetString(0), reader.GetInt32(1), reader.IsDBNull(2), reader.IsDBNull(3), reader.GetInt32(4)).Should().Be(("NeedsLogin", 2, true, true, 0));
     }
 
     private static void Run(SqliteConnection connection, string sql)
