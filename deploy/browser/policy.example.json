@@ -22,5 +22,14 @@
   "DeveloperToolsAvailability": 2,
   "RemoteDebuggingAllowed": false,
   "URLBlocklist": ["*"],
-  "URLAllowlist": ["https://gemini.google.com", "https://accounts.google.com"]
+  "URLAllowlist": [
+    "https://gemini.google.com",
+    "https://accounts.google.com",
+    "https://accounts.google.de",
+    "https://accounts.google.fr",
+    "https://www.google.com/sorry",
+    "https://www.google.com/recaptcha",
+    "https://www.gstatic.com/recaptcha",
+    "https://www.recaptcha.net"
+  ]
 }
