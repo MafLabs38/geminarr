@@ -132,4 +132,24 @@ public sealed class ExtensionReaderFixture
 
         (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent);
     }
+
+    [Fact]
+    public async Task should_say_unreachable_after_a_restart_when_only_hellos_come_for_longer_than_the_delay()
+    {
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+        _clock.Advance(TimeSpan.FromMinutes(30));
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+        (await ReasonOf()).Should().Be(ConnectionReasons.ExtensionSilent, "the delay is not over");
+
+        _clock.Advance(TimeSpan.FromMinutes(20));
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+
+        (await ReasonOf()).Should().Be(ConnectionReasons.Unreachable, "the extension is there and has said nothing of the page since the start: a block, not a browser to restart");
+    }
+
+    private async Task<string> ReasonOf()
+    {
+        var check = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
+        return (await check.Should().ThrowAsync<ReaderException>()).Which.Reason;
+    }
 }

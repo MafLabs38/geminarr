@@ -58,15 +58,16 @@ internal sealed class ExtensionIntents
 
     /// <summary>
     /// What the extension is asked when it says that it is there: a round now (it was asked for, it has never been asked and nothing is known yet: after a restart, what it said last and what it was last asked are both older than the interval of the rounds, or a person is signing in and
-    /// what it said last is old) and the sign-out. A round is asked at most once in an interval whatever the page answers: when the assistant's page does not answer (a block, an outage) the extension must not be sent to
+    /// what it said last is old, none of them while the reading is paused) and the sign-out. A round is asked at most once in an interval whatever the page answers: when the assistant's page does not answer (a block, an outage) the extension must not be sent to
     /// it again at every heartbeat. A round that the operator asked for is asked once, at once.
     /// </summary>
-    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery)
+    public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery, bool paused = false)
     {
         var sinceAsked = _lastRoundAsked is { } asked ? now - asked : TimeSpan.MaxValue;
         var sinceSaid = session is null ? TimeSpan.MaxValue : now - session.At;
-        var due = sinceSaid >= roundEvery && sinceAsked >= roundEvery;
-        var signingIn = SigningIn(now, session) && sinceSaid >= SigningInRoundEvery && sinceAsked >= SigningInRoundEvery;
+        // While the operator has paused the reading (or a block paused it), the page of the assistant is visited for nobody but the operator who asks for a round.
+        var due = !paused && sinceSaid >= roundEvery && sinceAsked >= roundEvery;
+        var signingIn = !paused && SigningIn(now, session) && sinceSaid >= SigningInRoundEvery && sinceAsked >= SigningInRoundEvery;
         var round = _roundAsked || due || signingIn;
         _roundAsked = false;
         if (round)

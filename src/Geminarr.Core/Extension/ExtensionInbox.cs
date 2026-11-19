@@ -41,6 +41,8 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private DateTimeOffset? _lastHello;
+    private DateTimeOffset? _firstHello;
+    private readonly Func<bool> _isPaused = static () => false;
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
@@ -50,10 +52,16 @@ public sealed class ExtensionInbox
     {
     }
 
-    /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
-    public static ExtensionInbox Restored(ConnectionRecord record)
+    /// <summary>An inbox that asks the connection whether the reading is paused (by the operator, or by a block): no round is asked of the extension then, so that the page of the assistant is not visited for nobody.</summary>
+    public ExtensionInbox(Func<bool> isPaused) : this(MaxHeldCharacters)
     {
-        var inbox = new ExtensionInbox();
+        _isPaused = isPaused;
+    }
+
+    /// <summary>The inbox of a Geminarr that starts: a disconnect that the extension had not confirmed when it stopped (the record says so) is asked again.</summary>
+    public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null)
+    {
+        var inbox = new ExtensionInbox(isPaused ?? (static () => false));
         if (record.LastReason == ConnectionReasons.Disconnected)
         {
             inbox.RequestSignOut();
@@ -75,6 +83,18 @@ public sealed class ExtensionInbox
             lock (_gate)
             {
                 return _lastHello;
+            }
+        }
+    }
+
+    /// <summary>The first time that the extension said that it is there since this start: the silence about a page that was never heard is measured from it.</summary>
+    public DateTimeOffset? FirstHello
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _firstHello;
             }
         }
     }
@@ -288,10 +308,13 @@ public sealed class ExtensionInbox
     /// <summary>What the extension is asked when it says that it is there: a round now, and the sign-out (see <see cref="ExtensionIntents.TakeHints"/>).</summary>
     public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, TimeSpan roundEvery)
     {
+        // Asked before the lock: the connection has a lock of its own.
+        var paused = _isPaused();
         lock (_gate)
         {
             _lastHello = now;
-            return _intents.TakeHints(now, _session, roundEvery);
+            _firstHello ??= now;
+            return _intents.TakeHints(now, _session, roundEvery, paused);
         }
     }
 

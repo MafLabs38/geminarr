@@ -30,16 +30,12 @@ public sealed class ExtensionReader : IConversationReader
         var session = _inbox.Session;
         var silentAfter = TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes);
         var now = _clock.GetUtcNow();
-        // Nothing known yet (a restart) is a reader that cannot say: the browser is off or cannot reach Geminarr, and the next hello says which.
-        if (session is null)
-        {
-            throw new ReaderException(ConnectionReasons.ExtensionSilent, SilentSentence);
-        }
-
-        if (now - session.At > silentAfter)
+        // After a restart nothing is known of the page: the silence is measured from the first hello, and a browser that has not said that it is there is silent at once.
+        var lastWord = session?.At ?? _inbox.FirstHello;
+        if (session is null || now - session.At > silentAfter)
         {
             // The extension is there (it says so every half minute) but says nothing of the page: the assistant does not answer (a block, an outage). Restarting the browser would only visit the page again, so this is told apart from a browser that does not speak.
-            if (_inbox.LastHello is { } hello && now - hello <= silentAfter)
+            if (lastWord is { } word && now - word > silentAfter && _inbox.LastHello is { } hello && now - hello <= silentAfter)
             {
                 throw new ReaderException(ConnectionReasons.Unreachable, "The extension is there but the assistant's page has not answered for a while (a block or an outage): wait, do not restart the browser.");
             }

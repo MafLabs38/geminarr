@@ -1,3 +1,4 @@
+using Geminarr.Core.Connection;
 using Geminarr.Core.Extension;
 using Geminarr.Core.Pipeline;
 using Geminarr.Core.Test.Access;
@@ -10,15 +11,18 @@ public sealed class ExtensionServiceFixture : IDisposable
 {
     private readonly TestDatabase _workspace = new();
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 18, 9, 0, 0, TimeSpan.Zero));
-    private readonly ExtensionInbox _inbox = new();
+    private readonly ExtensionInbox _inbox;
     private readonly PassTrigger _trigger = new();
     private readonly ConversationStore _conversations;
     private readonly OutboxStore _outbox;
+    private readonly ConnectionTracker _connection;
 
     public ExtensionServiceFixture()
     {
         _conversations = new ConversationStore(_workspace.Database);
         _outbox = new OutboxStore(_workspace.Database);
+        _connection = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions()), _clock);
+        _inbox = new ExtensionInbox(() => _connection.Current().State == ConnectionState.Paused);
     }
 
     public void Dispose()
@@ -485,6 +489,27 @@ public sealed class ExtensionServiceFixture : IDisposable
 
         _inbox.RequestSignOut();
         subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).SignOut.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_ask_no_round_of_the_extension_while_the_reading_is_paused_but_still_ask_the_sign_out_and_a_round_the_operator_asked()
+    {
+        var subject = Subject();
+        _connection.Paused(until: null);
+
+        subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).Round.Should().BeFalse("the page of the assistant is not visited for nobody while the reading is paused");
+        _inbox.BeginSigningIn(_clock.GetUtcNow());
+        subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).Round.Should().BeFalse("not even for a sign-in");
+
+        _inbox.RequestRound();
+        _inbox.RequestSignOut();
+        var asked = subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0"));
+        asked.Round.Should().BeTrue("the operator asked for this one");
+        asked.SignOut.Should().BeTrue();
+
+        _connection.Resumed();
+        _clock.Advance(TimeSpan.FromMinutes(16));
+        subject.Handle(new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0")).Round.Should().BeTrue("the interval is over and the reading is back");
     }
 
     [Fact]
