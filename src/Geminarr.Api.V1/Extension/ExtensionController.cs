@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Geminarr.Api.V1.Extension;
 
 /// <summary>What Geminarr answers to a push that it took: the conversations of the list that it wants read now, and whether it asks for a round of reading now or for the account to be signed out (ADR 0022).</summary>
-public sealed record ExtensionPushResponse(IReadOnlyList<string> Open, bool Round, bool SignOut);
+public sealed record ExtensionPushResponse(IReadOnlyList<string> Open, bool Round, bool SignOut, IReadOnlyList<string> Anchored, bool More);
 
 /// <summary>
 /// The door of the extension that reads the assistant in the browser container (ADR 0022). It is not the operator's: the extension has no session, it presents a token that it was given by the policy of
@@ -36,6 +36,20 @@ public sealed partial class ExtensionController : ControllerBase
     [LoggerMessage(Level = LogLevel.Warning, Message = "The page of the assistant is not what the extension knows (step: {Step}).")]
     private partial void LogBroken(string step);
 
+    // How a conversation was read, in one of three words of ours: the whole of it, its end only (it joined what Geminarr holds), or an end that did not join (the whole is asked for next). Never what it said.
+    [LoggerMessage(Level = LogLevel.Information, Message = "A conversation was read ({How}).")]
+    private partial void LogConversation(string how);
+
+    private static string HowRead(ExtensionPushRequest request, ExtensionPushResult result)
+    {
+        if (result.More)
+        {
+            return "end-does-not-join";
+        }
+
+        return request.Complete == false ? "end" : "whole";
+    }
+
     /// <summary>What the extension read: that nobody is signed in, the list of conversations, one conversation, or that the page is not what it knows.</summary>
     [HttpPost(ExtensionRoutes.Push)]
     [AllowAnonymous]
@@ -54,7 +68,12 @@ public sealed partial class ExtensionController : ControllerBase
                 LogBroken(step);
             }
 
-            return Ok(new ExtensionPushResponse(result.Open, result.Round, result.SignOut));
+            if (request is { Kind: "conversation" })
+            {
+                LogConversation(HowRead(request, result));
+            }
+
+            return Ok(new ExtensionPushResponse(result.Open, result.Round, result.SignOut, result.Anchored ?? [], result.More));
         }
 
         // The kind is one of five words of ours or nothing: what the content said is not repeated.

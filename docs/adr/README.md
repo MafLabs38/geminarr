@@ -29,6 +29,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0022](0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)             | The reader is an extension in the browser that a person signed in to                                              | D-30                              |
 | [0023](0023-what-changes-is-pushed-to-the-screens-as-it-changes.md)                          | What changes is pushed to the screens as it changes                                                  | D-31                              |
 | [0024](0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md)                 | The history is walked slowly, and its end is told by the list                                        | D-32                              |
+| [0025](0025-a-conversation-is-read-from-its-end-as-far-as-geminarr-needs.md)                 | A conversation is read from its end, as far back as Geminarr needs                                   | D-33                              |
 
 ## Template
 

@@ -83,7 +83,7 @@ public sealed class DemoReader : IConversationReader
         return Task.FromResult<IReadOnlyList<ConversationHeader>>(headers);
     }
 
-    public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken)
+    public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken)
     {
         var topic = Enumerable.Range(0, Topics.Length).FirstOrDefault(candidate => IdOf(candidate) == id, -1);
         if (topic < 0)
@@ -100,7 +100,7 @@ public sealed class DemoReader : IConversationReader
                 Epoch.AddMinutes(index),
                 index < sentences.Length ? sentences[index] : $"{sentences[index % sentences.Length]} (follow-up {index / sentences.Length + 1})")),
         ];
-        return Task.FromResult(turns);
+        return Task.FromResult(new ConversationContent(turns));
     }
 
     private static string IdOf(int topic) => $"demo-c{topic + 1}a2b3c4d5e6";

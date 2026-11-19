@@ -180,7 +180,23 @@ public sealed class ExtensionApiFixture
 
         var conversation = await client.SendAsync(Push(new { kind = "conversation", id = "c1", title = "One", turns = new[] { new { role = "user", text = "hi" }, new { role = "assistant", text = "hello" } } }), CancellationToken);
         conversation.StatusCode.Should().Be(HttpStatusCode.OK);
-        factory.Services.GetRequiredService<ExtensionInbox>().Take("c1")!.Select(turn => (turn.Role, turn.Text)).Should().Equal(("user", "hi"), ("assistant", "hello"));
+        factory.Services.GetRequiredService<ExtensionInbox>().Take("c1")!.Turns.Select(turn => (turn.Role, turn.Text)).Should().Equal(("user", "hi"), ("assistant", "hello"));
+    }
+
+    [Fact]
+    public async Task should_answer_that_it_wants_the_whole_conversation_when_the_end_that_it_is_given_joins_nothing_it_holds()
+    {
+        using var factory = new ExtensionFactory();
+        using var client = factory.CreateClient();
+        await client.SendAsync(Push(new { kind = "list", items = new[] { new { id = "c1", title = "One" } } }), CancellationToken);
+
+        var end = await client.SendAsync(Push(new { kind = "conversation", id = "c1", title = "One", complete = false, turns = new[] { new { role = "user", text = "hi" }, new { role = "assistant", text = "hello" } } }), CancellationToken);
+
+        end.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answer = (await end.Content.ReadFromJsonAsync<ExtensionPushResponse>(CancellationToken))!;
+        answer.More.Should().BeTrue();
+        answer.Anchored.Should().BeEmpty();
+        factory.Services.GetRequiredService<ExtensionInbox>().Take("c1").Should().BeNull("an end that does not join is not kept");
     }
 
     [Fact]

@@ -77,6 +77,10 @@ public static class Schema
         """
         ALTER TABLE connection ADD COLUMN sign_out_pending INTEGER NOT NULL DEFAULT 0;
         """,
+        // 4: the anchor of a conversation, a hash of its last turns: what a reading of its end must find again to join what was already sent (ADR 0024's follow-up, ADR 0025).
+        """
+        ALTER TABLE conversations ADD COLUMN anchor TEXT;
+        """,
     ];
 
     /// <summary>The version this code writes: the number of its steps.</summary>

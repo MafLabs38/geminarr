@@ -239,7 +239,8 @@ public sealed partial class ExtensionService
 
         wanted = [.. wanted.Take(MaxOpenPerAnswer)];
         _inbox.Ask(wanted, _clock.GetUtcNow());
-        return ExtensionPushResult.Ok(wanted);
+        // A conversation that Geminarr holds whole (everything it knows was sent, nothing waits) can be read from its end: the extension may stop when it finds again what Geminarr has (ADR 0025).
+        return ExtensionPushResult.Ok(wanted, [.. wanted.Where(id => CanBeReadFromItsEnd(_conversations.Get(id), waiting.Contains(id)))]);
     }
 
     private ExtensionPushResult Conversation(ExtensionPushRequest request, string? version)
@@ -278,11 +279,36 @@ public sealed partial class ExtensionService
             turns.Add(new Turn(turn.Role, null, SecretMasker.Mask(turn.Text)));
         }
 
-        _inbox.RecordConversation(request.Id!, Title(request.Title), turns, _clock.GetUtcNow(), version);
+        // The end of the conversation only (`complete: false`): it is taken if it joins what Geminarr holds, and the whole conversation is asked for if it does not.
+        var first = request.Complete == false ? FirstTurnOfItsEnd(request.Id!, turns) : 0;
+        if (first < 0)
+        {
+            return ExtensionPushResult.NeedsMore();
+        }
+
+        _inbox.RecordConversation(request.Id!, Title(request.Title), turns, _clock.GetUtcNow(), version, first);
         // The pass takes it from here, without waiting for its hour.
         _trigger.Request();
         return ExtensionPushResult.Ok();
     }
+
+    /// <summary>The position in the conversation of the first turn of an end that was handed over, found by the anchor (the last turns that were sent, which the end must hold again); -1 when it does not join what is held.</summary>
+    private int FirstTurnOfItsEnd(string id, IReadOnlyList<Turn> end)
+    {
+        var known = _conversations.Get(id);
+        if (!CanBeReadFromItsEnd(known, _outbox.ConversationsWaiting().Contains(id)))
+        {
+            return -1;
+        }
+
+        var length = Math.Min(ConversationLines.AnchorTurns, known!.TurnsKnown);
+        var at = ConversationLines.FindAnchor(end, known.Anchor!, length);
+        return at < 0 ? -1 : known.TurnsKnown - length - at;
+    }
+
+    /// <summary>Whether what Geminarr holds of a conversation lets its end be enough: it has an anchor, and all that it knows was sent (a turn that waits for Mnemarr is one that has to be read again).</summary>
+    private static bool CanBeReadFromItsEnd(ConversationRecord? known, bool waiting) =>
+        known is { Anchor: not null, TurnsKnown: > 0 } && known.TurnsSent == known.TurnsKnown && !waiting;
 
     private static string? Title(string? title)
     {

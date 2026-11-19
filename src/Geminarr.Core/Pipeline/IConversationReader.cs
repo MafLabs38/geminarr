@@ -11,5 +11,6 @@ public interface IConversationReader
     /// <summary>The most recent conversations, most recent first, at most <paramref name="limit"/>.</summary>
     Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken);
+    /// <summary>The turns of a conversation: all of them, or its end only when the reader knew what was already held (see <see cref="ConversationContent"/>).</summary>
+    Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken);
 }

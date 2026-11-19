@@ -69,6 +69,6 @@ public sealed class ExtensionReader : IConversationReader
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ConversationHeader>>([.. _inbox.List().Where(header => _inbox.Has(header.Id)).Take(limit)]);
 
-    public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken) =>
-        Task.FromResult(_inbox.Take(id) ?? []);
+    public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken) =>
+        Task.FromResult(_inbox.Take(id) ?? new ConversationContent([]));
 }

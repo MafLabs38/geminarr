@@ -14,7 +14,8 @@ public sealed record ConversationRecord(
     int RewrittenTurns,
     string Source,
     string State,
-    string? LastError);
+    string? LastError,
+    string? Anchor = null);
 
 public static class ConversationStates
 {

@@ -45,7 +45,7 @@ public sealed class ExtensionInboxFixture
         _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi"), new Turn("assistant", null, "hello")], Now);
 
         _subject.Has("c1").Should().BeTrue();
-        _subject.Take("c1")!.Select(turn => turn.Text).Should().Equal("hi", "hello");
+        _subject.Take("c1")!.Turns.Select(turn => turn.Text).Should().Equal("hi", "hello");
         _subject.Has("c1").Should().BeFalse("what was taken is no longer here: Geminarr keeps no second copy of a conversation");
         _subject.Take("c1").Should().BeNull();
     }
@@ -70,7 +70,7 @@ public sealed class ExtensionInboxFixture
         _subject.RecordConversation("c1", "T", [new Turn("user", null, "first")], Now);
         _subject.RecordConversation("c1", "T", [new Turn("user", null, "first"), new Turn("assistant", null, "second")], Now.AddMinutes(1));
 
-        _subject.Take("c1")!.Should().HaveCount(2);
+        _subject.Take("c1")!.Turns.Should().HaveCount(2);
     }
 
     [Fact]

@@ -22,5 +22,5 @@ public sealed class BlockingReader : IConversationReader
 
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
 
-    public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Turn>>([]);
+    public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken) => Task.FromResult(new ConversationContent([]));
 }

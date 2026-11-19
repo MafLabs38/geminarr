@@ -39,7 +39,7 @@ public sealed class ExtensionInbox
 
     private readonly Lock _gate = new();
     private readonly int _maxHeldCharacters;
-    private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At, int First)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private DateTimeOffset? _lastHello;
     private DateTimeOffset? _firstHello;
@@ -435,14 +435,14 @@ public sealed class ExtensionInbox
         }
     }
 
-    public void RecordConversation(string id, string? title, IReadOnlyList<Turn> turns, DateTimeOffset now, string? version = null)
+    public void RecordConversation(string id, string? title, IReadOnlyList<Turn> turns, DateTimeOffset now, string? version = null, int first = 0)
     {
         lock (_gate)
         {
             Purge(now);
             // A conversation was read: the run of unreadable ones starts again, each of them stays marked, and what a broken page held aside is believed if this version read it.
             _unreadable.Read(version);
-            _conversations[id] = (title, turns, now);
+            _conversations[id] = (title, turns, now, first);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             var held = HeldCharacters();
             foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())
@@ -473,13 +473,13 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>The turns of a conversation, which leave the inbox with them; null when the extension has not brought it.</summary>
-    public IReadOnlyList<Turn>? Take(string id)
+    /// <summary>The turns of a conversation (all of them, or its end from where it joins what was sent), which leave the inbox with them; null when the extension has not brought it.</summary>
+    public ConversationContent? Take(string id)
     {
         lock (_gate)
         {
             _asked.Remove(id);
-            return _conversations.Remove(id, out var found) ? found.Turns : null;
+            return _conversations.Remove(id, out var found) ? new ConversationContent(found.Turns, found.First) : null;
         }
     }
 }

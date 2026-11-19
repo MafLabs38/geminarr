@@ -40,7 +40,9 @@ public sealed class SchemaFixture : IDisposable
                 Run(connection, $"ALTER TABLE connection DROP COLUMN {column};");
             }
 
+            Run(connection, "ALTER TABLE conversations DROP COLUMN anchor;");
             Run(connection, "INSERT INTO connection (id, state, since, consecutive_failures, last_reason) VALUES (1, 'NeedsLogin', '2026-11-13T09:00:00.0000000+00:00', 2, 'needs-login');");
+            Run(connection, "INSERT INTO conversations (id, first_seen_at, last_seen_at, source, state) VALUES ('c1', '2026-11-13T09:00:00.0000000+00:00', '2026-11-13T09:00:00.0000000+00:00', 'web', 'synced');");
             Run(connection, "PRAGMA user_version = 1;");
         }
 
@@ -52,6 +54,10 @@ public sealed class SchemaFixture : IDisposable
         using var reader = command.ExecuteReader();
         reader.Read().Should().BeTrue();
         (reader.GetString(0), reader.GetInt32(1), reader.IsDBNull(2), reader.IsDBNull(3), reader.GetInt32(4)).Should().Be(("NeedsLogin", 2, true, true, 0));
+        reader.Close();
+        // A conversation seen before the anchor existed has none: its next reading is a whole one, which gives it one.
+        command.CommandText = "SELECT anchor FROM conversations WHERE id = 'c1';";
+        command.ExecuteScalar().Should().Be(DBNull.Value);
     }
 
     private static void Run(SqliteConnection connection, string sql)

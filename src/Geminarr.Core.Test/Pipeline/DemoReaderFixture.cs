@@ -30,12 +30,12 @@ public sealed class DemoReaderFixture : IDisposable
     {
         var subject = Subject();
         var id = (await subject.ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id;
-        var before = await subject.OpenAsync(id, TestContext.Current.CancellationToken);
+        var before = (await subject.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
 
         for (var step = 0; step < 40; step++)
         {
             _clock.Advance(TimeSpan.FromSeconds(60));
-            var after = await subject.OpenAsync(id, TestContext.Current.CancellationToken);
+            var after = (await subject.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
 
             after.Count.Should().BeGreaterThanOrEqualTo(before.Count);
             after.Take(before.Count).Select(turn => (turn.Role, turn.Text)).Should().Equal(before.Select(turn => (turn.Role, turn.Text)));
@@ -48,12 +48,12 @@ public sealed class DemoReaderFixture : IDisposable
     {
         var first = Subject();
         var id = (await first.ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id;
-        var started = await first.OpenAsync(id, TestContext.Current.CancellationToken);
+        var started = (await first.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
         _clock.Advance(TimeSpan.FromMinutes(5));
-        var later = await first.OpenAsync(id, TestContext.Current.CancellationToken);
+        var later = (await first.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
 
         var restarted = Subject();
-        var afterRestart = await restarted.OpenAsync(id, TestContext.Current.CancellationToken);
+        var afterRestart = (await restarted.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
 
         started.Count.Should().BeLessThan(10);
         later.Count.Should().BeGreaterThan(started.Count);
@@ -66,7 +66,7 @@ public sealed class DemoReaderFixture : IDisposable
     {
         await File.WriteAllTextAsync(Path.Combine(_folder, DemoReader.StartedFile), "not a date", TestContext.Current.CancellationToken);
 
-        var turns = await Subject().OpenAsync((await Subject().ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id, TestContext.Current.CancellationToken);
+        var turns = (await Subject().OpenAsync((await Subject().ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id, TestContext.Current.CancellationToken)).Turns;
 
         turns.Count.Should().BeLessThan(10);
     }
@@ -77,7 +77,7 @@ public sealed class DemoReaderFixture : IDisposable
         var subject = Subject();
         var id = (await subject.ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id;
 
-        var turns = await subject.OpenAsync(id, TestContext.Current.CancellationToken);
+        var turns = (await subject.OpenAsync(id, TestContext.Current.CancellationToken)).Turns;
 
         turns.Select(turn => turn.Role).Take(4).Should().Equal("user", "assistant", "user", "assistant");
         turns.Should().OnlyContain(turn => turn.At != null && turn.Text.Length > 0);
@@ -111,6 +111,6 @@ public sealed class DemoReaderFixture : IDisposable
         var id = (await subject.ListRecentAsync(1, TestContext.Current.CancellationToken))[0].Id;
         _clock.Advance(TimeSpan.FromDays(400));
 
-        (await subject.OpenAsync(id, TestContext.Current.CancellationToken)).Count.Should().BeLessThanOrEqualTo(1000);
+        ((await subject.OpenAsync(id, TestContext.Current.CancellationToken)).Turns).Count.Should().BeLessThanOrEqualTo(1000);
     }
 }

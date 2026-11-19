@@ -25,6 +25,8 @@ const CHAT_SCROLL_MS = 300;
 const CHAT_STEADY_LOOKS = 3;
 const CHAT_STUCK_LOOKS = 5;
 const CHAT_READ_MS = 4 * 60 * 1000;
+// The end of a conversation that is read when Geminarr holds the rest: this many turns, enough for the last three that were sent (the anchor) and the ones that came after.
+const END_TURNS = 10;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
 // The page takes time to say who is signed in: it is asked about for up to 30 seconds, and a sign-in link must have been there for 5 before it is believed.
@@ -150,17 +152,19 @@ function chatScroller() {
 
 /**
  * The page keeps in the document only the turns near the screen, and brings the older ones in as the conversation is scrolled up: what is shown when the page has loaded is the end of the conversation.
- * The whole of it is read from the end to the beginning, a window at a time (each overlapping the last), and handed over only once the beginning was reached: a conversation without its beginning would put
- * turns at the wrong positions in Mnemarr. Gives nothing (null) when the beginning could not be reached: the page stopped following the scroll, or the time of the read was over.
+ * It is read from the end towards the beginning, a window at a time (each overlapping the last). It stops when the beginning was reached (`top`), or as soon as `wanted` turns are held (only the end was asked for).
+ * `have` is what a previous call read (it goes on from there). Gives nothing (null) when the page stopped following the scroll, or the time of the read was over: a conversation that was not read to where it was
+ * asked for is never handed over as if it were whole.
  */
-async function readWholeConversation() {
-  let turns = readTurns();
+async function readFromEnd({ wanted = Infinity, have = null } = {}) {
+  let turns = have ? joinEarlier(readTurns(), have) : readTurns();
   const scroller = chatScroller();
-  if (!scroller) return turns;
+  // Nothing scrolls: what is shown is the whole of the conversation.
+  if (!scroller) return { turns, top: true };
   let steady = 0;
   let stuck = 0;
   const until = Date.now() + CHAT_READ_MS;
-  while (Date.now() < until) {
+  while (turns.length < wanted && Date.now() < until) {
     const height = scroller.scrollHeight;
     const before = scroller.scrollTop;
     scroller.scrollTop = Math.max(0, before - Math.floor(scroller.clientHeight * CHAT_STEP));
@@ -168,12 +172,32 @@ async function readWholeConversation() {
     turns = joinEarlier(readTurns(), turns);
     // At the top, older turns may still come in: the end is a top that stays the top for a few looks.
     steady = scroller.scrollTop === 0 && scroller.scrollHeight === height ? steady + 1 : 0;
-    if (steady >= CHAT_STEADY_LOOKS) return turns;
+    if (steady >= CHAT_STEADY_LOOKS) return { turns, top: true };
     // A page that does not follow the scroll (it is not where the position goes up) is not a long conversation: it is given up.
     stuck = before > 0 && scroller.scrollTop === before ? stuck + 1 : 0;
     if (stuck >= CHAT_STUCK_LOOKS) return null;
   }
-  return null;
+  return turns.length >= wanted ? { turns, top: false } : null;
+}
+
+/**
+ * Hands a conversation over. When Geminarr holds it already, its end is enough: the last turns are sent as a part, and Geminarr says whether they join what it holds (then the page is done) or not (an answer was
+ * regenerated, a turn was removed): then the whole conversation is read and sent. A conversation that Geminarr does not hold is read whole.
+ */
+async function handOver(id) {
+  const title = document.title;
+  let read = null;
+  if (await chrome.runtime.sendMessage({ kind: 'probe?' }).catch(() => false)) {
+    read = await readFromEnd({ wanted: END_TURNS });
+    if (read && !read.top) {
+      const answer = await send({ kind: 'part', id, title, turns: read.turns });
+      if (answer?.taken) return send({ kind: 'done' });
+    }
+  }
+
+  // From where the end was read, so that nothing is read twice; the beginning could not be reached: nothing is handed over, the page is closed, and the next round tries again.
+  const whole = read?.top ? read : await readFromEnd({ have: read?.turns ?? null });
+  return whole ? send({ kind: 'conversation', id, title, turns: whole.turns }) : send({ kind: 'giveup' });
 }
 
 // A conversation is read when what it shows has stopped changing: the page fills in as it loads (a partial answer is never handed over).
@@ -186,11 +210,7 @@ async function readConversation(id) {
     const snapshot = JSON.stringify(turns);
     stable = turns.length > 0 && snapshot === last ? stable + 1 : 0;
     last = snapshot;
-    if (stable >= STABLE_ROUNDS) {
-      const whole = await readWholeConversation();
-      // The beginning could not be reached: nothing is handed over, the page is closed, and the next round tries again.
-      return whole ? send({ kind: 'conversation', id, title: document.title, turns: whole }) : send({ kind: 'giveup' });
-    }
+    if (stable >= STABLE_ROUNDS) return handOver(id);
   }
   // One that shows nothing is a conversation with nothing to read (or, if several do, a page that changed: Geminarr counts); one that never stops changing is read at the next round, and its page is closed now.
   return send(last === '[]' ? { kind: 'broken', step: 'turns', id } : { kind: 'giveup' });

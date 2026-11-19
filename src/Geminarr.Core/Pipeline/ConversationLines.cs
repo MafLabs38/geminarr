@@ -63,6 +63,29 @@ public static class ConversationLines
     /// <summary>A short hash of a turn, to see that a turn that was sent has been rewritten.</summary>
     public static string HashOf(Turn turn) => Hash(turn.Role + "\n" + turn.Text)[..16];
 
+    /// <summary>How many of the last turns of a conversation make its anchor.</summary>
+    public const int AnchorTurns = 3;
+
+    /// <summary>
+    /// A short hash of the last turns of a conversation (at most <see cref="AnchorTurns"/>): what a reading of the end of the conversation must find again to be sure that it joins what was already sent. One turn
+    /// would not do (the same short answer comes back in a conversation); three in a row do.
+    /// </summary>
+    public static string AnchorOf(IEnumerable<Turn> turns) => Hash(string.Join('|', turns.Select(HashOf)))[..16];
+
+    /// <summary>Where the last turns of a conversation that was sent before are in a reading of its end: the index of the first of <paramref name="length"/> turns that make <paramref name="anchor"/>, the latest first; -1 if they are not there.</summary>
+    public static int FindAnchor(IReadOnlyList<Turn> tail, string anchor, int length)
+    {
+        for (var start = tail.Count - length; length > 0 && start >= 0; start--)
+        {
+            if (string.Equals(AnchorOf(tail.Skip(start).Take(length)), anchor, StringComparison.Ordinal))
+            {
+                return start;
+            }
+        }
+
+        return -1;
+    }
+
     /// <summary>Cuts lines into batches Mnemarr takes: at most 500 lines and 3 MB, each with the position of its first line.</summary>
     public static IReadOnlyList<(long From, IReadOnlyList<string> Lines)> Batches(long from, IReadOnlyList<string> lines)
     {
