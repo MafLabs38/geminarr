@@ -112,6 +112,7 @@ public sealed class ExtensionReaderFixture
     [Fact]
     public async Task should_say_unreachable_when_the_extension_is_there_but_says_nothing_of_the_page()
     {
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
         _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
         _clock.Advance(TimeSpan.FromMinutes(46));
         _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
@@ -145,6 +146,42 @@ public sealed class ExtensionReaderFixture
         _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
 
         (await ReasonOf()).Should().Be(ConnectionReasons.Unreachable, "the extension is there and has said nothing of the page since the start: a block, not a browser to restart");
+    }
+
+    [Fact]
+    public async Task should_not_call_the_end_of_a_long_pause_a_block()
+    {
+        var paused = true;
+        var inbox = new ExtensionInbox(() => paused);
+        var subject = new ExtensionReader(inbox, Options.Of(new ExtensionOptions { SilentAfterMinutes = 45 }), _clock);
+        inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        for (var minute = 0; minute < 60; minute++)
+        {
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+        }
+
+        paused = false;
+        (await subject.CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.SignedIn, "no round was asked during the pause: the extension had no chance to answer");
+
+        _clock.Advance(TimeSpan.FromMinutes(46));
+        inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+        var unreachable = () => subject.CheckSessionAsync(TestContext.Current.CancellationToken);
+        (await unreachable.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.Unreachable, "a full delay has passed since the reading is back");
+    }
+
+    [Fact]
+    public async Task should_say_no_browser_for_a_disconnect_that_waits_whatever_the_extension_does_not_say()
+    {
+        _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _inbox.RequestSignOut();
+        _clock.Advance(TimeSpan.FromMinutes(46));
+
+        (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser, "a silent browser is why the sign-out waits: it is not a failure of the reader, and nothing is sent to Mnemarr");
+
+        _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _inbox.RecordBroken("turns", "1.0.0", _clock.GetUtcNow());
+        (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.NoBrowser);
     }
 
     private async Task<string> ReasonOf()

@@ -196,6 +196,20 @@ public sealed class ConnectionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_keep_a_disconnect_that_waits_through_a_pause_and_ask_for_it_after_a_restart_in_the_middle_of_one_or_after_it()
+    {
+        var subject = Subject();
+        subject.Disconnect();
+
+        subject.Pause(null);
+        ExtensionInbox.Restored(subject.Current()).Disconnected.Should().BeTrue("a restart while paused");
+
+        subject.Resume();
+        subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected);
+        ExtensionInbox.Restored(subject.Current()).Disconnected.Should().BeTrue("a restart after the resume");
+    }
+
+    [Fact]
     public void should_forget_in_the_record_a_disconnect_that_the_operator_cancels_and_not_by_opening_the_desktop()
     {
         var subject = Subject();

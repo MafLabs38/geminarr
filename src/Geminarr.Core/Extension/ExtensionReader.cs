@@ -28,14 +28,21 @@ public sealed class ExtensionReader : IConversationReader
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;
+        // The operator disconnected and nobody has signed in since the sign-out was over: whatever the page was last said to show, the session being gone is what was asked for, not a login that expired (and not a mail to Mnemarr).
+        // This comes first: a browser that is off, or a page that is broken, does not turn a sign-out that waits into something else.
+        if (_inbox.Disconnected)
+        {
+            return Task.FromResult(SessionCheck.NoBrowser);
+        }
+
         var silentAfter = TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes);
         var now = _clock.GetUtcNow();
-        // After a restart nothing is known of the page: the silence is measured from the first hello, and a browser that has not said that it is there is silent at once.
-        var lastWord = session?.At ?? _inbox.FirstHello;
-        if (session is null || now - session.At > silentAfter)
+        // The silence about the page starts at the last word, or, when there is none (a restart) or no round was asked of the extension (a pause), when the extension was first heard or last heard while the reading was paused.
+        var since = new[] { session?.At, _inbox.FirstHello, _inbox.LastPausedHello }.Max();
+        if (since is not { } start || now - start > silentAfter)
         {
             // The extension is there (it says so every half minute) but says nothing of the page: the assistant does not answer (a block, an outage). Restarting the browser would only visit the page again, so this is told apart from a browser that does not speak.
-            if (lastWord is { } word && now - word > silentAfter && _inbox.LastHello is { } hello && now - hello <= silentAfter)
+            if (since is not null && _inbox.LastHello is { } hello && now - hello <= silentAfter)
             {
                 throw new ReaderException(ConnectionReasons.Unreachable, "The extension is there but the assistant's page has not answered for a while (a block or an outage): wait, do not restart the browser.");
             }
@@ -43,16 +50,16 @@ public sealed class ExtensionReader : IConversationReader
             throw new ReaderException(ConnectionReasons.ExtensionSilent, SilentSentence);
         }
 
+        if (session is null)
+        {
+            // Heard, but nothing of the page yet: still a reader that cannot say.
+            throw new ReaderException(ConnectionReasons.ExtensionSilent, SilentSentence);
+        }
+
         // A page that is not what the extension knows is not a session that is gone: it is the reader that is broken, said loudly (SPEC §6.4).
         if (session.Broken is { } step)
         {
             throw new ReaderException(ConnectionReasons.ReaderBroken, $"The page of the assistant is not what the extension knows (step: {step}).");
-        }
-
-        // The operator disconnected and nobody has signed in since the sign-out was over: whatever the page was last said to show, the session being gone is what was asked for, not a login that expired (and not a mail to Mnemarr).
-        if (_inbox.Disconnected)
-        {
-            return Task.FromResult(SessionCheck.NoBrowser);
         }
 
         return Task.FromResult(session.SignedIn ? SessionCheck.SignedIn : SessionCheck.SignedOut);

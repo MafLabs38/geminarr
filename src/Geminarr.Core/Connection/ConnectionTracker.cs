@@ -145,8 +145,10 @@ public sealed class ConnectionTracker
             return Build(current, before.State, before.Reason, before.Failures, ok: false);
         }
 
+        // A disconnect that the extension has not confirmed is kept through a pause: a restart after the resume must still ask for the sign-out.
+        var reason = current.Before is { Reason: ConnectionReasons.Disconnected } ? ConnectionReasons.Disconnected : ConnectionReasons.NotConnected;
         return current.Before is { State: ConnectionState.NotConnected } || current.LastOkAt is null
-            ? Build(current, ConnectionState.NotConnected, ConnectionReasons.NotConnected, failures: 0, ok: false)
+            ? Build(current, ConnectionState.NotConnected, reason, failures: 0, ok: false)
             : Build(current, ConnectionState.Connected, reason: null, failures: 0, ok: false);
     }
 

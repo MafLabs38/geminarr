@@ -42,6 +42,7 @@ public sealed class ExtensionInbox
     private ExtensionSession? _session;
     private DateTimeOffset? _lastHello;
     private DateTimeOffset? _firstHello;
+    private DateTimeOffset? _lastPausedHello;
     private readonly Func<bool> _isPaused = static () => false;
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
@@ -62,7 +63,8 @@ public sealed class ExtensionInbox
     public static ExtensionInbox Restored(ConnectionRecord record, Func<bool>? isPaused = null)
     {
         var inbox = new ExtensionInbox(isPaused ?? (static () => false));
-        if (record.LastReason == ConnectionReasons.Disconnected)
+        // A pause keeps what the connection was before it: a sign-out that was not confirmed is still asked for after a restart in the middle of one.
+        if (record.LastReason == ConnectionReasons.Disconnected || record.Before?.Reason == ConnectionReasons.Disconnected)
         {
             inbox.RequestSignOut();
         }
@@ -99,6 +101,18 @@ public sealed class ExtensionInbox
         }
     }
 
+    /// <summary>The last time that the extension said that it is there while the reading was paused: no round was asked of it then, so its silence about the page starts when the pause ends, not before.</summary>
+    public DateTimeOffset? LastPausedHello
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _lastPausedHello;
+            }
+        }
+    }
+
     public ExtensionSession? Session
     {
         get
@@ -124,10 +138,7 @@ public sealed class ExtensionInbox
                 // The sign-out that was asked for is done (or was never needed): nothing is asked of the extension any longer.
                 _intents.SaidSignedOut();
                 // Nobody is signed in: what was read for the account that was is not kept for the next one.
-                _conversations.Clear();
-                _asked.Clear();
-                _unreadable.Clear();
-                _list = [];
+                ForgetWhatWasRead();
             }
         }
     }
@@ -314,6 +325,11 @@ public sealed class ExtensionInbox
         {
             _lastHello = now;
             _firstHello ??= now;
+            if (paused)
+            {
+                _lastPausedHello = now;
+            }
+
             return _intents.TakeHints(now, _session, roundEvery, paused);
         }
     }
