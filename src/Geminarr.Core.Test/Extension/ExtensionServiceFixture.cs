@@ -104,6 +104,26 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_ask_for_no_more_than_the_extension_opens_the_recent_ones_first()
+    {
+        var result = Subject(maxOpen: 30, maxListed: 40, backfill: 20).Handle(ListOfMany(100));
+
+        result.Open.Should().HaveCount(ExtensionService.MaxOpenPerAnswer);
+        result.Open.Take(30).Should().Equal(Enumerable.Range(0, ExtensionService.MaxOpenPerAnswer).Select(index => $"c{index}"), "the recent ones come first, and the backfill takes what is left");
+    }
+
+    [Fact]
+    public void should_forget_that_a_list_ended_when_the_operator_disconnects()
+    {
+        Subject().Handle(ListOfMany(2, complete: true));
+        _inbox.ListWithEnd().Complete.Should().BeTrue();
+
+        _inbox.RequestSignOut();
+
+        _inbox.ListWithEnd().Should().Be(((IReadOnlyList<ConversationHeader>)[], false));
+    }
+
+    [Fact]
     public void should_ask_for_no_older_conversation_when_the_history_is_switched_off()
     {
         Subject(maxOpen: 2, maxListed: 3, backfill: 0).Handle(ListOfMany(12)).Open.Should().Equal("c0", "c1");

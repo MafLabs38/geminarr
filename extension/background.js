@@ -25,6 +25,7 @@ const WORK_TAB_PREFIX = 'workTab:';
 const TAB_LIFETIME_MS = 3 * 60 * 1000;
 // At most this many conversations are opened for one answer, whatever the answer says: a tab is a page of the browser that holds the session.
 // (The recent ones that changed, and the few older ones that the backfill brings, SPEC §6.3.)
+// (The same number as `ExtensionService.MaxOpenPerAnswer`: Geminarr asks for no more.)
 const MAX_TABS_PER_ANSWER = 25;
 // The pages of one answer are opened one after the other, a pause of 1 to 4 seconds between two (SPEC §6.4): a person does not open twenty conversations at the same instant.
 const OPEN_PAUSE_MIN_MS = 1000;

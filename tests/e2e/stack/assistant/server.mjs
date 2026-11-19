@@ -107,6 +107,8 @@ function admin(path, response) {
   if (path === '/admin/history') {
     // The past: older conversations below the ones that a pass looks at, as an account that has been used for a long time has.
     for (let n = 1; n <= 9; n += 1) {
+      // Idempotent: a retry of the test does not add them twice.
+      if (conversations.some((item) => item.id === `a1b2c3d4e5f${n}`)) continue;
       conversations.push({
         id: `a1b2c3d4e5f${n}`,
         title: `An older conversation ${n}`,

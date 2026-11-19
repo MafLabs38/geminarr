@@ -55,6 +55,14 @@ describe('the conversations page', () => {
     expect(screen.getByText('2 of 2 conversations, the latest first.')).toBeInTheDocument();
   });
 
+  it('says that a conversation is gone and that one that was never opened has no date', async () => {
+    serve({ total: 1, conversations: [conversation('gone-1', { state: 'gone', lastOpenedAt: null })] });
+
+    const row = within(await screen.findByRole('table')).getAllByRole('row')[1] as HTMLElement;
+    expect(within(row).getByText('Gone')).toBeInTheDocument();
+    expect(within(row).getByText('—')).toBeInTheDocument();
+  });
+
   it('says that nothing was read yet', async () => {
     serve({ backfill: backfill({ listed: 0, known: 0 }) });
 

@@ -32,6 +32,14 @@ public sealed class OptionsFixture
         result.FailureMessage.Should().Contain($"GEMINARR__READER__{setting.ToUpperInvariant()}");
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(20)]
+    public void should_accept_the_ends_of_the_range_of_the_backfill_and_zero_switches_it_off(int value)
+    {
+        new ReaderOptionsValidator().Validate(null, new ReaderOptions { BackfillPerPass = value }).Succeeded.Should().BeTrue();
+    }
+
     [Fact]
     public void should_refuse_retention_out_of_range()
     {

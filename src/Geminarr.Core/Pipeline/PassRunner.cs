@@ -216,7 +216,7 @@ public sealed class PassRunner
             state.Listed = headers.Count;
             var recent = headers.Where(header => header.Rank < reading.MaxListed).ToList();
             var older = headers.Where(header => header.Rank >= reading.MaxListed).ToList();
-            foreach (var header in Candidates(recent).Take(reading.MaxOpenPerPass).Concat(Backfill(older).Take(reading.BackfillPerPass)))
+            foreach (var header in Candidates(recent).Take(reading.MaxOpenPerPass).Concat(Backfill(older)))
             {
                 Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken));
                 state.Opened++;
@@ -261,7 +261,7 @@ public sealed class PassRunner
 
     /// <summary>The conversations below the ones that a pass looks at that were never seen, in the order of the list: the history is walked from the newest to the oldest, a few at a pass.</summary>
     private IEnumerable<ConversationHeader> Backfill(IReadOnlyList<ConversationHeader> older) =>
-        older.Where(header => _positions is not null && _conversations.Get(header.Id) is null).OrderBy(header => header.Rank);
+        _positions is null ? [] : ConversationSelection.ToBackfill(older.OrderBy(header => header.Rank), _settings.Reading, id => _conversations.Get(id) is not null, _ => false);
 
     /// <summary>A conversation is a candidate when it is new, moved up the list, was renamed, or has turns that nothing is waiting to send (SPEC §6.2); best rank first.</summary>
     private IEnumerable<ConversationHeader> Candidates(IReadOnlyList<ConversationHeader> headers)

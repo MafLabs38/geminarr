@@ -414,6 +414,15 @@ public sealed class ExtensionInbox
         }
     }
 
+    /// <summary>The list and whether it ends there, read together: two reads could describe two lists.</summary>
+    public (IReadOnlyList<ConversationHeader> List, bool Complete) ListWithEnd()
+    {
+        lock (_gate)
+        {
+            return (_list, _listComplete);
+        }
+    }
+
     /// <summary>Whether the page said that its list ends there (it stopped growing when scrolled), and not that the extension stopped scrolling: the end of the backfill is told by this.</summary>
     public bool ListComplete
     {

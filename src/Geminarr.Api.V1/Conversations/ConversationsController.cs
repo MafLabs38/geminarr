@@ -44,9 +44,12 @@ public sealed class ConversationsController : ControllerBase
     /// <summary>The conversations that were seen most recently, and the progress of the backfill.</summary>
     [HttpGet]
     [ProducesResponseType<ConversationsResource>(StatusCodes.Status200OK)]
-    public ConversationsResource Get([FromQuery] int limit = 50) =>
-        new(
+    public ConversationsResource Get([FromQuery] int limit = 50)
+    {
+        var (list, complete) = _inbox.ListWithEnd();
+        return new(
             _conversations.Count(),
             [.. _conversations.Recent(Math.Clamp(limit, 1, MaxLimit)).Select(ConversationResource.From)],
-            BackfillResource.From(BackfillProgress.Of(_inbox.List(), id => _conversations.Get(id) is not null, _reader.Value, _inbox.ListComplete)));
+            BackfillResource.From(BackfillProgress.Of(list, id => _conversations.Get(id) is not null, _reader.Value, complete)));
+    }
 }

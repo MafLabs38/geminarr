@@ -66,8 +66,12 @@ describe('the runs page', () => {
 
   it('asks for a pass now, and reads the passes again', async () => {
     const asked = vi.fn();
+    const reads = vi.fn();
     serveApi({
-      'GET /runs': () => ({ running: false, runs: [run(1)] }),
+      'GET /runs': () => {
+        reads();
+        return { running: false, runs: [run(1)] };
+      },
       'POST /runs': () => {
         asked();
         return {};
@@ -78,6 +82,8 @@ describe('the runs page', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Run now' }));
 
     await waitFor(() => expect(asked).toHaveBeenCalledOnce());
+    // The list is read again after the order: once to show the page, once more for the order.
+    await waitFor(() => expect(reads.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
   it('says it when the passes cannot be read', async () => {

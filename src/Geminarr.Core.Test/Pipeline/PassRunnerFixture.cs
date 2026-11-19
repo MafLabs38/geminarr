@@ -83,6 +83,18 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_not_walk_the_history_while_nothing_is_known_of_what_mnemarr_holds()
+    {
+        SayMany(6);
+        _sink.FailPositions = new SinkException(SinkFailure.Unreachable, "Mnemarr did not answer.");
+
+        await Subject(options: new ReaderOptions { MaxListed = 2, MaxOpenPerPass = 2, BackfillPerPass = 3 }).RunAsync(TestContext.Current.CancellationToken);
+
+        _reader.Opened.Should().BeEmpty("no text is read for a destination that cannot be asked where a conversation stands");
+        _conversations.Count().Should().Be(0);
+    }
+
+    [Fact]
     public async Task should_not_walk_the_history_when_it_is_switched_off()
     {
         SayMany(6);

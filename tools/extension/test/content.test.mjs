@@ -198,6 +198,14 @@ describe('the list page', () => {
     assert.equal(sent[0].complete, false);
   });
 
+  it('takes a list of exactly what Geminarr takes whole, and says that it is complete', async () => {
+    const exact = Array.from({ length: 500 }, (_, i) => link(`c${i}`)).join('');
+    const { sent } = await run(SIGNED_IN + list(exact), '/app');
+
+    assert.equal(sent[0].items.length, 500);
+    assert.equal(sent[0].complete, true);
+  });
+
   it('cuts a list at what Geminarr takes, the most recent first, and says that it is not complete', async () => {
     const many = Array.from({ length: 501 }, (_, i) => link(`c${i}`)).join('');
     const { sent } = await run(SIGNED_IN + list(many), '/app');
