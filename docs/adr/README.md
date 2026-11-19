@@ -27,7 +27,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0020](0020-geminarrs-own-egress-is-limited-by-its-user-in-the-shared-namespace.md)         | Geminarr's own egress is limited by its user, in the namespace that it shares with the browser                    | D-28                              |
 | [0021](0021-geminarr-has-no-debugging-port-to-the-browser.md)                               | Geminarr has no debugging port to the browser                                                                     | D-29                              |
 | [0022](0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)             | The reader is an extension in the browser that a person signed in to                                              | D-30                              |
-| [0023](0023-what-changes-is-pushed-to-the-screens-as-it-changes.md)                          | What changes is pushed to the screens as it changes |
+| [0023](0023-what-changes-is-pushed-to-the-screens-as-it-changes.md)                          | What changes is pushed to the screens as it changes                                                  | D-31                              |
 
 ## Template
 

@@ -12,6 +12,9 @@ const HELLO_MINUTES = 0.5;
 const PAGE_EVENT_EVERY_MS = 5000;
 // A request that Geminarr holds until the operator asks something (a sign-out, a round): an order reaches the browser at once, not at the next heartbeat. When it comes back at once with nothing to do, or does not come back, the next one waits this long.
 const LISTEN_PAUSE_MS = 2000;
+// A request that is answered within this long, or is given up (Geminarr holds a request that waits for 25 seconds at most).
+const PUSH_TIMEOUT_MS = 30 * 1000;
+const LISTEN_TIMEOUT_MS = 40 * 1000;
 // When Geminarr cannot be reached, or refuses the request (another one already waits), the next one comes after this long.
 const LISTEN_RETRY_MS = 30 * 1000;
 const SIGN_OUT_KEY = 'signOutAt';
@@ -32,7 +35,7 @@ async function settings() {
 }
 
 /** Sends what the page showed, and gives back what Geminarr answered (a list of conversations to read), or nothing when it did not take it. */
-async function push(body) {
+async function push(body, timeoutMs = PUSH_TIMEOUT_MS) {
   const config = await settings();
   if (!config) return null;
   try {
@@ -44,6 +47,8 @@ async function push(body) {
         'x-geminarr-request': '1',
       },
       body: JSON.stringify({ ...body, version: chrome.runtime.getManifest().version }),
+      // Every wait has a bound: a network that never answers is a failure, not a request that waits for ever.
+      signal: AbortSignal.timeout(timeoutMs),
     });
     return response.ok ? await response.json() : null;
   } catch {
@@ -147,7 +152,7 @@ async function listen() {
   try {
     while (await settings()) {
       const began = Date.now();
-      const answer = await push({ kind: 'listen' });
+      const answer = await push({ kind: 'listen' }, LISTEN_TIMEOUT_MS);
       try {
         await actOn(answer);
       } catch {

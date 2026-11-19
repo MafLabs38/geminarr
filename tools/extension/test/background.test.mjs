@@ -96,6 +96,7 @@ async function load({
     },
     JSON,
     setTimeout: (fn) => setImmediate(fn),
+    AbortSignal,
     Promise,
     Date,
     Number,
@@ -465,6 +466,15 @@ describe('what the extension does when Geminarr asks', () => {
     for (let i = 0; i < 40 && seen.fetch.length < 3; i++) await flush();
 
     assert.equal(seen.fetch.filter((call) => JSON.parse(call.init.body).kind === 'listen').length, 3);
+  });
+
+  it('gives every request a bound, and a longer one to the request that waits', async () => {
+    const { calls, listeners } = await load({ answer: answering({ open: [], round: false, signOut: false }) });
+
+    listeners.alarm({ name: 'hello' });
+    await flush();
+
+    assert.ok(calls.fetch[0].init.signal instanceof AbortSignal, 'a request that never answers is given up');
   });
 
   it('starts only one request that waits, whatever wakes the worker', async () => {
