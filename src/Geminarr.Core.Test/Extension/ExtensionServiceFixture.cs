@@ -629,11 +629,13 @@ public sealed class ExtensionServiceFixture : IDisposable
         var subject = Subject();
         var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
 
-        subject.Handle(hello).Round.Should().BeTrue("nothing is known: a round is asked for");
+        subject.Handle(hello).Round.Should().BeTrue("nothing is known: a round is asked for at once");
         _clock.Advance(TimeSpan.FromSeconds(30));
         subject.Handle(hello).Round.Should().BeFalse("the assistant is not visited at every heartbeat when it does not answer");
-        _clock.Advance(TimeSpan.FromMinutes(2));
-        subject.Handle(hello).Round.Should().BeTrue();
+        _clock.Advance(TimeSpan.FromMinutes(14));
+        subject.Handle(hello).Round.Should().BeFalse("nor every two minutes: a block lasts longer when it is met by a visit at every pace faster than the interval");
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        subject.Handle(hello).Round.Should().BeTrue("the interval is over");
     }
 
     [Fact]
