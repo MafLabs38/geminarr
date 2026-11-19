@@ -44,6 +44,11 @@ public sealed class ExtensionOptionsValidator : IValidateOptions<ExtensionOption
             return ValidateOptionsResult.Fail("Extension:RoundMinutes (GEMINARR__EXTENSION__ROUNDMINUTES) must be between 1 and 1440.");
         }
 
+        if (options.RoundMinutes >= options.SilentAfterMinutes)
+        {
+            return ValidateOptionsResult.Fail("Extension:RoundMinutes (GEMINARR__EXTENSION__ROUNDMINUTES) must be below Extension:SilentAfterMinutes (GEMINARR__EXTENSION__SILENTAFTERMINUTES): otherwise the reader is silent between two rounds.");
+        }
+
         return string.IsNullOrWhiteSpace(options.PackageFolder)
             ? ValidateOptionsResult.Fail("Extension:PackageFolder (GEMINARR__EXTENSION__PACKAGEFOLDER) cannot be empty.")
             : ValidateOptionsResult.Success;

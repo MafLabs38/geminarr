@@ -26,10 +26,10 @@ public sealed class ExtensionReader : IConversationReader
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;
-        // Silent is no word at all, a heartbeat included, for a while; and nothing known of the session yet (a restart) is a reader that cannot say.
-        if (session is null || _inbox.LastHeard is not { } heard || _clock.GetUtcNow() - heard > TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes))
+        // Silent is no word about the session for a while, a heartbeat or not: the browser is off, cannot reach Geminarr, or the assistant's page does not answer (a block, an outage). Nothing known yet (a restart) is a reader that cannot say.
+        if (session is null || _clock.GetUtcNow() - session.At > TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes))
         {
-            throw new ReaderException(ConnectionReasons.ExtensionSilent, "The extension of the browser has not said anything for a while: check that the browser runs and reaches Geminarr.");
+            throw new ReaderException(ConnectionReasons.ExtensionSilent, "The extension of the browser has said nothing of the assistant for a while: check that the browser runs and reaches Geminarr, and that the assistant's page answers.");
         }
 
         // A page that is not what the extension knows is not a session that is gone: it is the reader that is broken, said loudly (SPEC §6.4).

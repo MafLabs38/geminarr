@@ -7,12 +7,12 @@ public sealed class ExtensionOptionsValidatorFixture
     private static Microsoft.Extensions.Options.ValidateOptionsResult Validate(ExtensionOptions options) => new ExtensionOptionsValidator().Validate(null, options);
 
     [Theory]
-    [InlineData(1)]
+    [InlineData(2)]
     [InlineData(45)]
     [InlineData(1_440)]
     public void should_accept_a_silence_inside_the_bounds(int minutes)
     {
-        Validate(new ExtensionOptions { SilentAfterMinutes = minutes }).Succeeded.Should().BeTrue();
+        Validate(new ExtensionOptions { SilentAfterMinutes = minutes, RoundMinutes = 1 }).Succeeded.Should().BeTrue();
     }
 
     [Theory]
@@ -30,10 +30,19 @@ public sealed class ExtensionOptionsValidatorFixture
     [Theory]
     [InlineData(1)]
     [InlineData(15)]
-    [InlineData(1_440)]
-    public void should_accept_an_interval_of_the_rounds_inside_the_bounds(int minutes)
+    [InlineData(44)]
+    public void should_accept_an_interval_of_the_rounds_below_the_silence_delay(int minutes)
     {
         Validate(new ExtensionOptions { RoundMinutes = minutes }).Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_refuse_a_round_interval_that_is_not_below_the_silence_delay()
+    {
+        var result = Validate(new ExtensionOptions { RoundMinutes = 45, SilentAfterMinutes = 45 });
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__ROUNDMINUTES").And.Contain("SILENTAFTERMINUTES");
     }
 
     [Theory]
@@ -42,7 +51,7 @@ public sealed class ExtensionOptionsValidatorFixture
     [InlineData(1_441)]
     public void should_refuse_an_interval_of_the_rounds_outside_the_bounds_and_name_the_setting(int minutes)
     {
-        var result = Validate(new ExtensionOptions { RoundMinutes = minutes });
+        var result = Validate(new ExtensionOptions { RoundMinutes = minutes, SilentAfterMinutes = 1_440 });
 
         result.Failed.Should().BeTrue();
         result.FailureMessage.Should().Contain("GEMINARR__EXTENSION__ROUNDMINUTES");

@@ -16,6 +16,7 @@ internal sealed class ExtensionIntents
     private DateTimeOffset? _signingInSince;
     private bool _roundAsked;
     private bool _signOutAsked;
+    private DateTimeOffset? _lastRoundAsked;
 
     /// <summary>Whether the operator disconnected and nobody has signed in since the sign-out was over: while it is, whatever the page was said to show is not the session.</summary>
     public bool Disconnected { get; private set; }
@@ -56,13 +57,27 @@ internal sealed class ExtensionIntents
     public void SaidSignedOut() => _signOutAsked = false;
 
     /// <summary>
-    /// What the extension is asked when it says that it is there: a round now (it was asked for, what it said last is older than the interval of the rounds, a person is signing in and what it said last is old, or nothing is
-    /// known yet: after a restart) and the sign-out. A round that was asked for is asked once.
+    /// What the extension is asked when it says that it is there: a round now (it was asked for, nothing is known yet: after a restart, what it said last is older than the interval of the rounds, or a person is signing in and
+    /// what it said last is old) and the sign-out. A round is asked at most once in an interval whatever the page answers: when the assistant's page does not answer (a block, an outage) the extension must not be sent to
+    /// it again at every heartbeat. A round that the operator asked for is asked once, at once.
     /// </summary>
     public (bool Round, bool SignOut) TakeHints(DateTimeOffset now, ExtensionSession? session, TimeSpan roundEvery)
     {
-        var round = _roundAsked || session is null || now - session.At >= roundEvery || (SigningIn(now, session) && now - session.At >= SigningInRoundEvery);
+        var sinceAsked = _lastRoundAsked is { } asked ? now - asked : TimeSpan.MaxValue;
+        var sinceSaid = session is null ? TimeSpan.MaxValue : now - session.At;
+        var unknown = session is null && sinceAsked >= MinutesWhenNothingIsKnown;
+        var due = sinceSaid >= roundEvery && sinceAsked >= roundEvery;
+        var signingIn = SigningIn(now, session) && sinceSaid >= SigningInRoundEvery && sinceAsked >= SigningInRoundEvery;
+        var round = _roundAsked || unknown || due || signingIn;
         _roundAsked = false;
+        if (round)
+        {
+            _lastRoundAsked = now;
+        }
+
         return (round, _signOutAsked);
     }
+
+    /// <summary>How often a round is asked while nothing is known of the session (a restart): the assistant is not to be visited at every heartbeat when it does not answer.</summary>
+    private static readonly TimeSpan MinutesWhenNothingIsKnown = TimeSpan.FromMinutes(2);
 }

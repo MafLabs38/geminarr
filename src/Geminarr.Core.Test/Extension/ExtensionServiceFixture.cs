@@ -606,6 +606,37 @@ public sealed class ExtensionServiceFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_send_the_extension_to_an_assistant_that_does_not_answer_at_every_heartbeat()
+    {
+        var subject = Subject(roundMinutes: 10);
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+        subject.Handle(new ExtensionPushRequest("state", true, null, null, null, null, "1.0.0"));
+        _clock.Advance(TimeSpan.FromMinutes(10));
+        subject.Handle(hello).Round.Should().BeTrue("a round is due");
+
+        // The page does not answer (a block): the extension says nothing more of the session, and is not asked again at every heartbeat.
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        subject.Handle(hello).Round.Should().BeFalse();
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        subject.Handle(hello).Round.Should().BeFalse("not before the interval is over again");
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        subject.Handle(hello).Round.Should().BeTrue("the interval is over");
+    }
+
+    [Fact]
+    public void should_not_ask_for_a_round_at_every_heartbeat_while_nothing_is_known_after_a_restart()
+    {
+        var subject = Subject();
+        var hello = new ExtensionPushRequest("hello", null, null, null, null, null, "1.0.0");
+
+        subject.Handle(hello).Round.Should().BeTrue("nothing is known: a round is asked for");
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        subject.Handle(hello).Round.Should().BeFalse("the assistant is not visited at every heartbeat when it does not answer");
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        subject.Handle(hello).Round.Should().BeTrue();
+    }
+
+    [Fact]
     public void should_ask_for_a_round_when_what_the_extension_said_last_is_older_than_the_interval_of_the_rounds()
     {
         var subject = Subject(roundMinutes: 10);

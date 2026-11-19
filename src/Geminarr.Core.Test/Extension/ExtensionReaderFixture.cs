@@ -110,16 +110,13 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
-    public async Task should_not_take_an_extension_that_says_it_is_there_for_a_silent_one_even_when_it_has_nothing_new_of_the_session()
+    public async Task should_take_an_extension_that_only_says_it_is_there_for_silent_about_the_assistant_after_the_delay()
     {
         _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
-        _clock.Advance(TimeSpan.FromMinutes(50));
-        _inbox.Heard(_clock.GetUtcNow());
-
-        (await Subject().CheckSessionAsync(TestContext.Current.CancellationToken)).Should().Be(SessionCheck.SignedIn, "a heartbeat is a word: the extension is alive");
-
         _clock.Advance(TimeSpan.FromMinutes(46));
+
         var silent = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
-        (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent);
+
+        (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent, "a heartbeat says that the extension is alive, not that the assistant's page answers (a block, an outage)");
     }
 }

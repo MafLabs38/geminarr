@@ -69,7 +69,6 @@ public sealed partial class ExtensionService
     /// <summary>The extension says that it is there: it is told whether to run a round now, and whether to sign the account out. Nothing is recorded of the session by it.</summary>
     private ExtensionPushResult Hello()
     {
-        _inbox.Heard(_clock.GetUtcNow());
         var (round, signOut) = _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(_options.Value.RoundMinutes));
         return ExtensionPushResult.Hints(round, signOut);
     }

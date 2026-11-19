@@ -41,7 +41,6 @@ public sealed class ExtensionInbox
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private readonly ExtensionIntents _intents = new();
-    private DateTimeOffset? _heard;
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
     private IReadOnlyList<ConversationHeader> _list = [];
@@ -269,33 +268,6 @@ public sealed class ExtensionInbox
             lock (_gate)
             {
                 return _intents.SignOutPending;
-            }
-        }
-    }
-
-    /// <summary>The extension says that it is there (a heartbeat): it is alive, whatever it has said of the session.</summary>
-    public void Heard(DateTimeOffset now)
-    {
-        lock (_gate)
-        {
-            _heard = now;
-        }
-    }
-
-    /// <summary>The last word of the extension, of any kind (a heartbeat or a word about the session), or nothing since Geminarr started.</summary>
-    public DateTimeOffset? LastHeard
-    {
-        get
-        {
-            lock (_gate)
-            {
-                var said = _session?.At;
-                if (_heard is not { } heard)
-                {
-                    return said;
-                }
-
-                return said is { } at && at > heard ? at : heard;
             }
         }
     }
