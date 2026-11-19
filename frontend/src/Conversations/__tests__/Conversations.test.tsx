@@ -63,6 +63,12 @@ describe('the conversations page', () => {
     expect(within(row).getByText('—')).toBeInTheDocument();
   });
 
+  it('says why a conversation is in error when it could not be read to its beginning', async () => {
+    serve({ total: 1, conversations: [conversation('long-1', { state: 'error', lastError: 'unfinished-read' })] });
+
+    expect(await screen.findByText(/Could not be read to its beginning/u)).toBeInTheDocument();
+  });
+
   it('says that nothing was read yet', async () => {
     serve({ backfill: backfill({ listed: 0, known: 0 }) });
 

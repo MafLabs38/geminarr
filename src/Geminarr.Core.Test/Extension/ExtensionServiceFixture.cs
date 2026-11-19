@@ -96,11 +96,145 @@ public sealed class ExtensionServiceFixture : IDisposable
         foreach (var id in new[] { "c0", "c2", "c3", "c4" })
         {
             subject.Handle(ConversationOf(id, new PushedTurn("user", "hi"))).Accepted.Should().BeTrue();
-            var turns = _inbox.Take(id)!;
+            var turns = _inbox.Take(id)!.Turns;
             _conversations.Save(new ConversationRecord(id, null, _clock.GetUtcNow(), _clock.GetUtcNow(), _clock.GetUtcNow(), id == "c0" ? 0 : int.Parse(id[1..]), turns.Count, turns.Count, null, 0, "web", ConversationStates.Synced, null));
         }
 
         Subject(maxOpen: 1, maxListed: 2, backfill: 3).Handle(ListOfMany(7)).Open.Should().Equal("c0", "c5", "c6");
+    }
+
+    private static PushedTurn[] Said(params string[] texts) => [.. texts.Select((text, index) => new PushedTurn(index % 2 == 0 ? "user" : "assistant", text))];
+
+    private static ExtensionPushRequest EndOf(string id, params PushedTurn[] turns) => new("conversation", null, id, "A title", null, turns, "1.0.0", Complete: false);
+
+    /// <summary>A conversation that Geminarr holds whole: these turns were read and sent, and its anchor is that of the last three.</summary>
+    private void Holds(string id, int sentOf, params string[] texts)
+    {
+        var turns = texts.Select((text, index) => new Turn(index % 2 == 0 ? "user" : "assistant", null, text)).ToList();
+        _conversations.Save(new ConversationRecord(id, null, _clock.GetUtcNow(), _clock.GetUtcNow(), _clock.GetUtcNow(), 0, turns.Count, sentOf, ConversationLines.HashOf(turns[^1]), 0, "web", ConversationStates.Synced, null, ConversationLines.AnchorOf(turns.TakeLast(ConversationLines.AnchorTurns))));
+    }
+
+    [Fact]
+    public void should_say_which_of_the_conversations_it_asks_for_can_be_read_from_their_end()
+    {
+        Holds("whole", 5, "a", "b", "c", "d", "e");
+        Holds("unsent", 3, "a", "b", "c", "d", "e");
+        _conversations.Save(new ConversationRecord("noanchor", null, _clock.GetUtcNow(), _clock.GetUtcNow(), _clock.GetUtcNow(), 1, 2, 2, null, 0, "web", ConversationStates.Synced, null));
+
+        var result = Subject().Handle(ListOf(Item("whole"), Item("unsent"), Item("noanchor"), Item("never-seen")));
+
+        result.Open.Should().Equal("whole", "unsent", "noanchor", "never-seen");
+        result.Anchored.Should().Equal("whole");
+    }
+
+    [Fact]
+    public void should_take_the_end_of_a_conversation_that_joins_what_was_sent_and_know_where_it_begins()
+    {
+        Holds("c1", 5, "a", "b", "c", "d", "e");
+        AskFor("c1");
+
+        var result = Subject().Handle(EndOf("c1", Said("c", "d", "e", "f", "g")));
+
+        result.Should().Match<ExtensionPushResult>(answer => answer.Accepted && !answer.More);
+        var content = _inbox.Take("c1")!;
+        (content.First, content.Turns.Count).Should().Be((2, 5), "the first of the three turns that were sent is the third turn of the conversation");
+    }
+
+    [Fact]
+    public void should_take_an_end_that_holds_a_secret_as_joining_what_was_sent_with_the_secret_masked()
+    {
+        // What was sent was masked by the service and again by the pass: the end, masked once by the service, still finds its anchor.
+        var secret = "my token is ghp_" + new string('a', 36);
+        var masked = Geminarr.Core.Masking.SecretMasker.Mask(Geminarr.Core.Masking.SecretMasker.Mask(secret));
+        Holds("c1", 5, "a", "b", "c", masked, "e");
+        AskFor("c1");
+
+        var result = Subject().Handle(EndOf("c1", Said("c", secret, "e", "f")));
+
+        result.More.Should().BeFalse();
+        _inbox.Take("c1")!.First.Should().Be(2);
+    }
+
+    private static ExtensionPushRequest Unfinished(string id) => new("unfinished", null, id, null, null, null, "1.0.0");
+
+    [Fact]
+    public void should_mark_a_conversation_that_could_not_be_read_to_its_beginning_and_not_ask_for_it_again_for_some_hours()
+    {
+        AskFor("c0");
+
+        Subject().Handle(Unfinished("c0")).Accepted.Should().BeTrue();
+
+        var record = _conversations.Get("c0")!;
+        (record.State, record.LastError).Should().Be((ConversationStates.Error, ExtensionService.UnfinishedReason));
+        Subject().Handle(ListOf(Item("c0"), Item("c1"))).Open.Should().Equal("c1");
+        _clock.Advance(ExtensionInbox.UnfinishedFor + TimeSpan.FromMinutes(1));
+        Subject().Handle(ListOf(Item("c0"), Item("c1"))).Open.Should().Equal("c0", "c1");
+    }
+
+    [Fact]
+    public void should_keep_what_it_holds_of_a_conversation_that_could_not_be_read_whole_again_and_say_only_that_it_is_in_error()
+    {
+        Holds("c0", 5, "a", "b", "c", "d", "e");
+        AskFor("c0");
+
+        Subject().Handle(Unfinished("c0"));
+
+        var record = _conversations.Get("c0")!;
+        (record.TurnsKnown, record.TurnsSent, record.State).Should().Be((5, 5, ConversationStates.Error));
+    }
+
+    [Fact]
+    public void should_refuse_that_a_conversation_it_did_not_ask_for_could_not_be_read()
+    {
+        Subject().Handle(Unfinished("c0")).Accepted.Should().BeFalse();
+        _conversations.Get("c0").Should().BeNull();
+    }
+
+    [Fact]
+    public void should_forget_that_a_conversation_could_not_be_read_once_it_has_been_read()
+    {
+        _inbox.RecordUnfinished("c0", _clock.GetUtcNow());
+        _inbox.IsUnfinished("c0", _clock.GetUtcNow()).Should().BeTrue();
+
+        _inbox.RecordConversation("c0", "T", [new Turn("user", null, "hi")], _clock.GetUtcNow());
+
+        _inbox.IsUnfinished("c0", _clock.GetUtcNow()).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_ask_for_the_whole_conversation_when_the_end_does_not_join_what_was_sent()
+    {
+        Holds("c1", 5, "a", "b", "c", "d", "e");
+        AskFor("c1");
+
+        // The last answer was regenerated: the three last turns that were sent are no longer there.
+        var result = Subject().Handle(EndOf("c1", Said("c", "d", "E (again)", "f", "g")));
+
+        result.Should().Match<ExtensionPushResult>(answer => answer.Accepted && answer.More);
+        _inbox.Has("c1").Should().BeFalse("nothing of a part that does not join is held");
+    }
+
+    [Theory]
+    [InlineData("never-seen")]
+    [InlineData("unsent")]
+    public void should_ask_for_the_whole_conversation_when_it_is_not_one_that_can_be_read_from_its_end(string id)
+    {
+        Holds("unsent", 3, "a", "b", "c", "d", "e");
+        AskFor(id);
+
+        Subject().Handle(EndOf(id, Said("c", "d", "e"))).More.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_hold_the_whole_of_a_conversation_that_says_it_is_complete_or_does_not_say()
+    {
+        Holds("c1", 5, "a", "b", "c", "d", "e");
+        AskFor("c1");
+
+        Subject().Handle(ConversationOf("c1", Said("a", "b", "c", "d", "e", "f"))).More.Should().BeFalse();
+
+        var content = _inbox.Take("c1")!;
+        (content.First, content.Turns.Count).Should().Be((0, 6));
     }
 
     [Fact]
@@ -258,7 +392,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         var result = Subject().Handle(ConversationOf("c1", new PushedTurn("user", "hi"), new PushedTurn("assistant", "hello")));
 
         result.Accepted.Should().BeTrue();
-        _inbox.Take("c1")!.Select(turn => (turn.Role, turn.Text)).Should().Equal(("user", "hi"), ("assistant", "hello"));
+        _inbox.Take("c1")!.Turns.Select(turn => (turn.Role, turn.Text)).Should().Equal(("user", "hi"), ("assistant", "hello"));
         (await _trigger.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken)).Should().BeTrue("the pass runs now and does not wait for its hour");
     }
 
@@ -482,7 +616,7 @@ public sealed class ExtensionServiceFixture : IDisposable
         AskFor("c1");
 
         Subject().Handle(new ExtensionPushRequest("conversation", null, "c1", "About " + key, null, [new PushedTurn("user", "export PASSWORD=hunter2hunter2 and " + key)], "1.0.0"));
-        var held = _inbox.Take("c1")!;
+        var held = _inbox.Take("c1")!.Turns;
 
         held.Single().Text.Should().Be("export PASSWORD=[masked] and [masked:github-token]");
         held.Single().Text.Should().NotContain("hunter2").And.NotContain(key);

@@ -37,9 +37,12 @@ public sealed class ExtensionInbox
     /// <summary>How long what the extension handed over, or what it was asked for, is kept when no pass takes it: the next round brings it again.</summary>
     public static readonly TimeSpan HeldFor = TimeSpan.FromHours(1);
 
+    /// <summary>A conversation that the extension could not read to its beginning is not asked for again for this long (a very long one, or a page that stopped following the scroll): it would be four minutes of a window at every round.</summary>
+    public static readonly TimeSpan UnfinishedFor = TimeSpan.FromHours(6);
+
     private readonly Lock _gate = new();
     private readonly int _maxHeldCharacters;
-    private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At, int First)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
     private DateTimeOffset? _lastHello;
     private DateTimeOffset? _firstHello;
@@ -51,6 +54,7 @@ public sealed class ExtensionInbox
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
+    private readonly Dictionary<string, DateTimeOffset> _unfinished = new(StringComparer.Ordinal);
     private IReadOnlyList<ConversationHeader> _list = [];
     private bool _listComplete;
 
@@ -206,6 +210,28 @@ public sealed class ExtensionInbox
         }
     }
 
+    /// <summary>The extension could not read this conversation to its beginning: it is not asked for again for <see cref="UnfinishedFor"/>.</summary>
+    public void RecordUnfinished(string id, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            _asked.Remove(id);
+            _unfinished[id] = now;
+            foreach (var oldest in _unfinished.OrderBy(pair => pair.Value).Select(pair => pair.Key).Take(Math.Max(_unfinished.Count - MaxConversations, 0)).ToList())
+            {
+                _unfinished.Remove(oldest);
+            }
+        }
+    }
+
+    public bool IsUnfinished(string id, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            return _unfinished.TryGetValue(id, out var at) && now - at < UnfinishedFor;
+        }
+    }
+
     public bool WasAsked(string id)
     {
         lock (_gate)
@@ -273,6 +299,7 @@ public sealed class ExtensionInbox
         _conversations.Clear();
         _asked.Clear();
         _unreadable.Clear();
+        _unfinished.Clear();
         _list = [];
         _listComplete = false;
     }
@@ -435,14 +462,15 @@ public sealed class ExtensionInbox
         }
     }
 
-    public void RecordConversation(string id, string? title, IReadOnlyList<Turn> turns, DateTimeOffset now, string? version = null)
+    public void RecordConversation(string id, string? title, IReadOnlyList<Turn> turns, DateTimeOffset now, string? version = null, int first = 0)
     {
         lock (_gate)
         {
             Purge(now);
             // A conversation was read: the run of unreadable ones starts again, each of them stays marked, and what a broken page held aside is believed if this version read it.
             _unreadable.Read(version);
-            _conversations[id] = (title, turns, now);
+            _conversations[id] = (title, turns, now, first);
+            _unfinished.Remove(id);
             // The oldest go first, the one that has just arrived never: too many of them, or too much text.
             var held = HeldCharacters();
             foreach (var oldest in _conversations.Where(pair => pair.Key != id).OrderBy(pair => pair.Value.At).Select(pair => pair.Key).ToList())
@@ -473,13 +501,13 @@ public sealed class ExtensionInbox
         }
     }
 
-    /// <summary>The turns of a conversation, which leave the inbox with them; null when the extension has not brought it.</summary>
-    public IReadOnlyList<Turn>? Take(string id)
+    /// <summary>The turns of a conversation (all of them, or its end from where it joins what was sent), which leave the inbox with them; null when the extension has not brought it.</summary>
+    public ConversationContent? Take(string id)
     {
         lock (_gate)
         {
             _asked.Remove(id);
-            return _conversations.Remove(id, out var found) ? found.Turns : null;
+            return _conversations.Remove(id, out var found) ? new ConversationContent(found.Turns, found.First) : null;
         }
     }
 }

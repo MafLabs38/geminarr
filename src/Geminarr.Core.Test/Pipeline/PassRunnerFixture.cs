@@ -105,6 +105,48 @@ public sealed class PassRunnerFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_send_only_the_new_turns_when_the_reader_read_the_end_of_a_conversation_from_where_it_joins_what_was_sent()
+    {
+        _reader.Say("c1", "T", "q1", "a1", "q2", "a2");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.Sent.Clear();
+        // Two turns more, and the reader gives the end of the conversation from its third turn (the three last that were sent are in it).
+        _reader.Say("c1", "T", "q1", "a1", "q2", "a2", "q3", "a3");
+        _reader.Firsts["c1"] = 2;
+
+        var result = await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        result!.TurnsSent.Should().Be(2);
+        var (_, from, lines) = _sink.Sent.Single();
+        from.Should().Be(5, "the meta line and four turns are held: the next line is the fifth");
+        lines.Should().HaveCount(2);
+        lines[0].Should().Contain("q3");
+        var record = _conversations.Get("c1")!;
+        (record.TurnsKnown, record.TurnsSent, record.RewrittenTurns, record.State).Should().Be((6, 6, 0, ConversationStates.Synced));
+        record.Anchor.Should().Be(ConversationLines.AnchorOf(new[] { "a2", "q3", "a3" }.Select((text, index) => new Turn(index % 2 == 0 ? "assistant" : "user", null, text))), "the anchor is that of the last three turns of the whole conversation");
+    }
+
+    [Fact]
+    public async Task should_queue_nothing_and_forget_the_anchor_when_the_end_that_was_read_does_not_reach_back_to_what_mnemarr_holds()
+    {
+        _reader.Say("c1", "T", "q1", "a1", "q2", "a2");
+        var subject = Subject();
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.Sent.Clear();
+        // What Mnemarr holds is believed to be one turn only: the end from the third turn would leave a hole.
+        _conversations.SetTurnsSent("c1", 1);
+        _reader.Say("c1", "T", "q1", "a1", "q2", "a2", "q3", "a3");
+        _reader.Firsts["c1"] = 2;
+
+        await subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Sent.Should().BeEmpty();
+        var record = _conversations.Get("c1")!;
+        (record.Anchor, record.TurnsKnown).Should().Be((null, 4), "the next reading is a whole one");
+    }
+
+    [Fact]
     public async Task should_mask_a_secret_in_a_title_and_in_a_turn_whatever_the_reader_before_anything_is_queued()
     {
         var key = "ghp_" + new string('a', 36);
@@ -894,6 +936,6 @@ public sealed class PassRunnerFixture : IDisposable
 
         public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
 
-        public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Turn>>([]);
+        public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken) => Task.FromResult(new ConversationContent([]));
     }
 }

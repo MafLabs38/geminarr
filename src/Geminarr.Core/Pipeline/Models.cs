@@ -17,6 +17,12 @@ public sealed record ConversationHeader(string Id, string? Title, int Rank);
 /// <summary>One turn: who spoke, when if the product shows it, and the text (plain or Markdown as written, never HTML).</summary>
 public sealed record Turn(string Role, DateTimeOffset? At, string Text);
 
+/// <summary>
+/// What a reader read of a conversation: its turns, and the position of the first of them in the conversation (0 when the whole of it was read). A reader that already knows what Geminarr holds of a conversation
+/// may read only its end, from the turn that Geminarr already has: <see cref="First"/> is then where that part begins.
+/// </summary>
+public sealed record ConversationContent(IReadOnlyList<Turn> Turns, int First = 0);
+
 /// <summary>The conversations that Mnemarr holds for the machine: the number of lines of each session (the meta line is line 0).</summary>
 public sealed record SinkPositions(IReadOnlyDictionary<string, long> Lines);
 

@@ -88,6 +88,9 @@ export default function Conversations() {
                             <td className={styles.mono}>{conversation.id}</td>
                             <td>
                               <StatusLabel kind={state.kind}>{translate(state.text)}</StatusLabel>
+                              {conversation.lastError === 'unfinished-read' && (
+                                <p className={styles.note}>{translate('ConversationUnfinished')}</p>
+                              )}
                             </td>
                             <td className={styles.mono}>
                               {conversation.turnsSent} / {conversation.turnsKnown}

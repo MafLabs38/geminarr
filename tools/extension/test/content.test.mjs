@@ -18,12 +18,21 @@ const link = (id, title = id) => `<a href="/app/${id}">${title}</a>`;
  * Runs the content script on a synthetic page, with waits that take no time. `onWait(n)` is called at each wait with its number, to let a page change while the script is looking at it.
  * What it sent to the background is returned.
  */
-async function run(html, path, { onWait = () => {}, rejectSends = false, mine = true } = {}) {
+async function run(
+  html,
+  path,
+  { onWait = () => {}, rejectSends = false, mine = true, probe = false, partAnswer = () => ({ taken: false }) } = {},
+) {
   const dom = new JSDOM(html, { url: `${ORIGIN}${path}` });
-  // jsdom does not implement innerText: what a page shows is its text.
+  // jsdom does not implement innerText: what a page shows is its text, without what is not displayed.
+  function shown(node) {
+    if (node.nodeType === 3) return node.textContent;
+    if (node.nodeType !== 1 || node.style.display === 'none') return '';
+    return [...node.childNodes].map(shown).join('');
+  }
   Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
     get() {
-      return this.textContent;
+      return shown(this);
     },
   });
   const sent = [];
@@ -33,7 +42,11 @@ async function run(html, path, { onWait = () => {}, rejectSends = false, mine = 
       sendMessage: (message) => {
         // The question that the script asks of the worker first: whether the page is one that the extension opened.
         if (message.kind === 'mine?') return Promise.resolve(mine);
+        // Whether Geminarr holds this conversation whole, so that its end is enough.
+        if (message.kind === 'probe?') return Promise.resolve(probe);
         sent.push(message);
+        // The end of a conversation is answered by Geminarr: whether it joins what it holds.
+        if (message.kind === 'part') return Promise.resolve(partAnswer(message));
         return rejectSends ? Promise.reject(new Error('Extension context invalidated.')) : Promise.resolve();
       },
     },
@@ -44,6 +57,7 @@ async function run(html, path, { onWait = () => {}, rejectSends = false, mine = 
     chrome,
     JSON,
     Promise,
+    Date,
     setTimeout: (callback) => {
       onWait(++waits, dom.window.document);
       queueMicrotask(callback);
@@ -54,7 +68,7 @@ async function run(html, path, { onWait = () => {}, rejectSends = false, mine = 
   vm.runInContext(SOURCE, context); // NOSONAR
   await flush();
   // What the script built lives in another realm: a plain copy is what is compared.
-  return { sent: JSON.parse(JSON.stringify(sent)), waits };
+  return { sent: JSON.parse(JSON.stringify(sent)), waits, dom };
 }
 
 describe('which pages are read', () => {
@@ -240,6 +254,174 @@ describe('the page of a conversation', () => {
         ],
       },
     ]);
+  });
+
+  describe('input', () => {
+    const page =
+      '<div id="prompt" contenteditable="true"></div><user-query><user-query-content>Hi</user-query-content></user-query>';
+    const typeInto = (dom) => {
+      const prompt = dom.window.document.getElementById('prompt');
+      let reached = false;
+      prompt.addEventListener('keydown', () => (reached = true));
+      const event = new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      prompt.dispatchEvent(event);
+      return { prevented: event.defaultPrevented, reached };
+    };
+
+    it('is taken by no page that it reads: what a person types goes nowhere, and no prompt can be submitted', async () => {
+      const { dom } = await run(page, '/app/c1a2b3');
+
+      assert.deepEqual(typeInto(dom), { prevented: true, reached: false });
+    });
+
+    it('is left to a page that a person opened', async () => {
+      const { dom } = await run(page, '/app/c1a2b3', { mine: false });
+
+      assert.deepEqual(typeInto(dom), { prevented: false, reached: true });
+    });
+  });
+
+  it('leaves out what the page says to a screen reader only, and puts back what it hid', async () => {
+    const page =
+      '<user-query><user-query-content><span class="cdk-visually-hidden">You said</span><p>Hello there</p></user-query-content></user-query>' +
+      '<model-response><message-content>Hi</message-content></model-response>';
+    const { sent } = await run(page, '/app/c1a2b3');
+
+    assert.deepEqual(sent[0].turns, [
+      { role: 'user', text: 'Hello there' },
+      { role: 'assistant', text: 'Hi' },
+    ]);
+  });
+
+  describe('a conversation that the page keeps only in part', () => {
+    // A chat of a height of 20 per turn seen through a screen of 40 (a step of 28), that shows two turns at a time: the turn at the top of the screen is the one of the scroll position.
+    const conversation = (count) =>
+      Array.from({ length: count }, (_, i) => [i % 2 === 0 ? 'user' : 'assistant', `Turn ${i}`]);
+    const render = (document, all, first) => {
+      document.getElementById('chat').innerHTML = all
+        .slice(first, first + 2)
+        .map(([role, text]) =>
+          role === 'user'
+            ? `<user-query><user-query-content>${text}</user-query-content></user-query>`
+            : `<model-response><message-content>${text}</message-content></model-response>`,
+        )
+        .join('');
+    };
+    const chat = (document, count, { canScroll = true } = {}) => {
+      const all = conversation(count);
+      const element = document.getElementById('chat');
+      element.setAttribute('style', 'overflow-y: auto');
+      Object.defineProperty(element, 'scrollHeight', { value: count * 20 });
+      Object.defineProperty(element, 'clientHeight', { value: 40 });
+      let top = count * 20;
+      Object.defineProperty(element, 'scrollTop', {
+        get: () => top,
+        set: (value) => {
+          if (canScroll) top = value;
+        },
+      });
+      return () => render(document, all, Math.min(count - 2, Math.floor(top / 20)));
+    };
+    const readIt = async (count, { canScroll, ...options } = {}) => {
+      let show;
+      return run('<div id="chat"></div>', '/app/c1a2b3', {
+        ...options,
+        onWait: (n, document) => {
+          show ??= chat(document, count, { canScroll });
+          show();
+        },
+      });
+    };
+
+    it('reads it from its end to its beginning and hands over every turn once, in order', async () => {
+      const { sent } = await readIt(6);
+
+      assert.deepEqual(
+        sent[0].turns.map((turn) => turn.text),
+        ['Turn 0', 'Turn 1', 'Turn 2', 'Turn 3', 'Turn 4', 'Turn 5'],
+      );
+      assert.deepEqual(
+        sent[0].turns.map((turn) => turn.role),
+        ['user', 'assistant', 'user', 'assistant', 'user', 'assistant'],
+      );
+    });
+
+    it('reads a very long one whole: its length is not a reason to give it up', async () => {
+      const { sent } = await readIt(1500);
+
+      assert.equal(sent[0].turns.length, 1500);
+      assert.equal(sent[0].turns[0].text, 'Turn 0');
+      assert.equal(sent[0].turns[1499].text, 'Turn 1499');
+    });
+
+    describe('one that Geminarr holds whole', () => {
+      const last = (count, n) => Array.from({ length: n }, (_, i) => `Turn ${count - n + i}`);
+
+      it('hands over the end of it only, and is done, when Geminarr says that it joins what it holds', async () => {
+        const full = await readIt(300);
+        const { sent, waits } = await readIt(300, { probe: true, partAnswer: () => ({ taken: true }) });
+
+        assert.deepEqual(
+          sent.map((message) => message.kind),
+          ['part', 'done'],
+        );
+        assert.deepEqual(
+          sent[0].turns.map((turn) => turn.text),
+          last(300, sent[0].turns.length),
+          'the last turns, in order',
+        );
+        assert.ok(sent[0].turns.length >= 10);
+        assert.ok(
+          waits * 10 < full.waits,
+          `the end is read in a few steps (${waits}), the whole conversation in many (${full.waits})`,
+        );
+      });
+
+      it('goes on to the whole conversation, from where the end was read, when the end does not join', async () => {
+        const { sent } = await readIt(60, { probe: true, partAnswer: () => ({ taken: false }) });
+
+        assert.deepEqual(
+          sent.map((message) => message.kind),
+          ['part', 'conversation'],
+        );
+        assert.deepEqual(
+          sent[1].turns.map((turn) => turn.text),
+          Array.from({ length: 60 }, (_, i) => `Turn ${i}`),
+          'every turn once, in order: the end that was read is not read again',
+        );
+      });
+
+      it('hands over a short conversation whole, without a part, when its beginning is reached on the way', async () => {
+        const { sent } = await readIt(6, { probe: true });
+
+        assert.deepEqual(
+          sent.map((message) => message.kind),
+          ['conversation'],
+        );
+        assert.equal(sent[0].turns.length, 6);
+      });
+
+      it('gives up when the page does not follow the scroll', async () => {
+        const { sent } = await readIt(60, { probe: true, canScroll: false });
+
+        assert.deepEqual(sent, [{ kind: 'unfinished', id: 'c1a2b3' }]);
+      });
+    });
+
+    it('reads a conversation that Geminarr does not hold whole, with no part', async () => {
+      const { sent } = await readIt(60);
+
+      assert.deepEqual(
+        sent.map((message) => message.kind),
+        ['conversation'],
+      );
+    });
+
+    it('hands over nothing, and gives up, when the page does not follow the scroll', async () => {
+      const { sent } = await readIt(6, { canScroll: false });
+
+      assert.deepEqual(sent, [{ kind: 'unfinished', id: 'c1a2b3' }]);
+    });
   });
 
   it('says which conversation shows no turn at all, and leaves it to Geminarr to tell a page that changed from a conversation with nothing to read', async () => {

@@ -22,12 +22,14 @@ const SIGN_OUT_KEY = 'signOutAt';
 const SIGN_OUT_EVERY_MS = 10 * 1000;
 const WORK_TAB_PREFIX = 'workTab:';
 // A page that has not answered after this long is closed: a hung tab must not pile up.
-const TAB_LIFETIME_MS = 3 * 60 * 1000;
+const TAB_LIFETIME_MS = 5 * 60 * 1000;
 // At most this many conversations are opened for one answer, whatever the answer says: a tab is a page of the browser that holds the session.
 // (The recent ones that changed, and the few older ones that the backfill brings, SPEC §6.3.)
 // (The same number as `ExtensionService.MaxOpenPerAnswer`: Geminarr asks for no more.)
 const MAX_TABS_PER_ANSWER = 25;
 // The pages of one answer are opened one after the other, a pause of 1 to 4 seconds between two (SPEC §6.4): a person does not open twenty conversations at the same instant.
+// The size of the window of a conversation: a screen that shows a few turns (the page brings in the turns around what is shown).
+const CONVERSATION_WINDOW = { width: 1000, height: 800 };
 const OPEN_PAUSE_MIN_MS = 1000;
 const OPEN_PAUSE_SPREAD_MS = 3000;
 // Not a secret, only a spread of the pauses: the browser's own source of randomness is used, so that nothing here is a generator to be careful with.
@@ -67,9 +69,17 @@ async function push(body, timeoutMs = PUSH_TIMEOUT_MS) {
 
 // One key for each tab that this extension opened: the writes of two tabs never overwrite each other's, as one object holding them all would.
 const workTabKey = (tabId) => `${WORK_TAB_PREFIX}${tabId}`;
+// Set for a page of a conversation that Geminarr holds whole: the page may read the end of it only.
+const probeTabKey = (tabId) => `probeTab:${tabId}`;
 
 async function isWorkTab(tabId) {
   return workTabKey(tabId) in (await chrome.storage.session.get(workTabKey(tabId)));
+}
+
+async function isProbeTab(tabId) {
+  return (
+    (await isWorkTab(tabId)) && Boolean((await chrome.storage.session.get(probeTabKey(tabId)))[probeTabKey(tabId)])
+  );
 }
 
 async function openInBackground(path) {
@@ -77,8 +87,27 @@ async function openInBackground(path) {
   await chrome.storage.session.set({ [workTabKey(tab.id)]: Date.now() });
 }
 
+/**
+ * A conversation is read in a window of its own, not focused. A page of a tab that is in the background is not shown, and the assistant brings in the older turns of a conversation only for a page that is shown: read in
+ * a tab that nobody sees, a conversation comes without its beginning. A window is shown, and the tab that a person looks at (signing in, for one) is left alone.
+ */
+async function openConversation(id, anchored) {
+  const opened = await chrome.windows.create({
+    url: `${ORIGIN}/app/${id}`,
+    focused: false,
+    width: CONVERSATION_WINDOW.width,
+    height: CONVERSATION_WINDOW.height,
+  });
+  const tab = opened.tabs?.[0];
+  if (tab) {
+    await chrome.storage.session.set({ [workTabKey(tab.id)]: Date.now() });
+    // Geminarr holds this conversation whole: the page may read its end only.
+    if (anchored) await chrome.storage.session.set({ [probeTabKey(tab.id)]: true });
+  }
+}
+
 async function closeTab(tabId) {
-  await chrome.storage.session.remove(workTabKey(tabId));
+  await chrome.storage.session.remove([workTabKey(tabId), probeTabKey(tabId)]);
   await chrome.tabs.remove(tabId).catch(() => {});
 }
 
@@ -210,19 +239,41 @@ async function startedBeforeSignOut(tabId) {
   return typeof signedOutAt === 'number' && typeof startedAt === 'number' && startedAt < signedOutAt;
 }
 
+/** The end of a conversation, handed over by a page of this extension: whether Geminarr took it (it joins what it holds). Nothing of a page that was read before the sign-out is handed over. */
+async function part(message, sender) {
+  try {
+    // Only a page that was marked to read the end of its conversation may hand it over as an end (the mark and the permission are one check).
+    if (!sender.tab || !(await isProbeTab(sender.tab.id)) || (await startedBeforeSignOut(sender.tab.id)))
+      return { taken: false };
+    const answer = await push({
+      kind: 'conversation',
+      id: message.id,
+      title: message.title,
+      turns: message.turns,
+      complete: false,
+    });
+    return { taken: answer !== null && answer.more !== true };
+  } catch {
+    return { taken: false };
+  }
+}
+
 async function onMessage(message, sender) {
   try {
     // A page that gives up has nothing to hand over: it is closed, and Geminarr is told nothing. Neither has a page that was read before the account was signed out.
     const stale = sender.tab ? await startedBeforeSignOut(sender.tab.id) : false;
-    const answer = message.kind === 'giveup' || stale ? null : await push(message);
+    // `done`: the page handed over the end of its conversation (see `part`) and has nothing more to say.
+    const answer = message.kind === 'giveup' || message.kind === 'done' || stale ? null : await push(message);
     if (message.kind === 'list') {
       // What Geminarr answers is a list of ids; anything else asks for nothing.
       const ids = (Array.isArray(answer?.open) ? answer.open : [])
         .filter((candidate) => typeof candidate === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(candidate))
         .slice(0, MAX_TABS_PER_ANSWER);
+      // The ones whose end is enough, because Geminarr holds the rest.
+      const anchored = new Set(Array.isArray(answer?.anchored) ? answer.anchored : []);
       for (const [index, id] of ids.entries()) {
         if (index > 0) await pauseBetweenOpens();
-        await openInBackground(`/app/${id}`);
+        await openConversation(id, anchored.has(id));
       }
     }
     // A word of the page may be answered by a request too (a person is signing in, the operator disconnected): it is done after the page has been dealt with.
@@ -239,6 +290,18 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   // A page of the assistant asks whether this extension opened it: only the pages that it opened are read.
   if (message.kind === 'mine?') {
     void isWorkTab(sender.tab?.id).then(respond);
+    return true;
+  }
+
+  // A page of a conversation that Geminarr holds whole asks whether it may read the end only.
+  if (message.kind === 'probe?') {
+    void isProbeTab(sender.tab?.id).then(respond);
+    return true;
+  }
+
+  // The end of a conversation: Geminarr says whether it joins what it holds. The page is not closed, it may have to read the whole conversation next.
+  if (message.kind === 'part') {
+    void part(message, sender).then(respond);
     return true;
   }
 

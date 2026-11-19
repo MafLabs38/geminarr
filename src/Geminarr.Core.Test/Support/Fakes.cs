@@ -18,6 +18,9 @@ public sealed class FakeReader : IConversationReader
 
     public List<string> Opened { get; } = [];
 
+    /// <summary>The conversations that this reader reads from the end only: where the part it gives begins.</summary>
+    public Dictionary<string, int> Firsts { get; } = new(StringComparer.Ordinal);
+
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(Session);
 
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken)
@@ -34,11 +37,13 @@ public sealed class FakeReader : IConversationReader
     /// <summary>Something that happens while a conversation is being opened (the operator unlinks, for example).</summary>
     public Action? WhileOpening { get; set; }
 
-    public Task<IReadOnlyList<Turn>> OpenAsync(string id, CancellationToken cancellationToken)
+    public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken)
     {
         Opened.Add(id);
         WhileOpening?.Invoke();
-        return Task.FromResult<IReadOnlyList<Turn>>([.. Conversations[id].Turns]);
+        // A reader that reads only the end of a conversation, from the turn at this position, gives the end and where it begins.
+        var first = Firsts.GetValueOrDefault(id);
+        return Task.FromResult(new ConversationContent([.. Conversations[id].Turns.Skip(first)], first));
     }
 
     public void Say(string id, string? title, params string[] texts) =>

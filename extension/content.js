@@ -18,6 +18,15 @@ const MAX_SCROLLS = 30;
 // The most conversations that Geminarr takes in one list.
 const MAX_ITEMS = 500;
 const STABLE_ROUNDS = 6;
+// A conversation is read from its end to its beginning, a window at a time: each step is this share of the height of the screen (the windows overlap), the page gets this long to show what it brings in, and the top must stay
+// the top for a few looks. There is no bound on the length of a conversation, which is only text: a read is bounded by its time (the tab lives five minutes), and by a page that stops answering the scroll.
+const CHAT_STEP = 0.7;
+const CHAT_SCROLL_MS = 300;
+const CHAT_STEADY_LOOKS = 3;
+const CHAT_STUCK_LOOKS = 5;
+const CHAT_READ_MS = 4 * 60 * 1000;
+// The end of a conversation that is read when Geminarr holds the rest: this many turns, enough for the last three that were sent (the anchor) and the ones that came after.
+const END_TURNS = 10;
 const POLL_MS = 500;
 const MAX_POLLS = 40;
 // The page takes time to say who is signed in: it is asked about for up to 30 seconds, and a sign-in link must have been there for 5 before it is believed.
@@ -91,13 +100,104 @@ async function readList() {
   });
 }
 
+// What the page says to a screen reader only (the label "You said", a summary of the message): it is not what was said, and it would come first in the text of a turn.
+const SCREEN_READER_ONLY = /visually-hidden|sr-only/;
+
+/** The text of an element as a person sees it: what the page shows to a screen reader only is left out (it is hidden for the length of the read, and shown again). */
+function visibleText(element) {
+  const hidden = [...element.querySelectorAll('*')].filter((node) =>
+    SCREEN_READER_ONLY.test(node.getAttribute('class') ?? ''),
+  );
+  const before = hidden.map((node) => node.style.display);
+  for (const node of hidden) node.style.setProperty('display', 'none');
+  try {
+    return element.innerText.trim();
+  } finally {
+    hidden.forEach((node, index) => node.style.setProperty('display', before[index]));
+  }
+}
+
 function readTurns() {
   return [...document.querySelectorAll(SELECTORS.turn)]
     .map((element) => ({
       role: element.tagName === 'USER-QUERY' ? 'user' : 'assistant',
-      text: (element.querySelector(SELECTORS.turnText) ?? element).innerText.trim(),
+      text: visibleText(element.querySelector(SELECTORS.turnText) ?? element),
     }))
     .filter((turn) => turn.text);
+}
+
+const sameTurn = (a, b) => a.role === b.role && a.text === b.text;
+
+/** The turns that the page showed earlier in the conversation, put before the ones that were already read: the two windows overlap by the turns that both showed. */
+function joinEarlier(earlier, later) {
+  const most = Math.min(earlier.length, later.length);
+  for (let overlap = most; overlap > 0; overlap--) {
+    if (earlier.slice(-overlap).every((turn, index) => sameTurn(turn, later[index])))
+      return [...earlier.slice(0, -overlap), ...later];
+  }
+  return [...earlier, ...later];
+}
+
+/** The element that scrolls the conversation: the first ancestor of a turn that has more to show than its height. */
+function chatScroller() {
+  for (let node = document.querySelector(SELECTORS.turn)?.parentElement; node; node = node.parentElement) {
+    if (
+      node.scrollHeight > node.clientHeight + 1 &&
+      /auto|scroll/.test(document.defaultView.getComputedStyle(node).overflowY)
+    )
+      return node;
+  }
+  return null;
+}
+
+/**
+ * The page keeps in the document only the turns near the screen, and brings the older ones in as the conversation is scrolled up: what is shown when the page has loaded is the end of the conversation.
+ * It is read from the end towards the beginning, a window at a time (each overlapping the last). It stops when the beginning was reached (`top`), or as soon as `wanted` turns are held (only the end was asked for).
+ * `have` is what a previous call read (it goes on from there). Gives nothing (null) when the page stopped following the scroll, or the time of the read was over: a conversation that was not read to where it was
+ * asked for is never handed over as if it were whole.
+ */
+async function readFromEnd({ wanted = Infinity, have = null } = {}) {
+  let turns = have ? joinEarlier(readTurns(), have) : readTurns();
+  const scroller = chatScroller();
+  // Nothing scrolls: what is shown is the whole of the conversation.
+  if (!scroller) return { turns, top: true };
+  let steady = 0;
+  let stuck = 0;
+  const until = Date.now() + CHAT_READ_MS;
+  while (turns.length < wanted && Date.now() < until) {
+    const height = scroller.scrollHeight;
+    const before = scroller.scrollTop;
+    scroller.scrollTop = Math.max(0, before - Math.floor(scroller.clientHeight * CHAT_STEP));
+    await wait(CHAT_SCROLL_MS);
+    turns = joinEarlier(readTurns(), turns);
+    // At the top, older turns may still come in: the end is a top that stays the top for a few looks.
+    steady = scroller.scrollTop === 0 && scroller.scrollHeight === height ? steady + 1 : 0;
+    if (steady >= CHAT_STEADY_LOOKS) return { turns, top: true };
+    // A page that does not follow the scroll (it is not where the position goes up) is not a long conversation: it is given up.
+    stuck = before > 0 && scroller.scrollTop === before ? stuck + 1 : 0;
+    if (stuck >= CHAT_STUCK_LOOKS) return null;
+  }
+  return turns.length >= wanted ? { turns, top: false } : null;
+}
+
+/**
+ * Hands a conversation over. When Geminarr holds it already, its end is enough: the last turns are sent as a part, and Geminarr says whether they join what it holds (then the page is done) or not (an answer was
+ * regenerated, a turn was removed): then the whole conversation is read and sent. A conversation that Geminarr does not hold is read whole.
+ */
+async function handOver(id) {
+  const title = document.title;
+  let read = null;
+  if (await chrome.runtime.sendMessage({ kind: 'probe?' }).catch(() => false)) {
+    read = await readFromEnd({ wanted: END_TURNS });
+    if (read && !read.top) {
+      const answer = await send({ kind: 'part', id, title, turns: read.turns });
+      if (answer?.taken) return send({ kind: 'done' });
+    }
+  }
+
+  // From where the end was read, so that nothing is read twice; the beginning could not be reached: nothing is handed over, and Geminarr is told (it marks the conversation and does not ask again for some hours).
+  const whole = read?.top ? read : await readFromEnd({ have: read?.turns ?? null });
+  return whole ? send({ kind: 'conversation', id, title, turns: whole.turns }) : send({ kind: 'unfinished', id });
 }
 
 // A conversation is read when what it shows has stopped changing: the page fills in as it loads (a partial answer is never handed over).
@@ -110,16 +210,31 @@ async function readConversation(id) {
     const snapshot = JSON.stringify(turns);
     stable = turns.length > 0 && snapshot === last ? stable + 1 : 0;
     last = snapshot;
-    if (stable >= STABLE_ROUNDS) return send({ kind: 'conversation', id, title: document.title, turns });
+    if (stable >= STABLE_ROUNDS) return handOver(id);
   }
   // One that shows nothing is a conversation with nothing to read (or, if several do, a page that changed: Geminarr counts); one that never stops changing is read at the next round, and its page is closed now.
   return send(last === '[]' ? { kind: 'broken', step: 'turns', id } : { kind: 'giveup' });
+}
+
+/**
+ * A page of this extension takes no input: whatever window it is in and whichever window has the focus, what a person types, pastes or drops goes nowhere. The extension never submits a prompt (rule 4), and a person at
+ * the desktop (signing in) must not be able to write one by accident into a conversation that is being read. The prompt box is also let go of.
+ */
+function refuseInput() {
+  const swallow = (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  for (const type of ['keydown', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'drop', 'compositionstart'])
+    document.addEventListener(type, swallow, true);
+  document.activeElement?.blur?.();
 }
 
 // Only the pages that the worker opened are read: a page that a person opened is theirs, and is neither scrolled nor read.
 async function start() {
   const mine = await chrome.runtime.sendMessage({ kind: 'mine?' }).catch(() => false);
   if (!mine) return;
+  refuseInput();
   const conversation = ID_IN_LINK.exec(location.pathname);
   if (conversation) await readConversation(conversation[1]);
   else if (location.pathname === '/app') await readList();

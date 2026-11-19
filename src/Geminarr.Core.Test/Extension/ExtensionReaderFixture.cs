@@ -87,9 +87,9 @@ public sealed class ExtensionReaderFixture
     {
         _inbox.RecordConversation("a", "A", [new Turn("user", null, "hi")], _clock.GetUtcNow());
 
-        (await Subject().OpenAsync("a", TestContext.Current.CancellationToken)).Should().ContainSingle();
-        (await Subject().OpenAsync("a", TestContext.Current.CancellationToken)).Should().BeEmpty();
-        (await Subject().OpenAsync("never", TestContext.Current.CancellationToken)).Should().BeEmpty();
+        ((await Subject().OpenAsync("a", TestContext.Current.CancellationToken)).Turns).Should().ContainSingle();
+        ((await Subject().OpenAsync("a", TestContext.Current.CancellationToken)).Turns).Should().BeEmpty();
+        ((await Subject().OpenAsync("never", TestContext.Current.CancellationToken)).Turns).Should().BeEmpty();
     }
 
     [Fact]

@@ -271,9 +271,14 @@ public sealed class PassRunner
         return headers.Where(header => _positions is not null && ConversationSelection.NeedsReading(header, _conversations.Get(header.Id), waiting.Contains(header.Id))).OrderBy(header => header.Rank);
     }
 
-    /// <summary>Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands.</summary>
-    private void Queue(ConversationHeader header, IReadOnlyList<Turn> turns)
+    /// <summary>
+    /// Queues the lines of a conversation that Mnemarr does not hold yet, from where Mnemarr stands. A reader may have read only the end of the conversation (<see cref="ConversationContent.First"/>): the turns before it
+    /// are the ones that were already sent, and a reading that would need one of them (what Mnemarr holds is less than was believed) is not queued: the conversation is read whole the next time.
+    /// </summary>
+    private void Queue(ConversationHeader header, ConversationContent content)
     {
+        var turns = content.Turns;
+        var first = content.First;
         if (Unlinked())
         {
             return;
@@ -297,10 +302,22 @@ public sealed class PassRunner
         var now = _clock.GetUtcNow();
         var known = _conversations.Get(header.Id);
         // A conversation that was never seen here but that Mnemarr already holds (this database was lost, or another Geminarr sent it): it goes on from where Mnemarr stands.
-        var sent = Math.Min(known?.TurnsSent ?? HeldTurns(header.Id), turns.Count);
+        var total = first + turns.Count;
+        var sent = Math.Min(known?.TurnsSent ?? HeldTurns(header.Id), total);
+        if (sent < first)
+        {
+            // The end of the conversation does not reach back to what Mnemarr holds: forget the anchor, so that the next reading is a whole one, and queue nothing now.
+            if (known is not null)
+            {
+                _conversations.Save(known with { Anchor = null });
+            }
+
+            return;
+        }
+
         var hash = turns.Count > 0 ? ConversationLines.HashOf(turns[^1]) : null;
         // The last turn that was known is not what it was (an edit, a regenerated answer): it is counted and shown, never sent again, because the position model cannot update a line.
-        var rewritten = (known?.RewrittenTurns ?? 0) + (IsRewritten(known, turns) ? 1 : 0);
+        var rewritten = (known?.RewrittenTurns ?? 0) + (IsRewritten(known, turns, first) ? 1 : 0);
 
         var lines = new List<string>();
         if (sent == 0)
@@ -308,7 +325,7 @@ public sealed class PassRunner
             lines.Add(ConversationLines.Meta(header.Id, title, _settings.Reader!.Source));
         }
 
-        lines.AddRange(turns.Skip(sent).Select(ConversationLines.TurnLine));
+        lines.AddRange(turns.Skip(sent - first).Select(ConversationLines.TurnLine));
         var from = sent == 0 ? 0 : sent + 1L;
         var nothingNew = lines.Count == (sent == 0 ? 1 : 0);
         _outbox.Replace(header.Id, nothingNew ? [] : ConversationLines.Batches(from, lines), now);
@@ -319,17 +336,18 @@ public sealed class PassRunner
             now,
             now,
             header.Rank,
-            turns.Count,
+            total,
             sent,
             hash,
             rewritten,
             _settings.Reader!.Source,
-            turns.Count == sent ? ConversationStates.Synced : ConversationStates.New,
-            null));
+            total == sent ? ConversationStates.Synced : ConversationStates.New,
+            null,
+            turns.Count > 0 ? ConversationLines.AnchorOf(turns.TakeLast(ConversationLines.AnchorTurns)) : null));
     }
 
-    private static bool IsRewritten(ConversationRecord? known, IReadOnlyList<Turn> turns) =>
-        known is { TurnsKnown: > 0, LastTurnHash: { } before } && turns.Count >= known.TurnsKnown && ConversationLines.HashOf(turns[known.TurnsKnown - 1]) != before;
+    private static bool IsRewritten(ConversationRecord? known, IReadOnlyList<Turn> turns, int first) =>
+        known is { TurnsKnown: > 0, LastTurnHash: { } before } && first + turns.Count >= known.TurnsKnown && known.TurnsKnown - 1 - first is >= 0 and var index && index < turns.Count && ConversationLines.HashOf(turns[index]) != before;
 
     /// <summary>The link changed during this pass and there is no destination now (an unlink); a pairing that completes with the same Mnemarr changes it too, and loses nothing.</summary>
     private bool Unlinked() => _link.Generation != _passGeneration && !_link.Status().Linked;

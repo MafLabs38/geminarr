@@ -50,7 +50,7 @@ async function load({
                   .map((key) => [key, session.get(key)]),
               ),
         set: async (values) => Object.entries(values).forEach(([key, value]) => session.set(key, value)),
-        remove: async (key) => session.delete(key),
+        remove: async (keys) => [keys].flat().forEach((key) => session.delete(key)),
       },
     },
     tabs: {
@@ -65,6 +65,13 @@ async function load({
         return openTabs;
       },
       reload: async (id) => calls.reloaded.push(id),
+    },
+    windows: {
+      create: async (options) => {
+        if (failToOpen) throw new Error('refused');
+        calls.created.push(options);
+        return { tabs: [{ id: nextTab++ }] };
+      },
     },
     browsingData: {
       remove: async (options, types) => {
@@ -215,6 +222,27 @@ describe('what the extension opens and closes', () => {
     assert.equal(pauses.length, 2, 'one pause between two pages, none before the first');
   });
 
+  it('reads a conversation in a window of its own that is not focused, and the list in a tab that is not active', async () => {
+    const { calls, listeners, session } = await load({
+      answer: () => ({ ok: true, json: async () => ({ open: ['abc'] }) }),
+    });
+    listeners.startup();
+    await flush();
+    calls.created.length = 0;
+
+    listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    for (let turn = 0; turn < 5; turn++) await flush();
+
+    const [conversation] = plain(calls.created);
+    assert.equal(conversation.url, `${ORIGIN}/app/abc`);
+    assert.equal(conversation.focused, false);
+    assert.equal(conversation.active, undefined, 'a window, not a tab that a person is looking at');
+    assert.ok(
+      [...session.keys()].some((key) => key.startsWith('workTab:')),
+      'it is one of the pages of this extension itself, read and closed',
+    );
+  });
+
   it('opens nothing, and still closes its page, when the answer asks for nothing', async () => {
     const { calls, listeners } = await load({ answer: () => ({ ok: true, json: async () => ({}) }) });
     listeners.startup();
@@ -294,9 +322,9 @@ describe('what the extension opens and closes', () => {
     assert.deepEqual(calls.removed, []);
   });
 
-  it('closes a page that has not answered in three minutes, and keeps the others', async () => {
+  it('closes a page that has not answered in five minutes, and keeps the others', async () => {
     const { calls, listeners, session } = await load();
-    session.set('workTab:7', Date.now() - 4 * 60 * 1000);
+    session.set('workTab:7', Date.now() - 6 * 60 * 1000);
     session.set('workTab:8', Date.now() - 1000);
     session.set('somethingElse', 0);
 
@@ -314,6 +342,102 @@ describe('what the extension opens and closes', () => {
     await flush();
 
     assert.equal(calls.updateChecks, 1);
+  });
+});
+
+describe('a conversation that Geminarr holds whole', () => {
+  const json = (body) => ({ ok: true, json: async () => body });
+  const bodyOf = (init) => JSON.parse(init.body);
+  const turns = [
+    { role: 'user', text: 'a' },
+    { role: 'assistant', text: 'b' },
+  ];
+
+  /** The extension has asked for the list, and Geminarr answered with two conversations of which the first can be read from its end. */
+  async function listed(answerToPart) {
+    const context = await load({
+      answer: (url, init) => {
+        const body = bodyOf(init);
+        if (body.kind === 'list') return json({ open: ['abc', 'def'], anchored: ['abc'] });
+        if (body.kind === 'conversation') return json(answerToPart(body));
+        return json({});
+      },
+    });
+    context.listeners.startup();
+    await flush();
+    context.listeners.message({ kind: 'list', items: [] }, { tab: { id: 100 } });
+    for (let turn = 0; turn < 5; turn++) await flush();
+    return context;
+  }
+
+  const ask = async (listeners, kind, tab, message = {}) => {
+    let answer;
+    listeners.message({ kind, ...message }, { tab }, (value) => (answer = value));
+    for (let turn = 0; turn < 3; turn++) await flush();
+    return answer;
+  };
+
+  it('lets the page of the conversation that is anchored read its end, and no other page', async () => {
+    const { listeners } = await listed(() => ({}));
+
+    // The list was tab 100, the two conversations were windows (tabs 101 and 102).
+    assert.equal(await ask(listeners, 'probe?', { id: 101 }), true);
+    assert.equal(await ask(listeners, 'probe?', { id: 102 }), false);
+    assert.equal(await ask(listeners, 'probe?', { id: 7 }), false);
+  });
+
+  it('hands over the end of a conversation to Geminarr, with the mark that it is a part, and says whether it took it', async () => {
+    const taken = await listed(() => ({ accepted: true }));
+    const answer = await ask(taken.listeners, 'part', { id: 101 }, { id: 'abc', title: 'T', turns });
+    assert.deepEqual(plain(answer), { taken: true });
+    const sent = taken.calls.fetch.map((call) => bodyOf(call.init)).find((body) => body.kind === 'conversation');
+    assert.deepEqual([sent.id, sent.complete, sent.turns], ['abc', false, turns]);
+
+    const refused = await listed(() => ({ more: true }));
+    const refusal = await ask(refused.listeners, 'part', { id: 101 }, { id: 'abc', title: 'T', turns });
+    assert.deepEqual(plain(refusal), { taken: false });
+  });
+
+  it('hands over no end for a page of its own that was not marked to read the end of its conversation', async () => {
+    const { calls, listeners } = await listed(() => ({}));
+    const before = calls.fetch.length;
+
+    assert.deepEqual(plain(await ask(listeners, 'part', { id: 102 }, { id: 'def', title: 'T', turns })), {
+      taken: false,
+    });
+    assert.equal(calls.fetch.length, before);
+  });
+
+  it('hands over nothing for a page that is not its own', async () => {
+    const { calls, listeners } = await listed(() => ({}));
+    const before = calls.fetch.length;
+
+    assert.deepEqual(plain(await ask(listeners, 'part', { id: 7 }, { id: 'abc', title: 'T', turns })), {
+      taken: false,
+    });
+    assert.equal(calls.fetch.length, before);
+  });
+
+  it('hands over nothing of an end that a page read before the account was signed out', async () => {
+    const { calls, listeners, session } = await listed(() => ({}));
+    const before = calls.fetch.length;
+    session.set('signOutAt', Date.now() + 60_000);
+
+    assert.deepEqual(plain(await ask(listeners, 'part', { id: 101 }, { id: 'abc', title: 'T', turns })), {
+      taken: false,
+    });
+    assert.equal(calls.fetch.length, before);
+  });
+
+  it('closes the page that says that it is done, and says nothing to Geminarr', async () => {
+    const { calls, listeners } = await listed(() => ({}));
+    const before = calls.fetch.length;
+
+    listeners.message({ kind: 'done' }, { tab: { id: 101 } });
+    await flush();
+
+    assert.equal(calls.fetch.length, before);
+    assert.ok(calls.removed.includes(101));
   });
 });
 
