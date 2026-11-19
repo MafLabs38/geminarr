@@ -2,21 +2,21 @@
 
 Generic examples only. A real deployment (host names, addresses, secrets, storage classes) belongs in your own private infrastructure repository, never in this one.
 
-| File                                                                 | For                                                                                                                                                                               |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [docker-compose.example.yml](docker-compose.example.yml)             | A Docker host                                                                                                                                                                     |
-| [kubernetes/geminarr.example.yaml](kubernetes/geminarr.example.yaml) | A Kubernetes cluster                                                                                                                                                              |
-| [browser/](browser/)                                                 | What goes into the browser container: its policy (it installs the extension and keeps the browser to the assistant's pages) and the script that keeps its desktop on the loopback |
+| File | For |
+|---|---|
+| [docker-compose.example.yml](docker-compose.example.yml) | A Docker host |
+| [kubernetes/geminarr.example.yaml](kubernetes/geminarr.example.yaml) | A Kubernetes cluster |
+| [browser/](browser/) | What goes into the browser container: its policy (it installs the extension and keeps the browser to the assistant's pages) and the script that keeps its desktop on the loopback |
 
 Both run the image as a non-root user with a read-only root filesystem and no Linux capabilities, and keep the data folder on a **local** volume.
 
 ## Geminarr is described as code, at three levels
 
-| Level          | Where                                                                   | What it holds                                                                                                                                 |
-| -------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| The repository | the organisation's `github-template`, `repos/geminarr.yaml` (Terraform) | the repository, its branches and rules, labels, secrets of the CI, quality options                                                            |
-| The image      | this repository, `Dockerfile` and `.github/workflows/ci.yml`            | built, tested and published by the pipeline as `ghcr.io/<owner>/geminarr:X.Y.Z` (semantic-release, [docs/releasing.md](../docs/releasing.md)) |
-| The deployment | your private infrastructure repository (GitOps), `apps/geminarr/`       | namespace, volume, deployment, service, ingress, sealed secrets and the automation that follows the versions; **never in this repository**    |
+| Level | Where | What it holds |
+|---|---|---|
+| The repository | the organisation's `github-template`, `repos/geminarr.yaml` (Terraform) | the repository, its branches and rules, labels, secrets of the CI, quality options |
+| The image | this repository, `Dockerfile` and `.github/workflows/ci.yml` | built, tested and published by the pipeline as `ghcr.io/<owner>/geminarr:X.Y.Z` (semantic-release, [docs/releasing.md](../docs/releasing.md)) |
+| The deployment | your private infrastructure repository (GitOps), `apps/geminarr/` | namespace, volume, deployment, service, ingress, sealed secrets and the automation that follows the versions; **never in this repository** |
 
 A change to the deployment is a commit in the infrastructure repository; nobody runs `kubectl apply` by hand and the CI has no access to the cluster. The examples here are what that `apps/geminarr/` folder is made from; the shape it should have is in [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 

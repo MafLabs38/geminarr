@@ -110,13 +110,26 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
-    public async Task should_take_an_extension_that_only_says_it_is_there_for_silent_about_the_assistant_after_the_delay()
+    public async Task should_say_unreachable_when_the_extension_is_there_but_says_nothing_of_the_page()
     {
         _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _clock.Advance(TimeSpan.FromMinutes(46));
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
+
+        var unreachable = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
+
+        (await unreachable.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.Unreachable, "a heartbeat says that the extension is alive, not that the assistant's page answers (a block, an outage): restarting the browser would not help");
+    }
+
+    [Fact]
+    public async Task should_say_silent_when_the_extension_says_nothing_at_all()
+    {
+        _inbox.RecordSession(signedIn: true, "1.0.0", _clock.GetUtcNow());
+        _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15));
         _clock.Advance(TimeSpan.FromMinutes(46));
 
         var silent = () => Subject().CheckSessionAsync(TestContext.Current.CancellationToken);
 
-        (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent, "a heartbeat says that the extension is alive, not that the assistant's page answers (a block, an outage)");
+        (await silent.Should().ThrowAsync<ReaderException>()).Which.Reason.Should().Be(ConnectionReasons.ExtensionSilent);
     }
 }

@@ -104,7 +104,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # one writer to the database and the one browser profile
+    type: Recreate        # one writer to the database and the one browser profile
   selector:
     matchLabels:
       app.kubernetes.io/name: geminarr
@@ -127,7 +127,7 @@ spec:
       initContainers:
         - name: egress-guard
           image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
-          command: ['/usr/sbin/iptables-nft-restore', '/rules/rules.v4']
+          command: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: false
@@ -143,7 +143,7 @@ spec:
               mountPath: /run
         - name: egress-guard-v6
           image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
-          command: ['/usr/sbin/ip6tables-nft-restore', '/rules/rules.v6']
+          command: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: false
@@ -159,7 +159,7 @@ spec:
               mountPath: /run
       containers:
         - name: geminarr
-          image: ghcr.io/<owner>/geminarr:<tag> # pin a version
+          image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
           ports:
             - name: http
               containerPort: 8282
@@ -250,14 +250,14 @@ spec:
         - name: browser
           # Everything below that depends on the image (the paths of its web client that Geminarr relays, the nginx edits of the init script, the port of its TLS desktop) was tested with
           # lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108. Another digest needs the same tests again: it is a different contract (SPEC Q-18).
-          image: lscr.io/linuxserver/chromium@sha256:<digest> # pin by digest, never `latest`
+          image: lscr.io/linuxserver/chromium@sha256:<digest>   # pin by digest, never `latest`
           env:
             - name: PUID
-              value: '1000'
+              value: "1000"
             - name: PGID
-              value: '1000'
+              value: "1000"
             - name: TZ
-              value: Etc/UTC # your time zone
+              value: Etc/UTC   # your time zone
             # The page the browser opens: the assistant, which
             # sends a person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it, and it is no container port of the pod.
             # The page the browser opens at start is the assistant's address.
@@ -284,7 +284,7 @@ spec:
               memory: 512Mi
               ephemeral-storage: 256Mi
             limits:
-              memory: 2Gi # Chromium with a page open
+              memory: 2Gi   # Chromium with a page open
               ephemeral-storage: 1Gi
           volumeMounts:
             - name: browser
@@ -317,11 +317,11 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
-            sizeLimit: 1Gi # Chromium's shared memory
+            sizeLimit: 1Gi   # Chromium's shared memory
         - name: operator
           secret:
-            defaultMode: 0440 # the container's group reads it (fsGroup), no other user of the pod does
-            secretName: geminarr-operator # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
+            defaultMode: 0440   # the container's group reads it (fsGroup), no other user of the pod does
+            secretName: geminarr-operator   # created by you, or sealed in your GitOps repository: `kubectl -n geminarr create secret generic geminarr-operator --from-file=password=./operator-password`
         # - name: mnemarr
         #   secret:
         #     secretName: geminarr-mnemarr

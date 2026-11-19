@@ -3,7 +3,7 @@
 const ORIGIN = '__ASSISTANT_ORIGIN__';
 const SWEEP_ALARM = 'sweep';
 const UPDATE_ALARM = 'update';
-// The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (the interval of the rounds is over, a person is signing in, the operator asked) and whether to sign the account out. It is the only clock of the rounds.
+// The extension says that it is there every half minute (the least that an alarm allows): Geminarr answers whether to look now (the interval of the rounds is over, a person is signing in, the operator asked) and whether to sign the account out. It is the only clock of the rounds, apart from the one at the browser's start or the extension's install, which looks once.
 const HELLO_ALARM = 'hello';
 const HELLO_MINUTES = 0.5;
 const SIGN_OUT_KEY = 'signOutAt';

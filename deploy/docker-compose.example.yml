@@ -11,8 +11,8 @@ services:
     restart: unless-stopped
     shm_size: 1gb
     environment:
-      PUID: '1000'
-      PGID: '1000'
+      PUID: "1000"
+      PGID: "1000"
       TZ: Etc/UTC # your time zone
       # The page the browser opens: the assistant, which sends a
       # person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it.
@@ -33,9 +33,9 @@ services:
       - ./geminarr-browser-policy.json:/etc/chromium/policies/managed/geminarr.json:ro
     ports:
       # Geminarr's own page, on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
-      - '127.0.0.1:8282:8282'
+      - "127.0.0.1:8282:8282"
       # The desktop's own origin (ADR 0019): a second port of Geminarr, for the same proxy (a second host or port, HTTPS). It answers 401 without the cookie that a ticket of the operator's session gives.
-      - '127.0.0.1:8283:8283'
+      - "127.0.0.1:8283:8283"
       # Never publish 3000 (the web desktop itself): it is for Geminarr alone.
     # Hardening, tried on 2026-11-15 with this image: its init needs these few capabilities to set the user and the files, and nothing else (Chromium runs as the user it sets).
     cap_drop:
@@ -52,7 +52,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G # Chromium with a page open
+          memory: 2G   # Chromium with a page open
 
   # The egress guard (ADR 0020). Geminarr and the browser share one network namespace, so a network policy cannot tell them apart: these two one-shot containers set, in that namespace, rules that name
   # Geminarr's own process by its user (uid 1654) and let it reach Mnemarr and nothing else. The browser keeps whatever your network allows. Copy egress/rules.v4.example and rules.v6.example to
@@ -60,33 +60,33 @@ services:
   # project's, with iptables and no shell), pinned by digest.
   egress-guard:
     image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
-    entrypoint: ['/usr/sbin/iptables-nft-restore', '/rules/rules.v4']
+    entrypoint: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
     network_mode: service:browser
     cap_drop: [ALL]
     cap_add: [NET_ADMIN]
     read_only: true
     tmpfs: [/run]
-    restart: 'no'
+    restart: "no"
     volumes:
       - ./egress/rules.v4:/rules/rules.v4:ro
     depends_on:
       - browser
   egress-guard-v6:
     image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
-    entrypoint: ['/usr/sbin/ip6tables-nft-restore', '/rules/rules.v6']
+    entrypoint: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
     network_mode: service:browser
     cap_drop: [ALL]
     cap_add: [NET_ADMIN]
     read_only: true
     tmpfs: [/run]
-    restart: 'no'
+    restart: "no"
     volumes:
       - ./egress/rules.v6:/rules/rules.v6:ro
     depends_on:
       - browser
 
   geminarr:
-    image: ghcr.io/<owner>/geminarr:<tag> # pin a version
+    image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
     restart: unless-stopped
     # The network of the browser: the desktop's address is its loopback, never a network.
     network_mode: service:browser
@@ -99,7 +99,7 @@ services:
         condition: service_completed_successfully
     volumes:
       # - ./geminarr-logo.png:/run/identity/logo.png:ro   # the picture of the menu (see GEMINARR__IDENTITY__LOGOFILE below); not in git
-      - geminarr-data:/config # database and settings: back this up.
+      - geminarr-data:/config               # database and settings: back this up.
     environment:
       GEMINARR__DATAFOLDER: /config
       # The operator: a name that is not obvious (whoever knows it can lock it out for fifteen minutes) and the password in a file (a secret).
@@ -142,7 +142,7 @@ services:
 
 secrets:
   geminarr_operator_password:
-    file: ./geminarr-operator-password # one line, at least 12 characters; not in git
+    file: ./geminarr-operator-password   # one line, at least 12 characters; not in git
   geminarr_extension_token:
     file: ./geminarr-extension-token # one line, 32 characters or more, random; the same as in the policy of the browser; not in git
 

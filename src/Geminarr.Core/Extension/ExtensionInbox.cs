@@ -40,6 +40,7 @@ public sealed class ExtensionInbox
     private readonly int _maxHeldCharacters;
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
+    private DateTimeOffset? _lastHello;
     private readonly ExtensionIntents _intents = new();
     private readonly Dictionary<string, DateTimeOffset> _asked = new(StringComparer.Ordinal);
     private readonly UnreadableLedger _unreadable = new(MaxConversations, HeldFor);
@@ -64,6 +65,18 @@ public sealed class ExtensionInbox
     internal ExtensionInbox(int maxHeldCharacters)
     {
         _maxHeldCharacters = maxHeldCharacters;
+    }
+
+    /// <summary>The last time that the extension said that it is there, whatever it said of the page: it tells a browser that is off or cannot reach Geminarr from an assistant's page that does not answer.</summary>
+    public DateTimeOffset? LastHello
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _lastHello;
+            }
+        }
     }
 
     public ExtensionSession? Session
@@ -277,6 +290,7 @@ public sealed class ExtensionInbox
     {
         lock (_gate)
         {
+            _lastHello = now;
             return _intents.TakeHints(now, _session, roundEvery);
         }
     }

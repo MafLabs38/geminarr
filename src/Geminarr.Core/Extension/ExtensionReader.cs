@@ -21,15 +21,30 @@ public sealed class ExtensionReader : IConversationReader
         _clock = clock;
     }
 
+    private const string SilentSentence = "The extension of the browser has said nothing for a while: check that the browser runs and reaches Geminarr.";
+
     public string Source => ConversationSources.Web;
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;
-        // Silent is no word about the session for a while, a heartbeat or not: the browser is off, cannot reach Geminarr, or the assistant's page does not answer (a block, an outage). Nothing known yet (a restart) is a reader that cannot say.
-        if (session is null || _clock.GetUtcNow() - session.At > TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes))
+        var silentAfter = TimeSpan.FromMinutes(_options.Value.SilentAfterMinutes);
+        var now = _clock.GetUtcNow();
+        // Nothing known yet (a restart) is a reader that cannot say: the browser is off or cannot reach Geminarr, and the next hello says which.
+        if (session is null)
         {
-            throw new ReaderException(ConnectionReasons.ExtensionSilent, "The extension of the browser has said nothing of the assistant for a while: check that the browser runs and reaches Geminarr, and that the assistant's page answers.");
+            throw new ReaderException(ConnectionReasons.ExtensionSilent, SilentSentence);
+        }
+
+        if (now - session.At > silentAfter)
+        {
+            // The extension is there (it says so every half minute) but says nothing of the page: the assistant does not answer (a block, an outage). Restarting the browser would only visit the page again, so this is told apart from a browser that does not speak.
+            if (_inbox.LastHello is { } hello && now - hello <= silentAfter)
+            {
+                throw new ReaderException(ConnectionReasons.Unreachable, "The extension is there but the assistant's page has not answered for a while (a block or an outage): wait, do not restart the browser.");
+            }
+
+            throw new ReaderException(ConnectionReasons.ExtensionSilent, SilentSentence);
         }
 
         // A page that is not what the extension knows is not a session that is gone: it is the reader that is broken, said loudly (SPEC §6.4).

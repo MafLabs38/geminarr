@@ -18,7 +18,7 @@ public sealed class ExtensionOptions
     /// <summary>The address by which the browser reaches Geminarr, when it is not the one of the request (a proxy that ends TLS): the update manifest of the extension names the package by it. Empty: the address of the request.</summary>
     public string? PublicUrl { get; set; }
 
-    /// <summary>Minutes without a word from the extension after which it is taken for silent: the browser is not running it, or cannot reach Geminarr.</summary>
+    /// <summary>Minutes without a word of the extension about the assistant's page (a heartbeat is not one) after which the connection says `extension-silent` (the browser is not running it, or cannot reach Geminarr) or, when the extension still says that it is there, `unreachable` (the assistant's page does not answer).</summary>
     public int SilentAfterMinutes { get; set; } = 45;
 
     /// <summary>Minutes between two rounds of the extension: it says that it is there every half minute, and is asked for a round when what it said last is older than this. Keep it well below <see cref="SilentAfterMinutes"/>.</summary>
