@@ -1,0 +1,39 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.reason {
+  margin: 12px 0 0;
+  color: var(--inkSoft);
+}
+
+.block {
+  margin-top: 12px;
+}
+
+.open {
+  display: inline-block;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.identity {
+  margin: 12px 0;
+}
+
+.who {
+  margin: 0;
+  font-family: var(--displayFontFamily);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.email {
+  margin: 2px 0 0;
+  color: var(--inkSoft);
+  font-family: var(--monoSpaceFontFamily);
+}

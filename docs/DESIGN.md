@@ -1,0 +1,59 @@
+# Geminarr — Design and Frontend Guidelines
+
+> **Status**: v1, 2026-11-11. Mandatory for all UI code (human- or AI-written).
+> Geminarr follows **[Portarr's DESIGN.md](https://github.com/MafLabs38/portarr/blob/98458ee1f80e140cf15adab2416a386970c7bfc6/docs/DESIGN.md)**, pinned to the commit of 2026-10-28 so that a later edit in another repository cannot change these rules without a review here (the *arr page anatomy, component vocabulary, design tokens, accessibility rules and pull request checklist), exactly as Mnemarr does. This page records what is specific to Geminarr. Where nothing is said here, the pinned document applies; the decisions it cites (D-xx, V7) are Portarr's own and do not apply here.
+
+## 1. What is shared with Portarr and Mnemarr
+
+- The **page anatomy**: a header (56 px), a sidebar (220 px) and a page content with a heading, as in Sonarr.
+- The **theme tokens**: same names and values (`--paper`, `--paperCard`, `--ink`, `--accent`, `--shadowCard`…), in `frontend/src/Styles/Themes/themes.css`. A component never carries a hard-coded color, font, radius or shadow.
+- The **fonts** (Fredoka, Nunito, JetBrains Mono), self-hosted through `@fontsource`: the interface makes no request to a third party.
+- The **code conventions**: CSS Modules, one component per file, absolute imports from `src`, icons only through `Helpers/Props/icons.ts`, the `kind` vocabulary, every text through `translate()`.
+- **Server data only through `useApiQuery`** (`Helpers/Hooks`), which goes through `apiGet` (`Helpers/Api`): never a `fetch` in a component. The write path (`apiSend`, a mutation hook next to the feature's query hooks, the `X-Geminarr-Request` header the server will enforce, F-ACC-04) arrives with the first vertical that writes.
+
+## 2. What is specific to Geminarr
+
+### 2.1 The interface watches and signs in; it never shows a conversation
+
+Geminarr's page tells the operator whether it works and lets them act on the connection. It **never displays the text of a conversation** (Mnemarr is where conversations are read, D-06). Its menu:
+
+| Entry         | Content                                                                                                                                                                                   | State                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Overview      | Is Geminarr up (the API answers), and the **health**: each check with its state and, when something is wrong, the sentence of its reason code. Later: the session, Mnemarr, the last runs | built (API state, health) |
+| Settings      | The settings the container runs with, read only, a secret as _set_ or _not set_                                                                                                           | built                     |
+| Connection    | The state of the session, a link to the browser container's page (where a person signs in by hand), _Pause_, _Disconnect_                                                                 | soon (vertical 3)         |
+| Conversations | Metadata only: id, state, turns sent and read, rewritten turns, when last read, and how far the history is walked (never a title: Geminarr keeps none)                                                                                                                        | built                     |
+| Runs          | Outcome, counts, reason of each pass                                                                                                                                                      | built                     |
+| Import        | Upload a Takeout archive, see the result                                                                                                                                                  | soon (vertical 5)         |
+| Mnemarr       | The destination, its state, pairing                                                                                                                                                       | soon (vertical 2)         |
+| System        | Version, runtime, start and uptime                                                                                                                                                        | built                     |
+
+An entry whose page is not built is **shown, marked "Soon", and is not a link** (`aria-disabled`). It becomes a link in the pull request that builds its page.
+
+### 2.1a The sign-in comes first
+
+Nothing of the application is shown, and nothing is asked of the API, until somebody is signed in: the sign-in page is the first screen, a failed call answered 401 puts it back and forgets what was read, and the answer to a wrong name and a wrong password is the same sentence. Who is signed in is in the header, with the way out.
+
+### 2.2 States are never conveyed by color alone
+
+The connection and the health use the `StatusLabel` component (icon, text and color). The states and reason codes of SPEC §7.2 and §10.3 each have a sentence in `Utilities/String/en.ts`; the page maps codes, it does not parse English.
+
+### 2.3 Signing in to the browser container
+
+- The page _Connection_ says in words what to do ("Sign in by hand, in the page of the browser container: Geminarr never types a credential") and which account to use ("Use the dedicated account, never your main one"), and opens the browser's desktop **in a window of its own**, from the **Sign in** button: the window is opened by the click, blank, then sent to the desktop's own origin with a ticket that the page has just asked for (ADR 0019). **The page keeps its link to that window on purpose** (`opener` is not cut): it closes the window when the sign-in is done, which a window with a cut opener does not allow. It is Geminarr's relay of another program's page, not a frame of this one, and the person signs in to nothing else (no second password).
+- The page begins with **the state of the session** (who is signed in: the extension's word, ADR 0022) or with "Not signed in" / "The session has ended: sign in again", in words and not only in a color. It asks again every few seconds, because a person is waiting for it to change after signing in; a sign-in that ends makes Geminarr check at once. A "Check again" button asks for a pass without waiting.
+- **Sign in** is a button: it opens the browser container's page in a window of its own (the click opens it) and asks Geminarr to open the account provider's sign-in page in the browser; the person signs in by hand, whichever way the provider offers. The page says "Signing in…" while that tab is open, and closes the window by itself once the connection says that the account is signed in.
+- The link is not shown when the session is good, and a missing desktop is said (`GEMINARR__BROWSER__DESKTOPURL`).
+- Nothing in the DOM holds a credential: Geminarr's page never sees what is typed in the browser's page.
+
+### 2.4 The brand and the identity of the environment
+
+The header shows the product's mark (two overlapping rings, drawn in the theme's colors) and its name. The **menu ends with the identity badge** of the environment, the same as Mnemarr's and Portarr's ([ADR 0013](adr/0013-the-menu-says-which-environment-it-is-with-a-name-a-logo-and-the-version.md)): the name of the laboratory, its picture and the version, set by the deployment. Playfulness is for the overview and empty states ("Nothing to collect yet."), never for errors or alerts.
+
+### 2.5 Not there yet
+
+The light theme, the color-impaired mode and the forms arrive with the verticals that need them. Until then there is only the dark theme.
+
+## 3. Pull request UI checklist
+
+The checklist of Portarr's document applies, with this addition: a new menu entry is added to `frontend/src/App/navigation.ts` as unavailable, and turned on in the pull request that delivers its page; and **nothing a conversation said ever reaches the DOM, a log or a screenshot kept in the repository**.

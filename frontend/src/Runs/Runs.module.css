@@ -1,0 +1,37 @@
+.table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: var(--fontSizeBody);
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}

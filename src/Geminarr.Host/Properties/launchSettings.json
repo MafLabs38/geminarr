@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Geminarr": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:8282",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

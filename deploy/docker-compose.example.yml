@@ -1,0 +1,151 @@
+# Geminarr on a Docker host. Copy, adjust the values marked <...>, then `docker compose up -d`.
+# Two containers (ADR 0016, 0017): Geminarr, and the browser container that a person signs in to by hand (an ordinary Chromium with a web desktop).
+# The browser is for Geminarr alone: it publishes nothing, has no sign-in of its own and no address of its own. Geminarr runs in its network namespace, reaches its
+# web desktop on the loopback of that namespace, and relays the desktop on a port of its own (8283) behind a ticket of the operator's session. The only ports published are Geminarr's two (on the `browser` service, which owns the namespace).
+services:
+  browser:
+    # A third party's image, pinned by digest, never `latest`: the choice of the image is the maintainer's (SPEC Q-18).
+    # Everything below that depends on the image (the paths of its web client that Geminarr relays, the nginx edits of the init script, the port of its TLS desktop) was tested with
+    # lscr.io/linuxserver/chromium@sha256:ff1b8235e20367c3b660d31892e14428687df75e2d62e274b7d8d40cf5537108. Another digest needs the same tests again: it is a different contract (SPEC Q-18).
+    image: lscr.io/linuxserver/chromium@sha256:<digest>
+    restart: unless-stopped
+    shm_size: 1gb
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC # your time zone
+      # The page the browser opens: the assistant, which sends a
+      # person who is not signed in to the sign-in page of the account. No login on the web desktop: nothing but Geminarr reaches it.
+      # The page the browser opens at start is the assistant's address.
+      CHROME_CLI: https://gemini.google.com/app
+      # The web desktop is served under this path, where Geminarr relays it.
+      SUBFOLDER: /browser/
+      # The only origin its WebSocket accepts: the one Geminarr gives every request that it relays (BrowserOptions.RelayOrigin), which no web page can have. A page that the browser itself loads can
+      # reach the desktop on the loopback, and is refused.
+      SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
+    volumes:
+      # The configuration of the browser, profile included: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
+      - browser-config:/config
+      # Makes the web desktop listen on the loopback of the namespace and nowhere else: it has no sign-in, so nothing but Geminarr may reach it (ADR 0017). Executable, from this repository.
+      - ./browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro
+      # The policy that installs the extension of Geminarr (the reader, ADR 0022), gives it the address of Geminarr (the loopback of the namespace) and its token, and keeps the browser to the assistant's pages. It holds the
+      # token: a secret that your tooling makes from browser/policy.example.json (the id of the extension is in the update manifest of Geminarr), never committed.
+      - ./geminarr-browser-policy.json:/etc/chromium/policies/managed/geminarr.json:ro
+    ports:
+      # Geminarr's own page, on the loopback, for a reverse proxy with TLS in front (the web desktop of the browser needs a secure context, so HTTPS or localhost).
+      - "127.0.0.1:8282:8282"
+      # The desktop's own origin (ADR 0019): a second port of Geminarr, for the same proxy (a second host or port, HTTPS). It answers 401 without the cookie that a ticket of the operator's session gives.
+      - "127.0.0.1:8283:8283"
+      # Never publish 3000 (the web desktop itself): it is for Geminarr alone.
+    # Hardening, tried on 2026-11-15 with this image: its init needs these few capabilities to set the user and the files, and nothing else (Chromium runs as the user it sets).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 2G   # Chromium with a page open
+
+  # The egress guard (ADR 0020). Geminarr and the browser share one network namespace, so a network policy cannot tell them apart: these two one-shot containers set, in that namespace, rules that name
+  # Geminarr's own process by its user (uid 1654) and let it reach Mnemarr and nothing else. The browser keeps whatever your network allows. Copy egress/rules.v4.example and rules.v6.example to
+  # rules.v4 and rules.v6 and fill them in. They run once with the one capability that they need and exit; Geminarr has none and cannot change them. A third party's image (the Kubernetes
+  # project's, with iptables and no shell), pinned by digest.
+  egress-guard:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ["/usr/sbin/iptables-nft-restore", "/rules/rules.v4"]
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: "no"
+    volumes:
+      - ./egress/rules.v4:/rules/rules.v4:ro
+    depends_on:
+      - browser
+  egress-guard-v6:
+    image: registry.k8s.io/build-image/distroless-iptables@sha256:4b2a7382d785242e2f865f4231c581c0662d0f287bf5219a2e2413229f53969c
+    entrypoint: ["/usr/sbin/ip6tables-nft-restore", "/rules/rules.v6"]
+    network_mode: service:browser
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: "no"
+    volumes:
+      - ./egress/rules.v6:/rules/rules.v6:ro
+    depends_on:
+      - browser
+
+  geminarr:
+    image: ghcr.io/<owner>/geminarr:<tag>   # pin a version
+    restart: unless-stopped
+    # The network of the browser: the desktop's address is its loopback, never a network.
+    network_mode: service:browser
+    depends_on:
+      browser:
+        condition: service_started
+      egress-guard:
+        condition: service_completed_successfully
+      egress-guard-v6:
+        condition: service_completed_successfully
+    volumes:
+      # - ./geminarr-logo.png:/run/identity/logo.png:ro   # the picture of the menu (see GEMINARR__IDENTITY__LOGOFILE below); not in git
+      - geminarr-data:/config               # database and settings: back this up.
+    environment:
+      GEMINARR__DATAFOLDER: /config
+      # The operator: a name that is not obvious (whoever knows it can lock it out for fifteen minutes) and the password in a file (a secret).
+      # Without them nobody can sign in. Rotating the secret needs no restart.
+      GEMINARR__AUTH__ADMINUSER: change-me-operator-name
+      GEMINARR__AUTH__ADMINPASSWORDFILE: /run/secrets/geminarr_operator_password
+      # The name you reach the page by (the host of this address is allowed; a request for any other name is refused). Behind TLS leave the cookie secure.
+      GEMINARR__PUBLICURL: https://geminarr.homelab.example
+      # The address that your proxy publishes the browser's desktop by (its own origin, ADR 0019). Without it: port 8283 of the page's host.
+      GEMINARR__BROWSER__DESKTOPPUBLICURL: https://desktop.homelab.example
+      # The Mnemarr to send to (https). Leave it out to give the address on the page *Mnemarr* and pair there; a one-time code can be given as a file instead.
+      # GEMINARR__MNEMARR__URL: https://mnemarr.homelab.example
+      # GEMINARR__MNEMARR__ENROLMENTCODEFILE: /run/secrets/geminarr_mnemarr_code   # a one-time code, exchanged at start
+      # GEMINARR__MNEMARR__KEYFILE: /run/secrets/geminarr_mnemarr_key             # or the key itself, if Mnemarr gave it to you
+      # The extension of the browser reads the assistant and hands it over (ADR 0022): the token is the same as in the policy of the browser (above).
+      GEMINARR__EXTENSION__TOKENFILE: /run/secrets/geminarr_extension_token # 32 characters or more, random
+      # Optional: who this environment is, at the bottom of the menu (a name, and a picture mounted as a file; none of it is in this repository).
+      # GEMINARR__IDENTITY__NAME: My lab
+      # GEMINARR__IDENTITY__LOGOFILE: /run/identity/logo.png   # mounted below, from a file next to this one
+      # The browser container reads the session of the assistant: the reader Web (the default, None, reads nothing) and the web desktop (on the loopback of the
+      # shared namespace, nothing else is accepted). Geminarr relays the desktop on its own origin (port 8283; GEMINARR__BROWSER__DESKTOPPUBLICURL gives the address that your proxy publishes it by) and never types a credential.
+      GEMINARR__READER__KIND: Web
+      GEMINARR__BROWSER__DESKTOPURL: http://127.0.0.1:3000
+      # Plain HTTP on the loopback only, for a try: GEMINARR__AUTH__COOKIESECURITY: SameAsRequest
+    secrets:
+      - geminarr_operator_password
+      - geminarr_extension_token
+    # Hardening: nothing writes outside the data folder and a temporary folder.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+secrets:
+  geminarr_operator_password:
+    file: ./geminarr-operator-password   # one line, at least 12 characters; not in git
+  geminarr_extension_token:
+    file: ./geminarr-extension-token # one line, 32 characters or more, random; the same as in the policy of the browser; not in git
+
+volumes:
+  geminarr-data:
+  browser-config:
