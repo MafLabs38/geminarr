@@ -83,7 +83,7 @@ export default function LiveUpdates() {
       stopped = true;
       clearTimeout(retry);
       liveStatus.set('connecting');
-      void connection.stop();
+      connection.stop().catch(() => undefined);
     };
   }, [queryClient]);
 
