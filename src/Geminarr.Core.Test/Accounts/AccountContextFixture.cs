@@ -30,6 +30,8 @@ public sealed class AccountContextFixture : IDisposable
 
         public string? AccountAddress => Address;
 
+        public bool SignedInWithoutAccount { get; set; }
+
         public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(SessionCheck.SignedIn);
 
         public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
@@ -143,18 +145,65 @@ public sealed class AccountContextFixture : IDisposable
         var subject = Subject();
         var a = AccountKey.Of("a@example.org");
         var b = AccountKey.Of("b@example.org");
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var seen = await Task.WhenAll(Work(subject, a), Work(subject, b));
+        // Both have taken their account before either goes on.
+        var both = Task.WhenAll(Work(subject, a, gate.Task), Work(subject, b, gate.Task));
+        gate.SetResult();
+        var seen = await both;
 
         seen.Should().Equal(a, b);
     }
 
-    private static async Task<string?> Work(AccountContext subject, string key)
+    private static async Task<string?> Work(AccountContext subject, string key, Task gate)
     {
         using (subject.Use(key))
         {
-            await Task.Delay(20, TestContext.Current.CancellationToken);
+            await gate;
             return subject.Current;
         }
+    }
+
+    [Fact]
+    public void should_not_fall_back_to_the_last_account_for_a_session_whose_account_cannot_be_named()
+    {
+        var subject = Subject();
+        subject.Remember(AccountKey.Of("jane.doe@example.org"));
+        _reader.SignedInWithoutAccount = true;
+
+        subject.Current.Should().BeNull("a session that is signed in to somebody else is not the account that was signed in last");
+        subject.SignedIn.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_say_that_an_account_is_in_use_until_the_work_that_took_it_is_done()
+    {
+        var subject = Subject();
+        var key = AccountKey.Of("jane.doe@example.org");
+        subject.InUse(key).Should().BeFalse();
+
+        var first = subject.Use(key);
+        var second = subject.Use(key);
+        subject.InUse(key).Should().BeTrue();
+
+        first.Dispose();
+        first.Dispose();
+        subject.InUse(key).Should().BeTrue("the second piece of work still holds it, and a second dispose of the first frees nothing more");
+        second.Dispose();
+        subject.InUse(key).Should().BeFalse();
+        subject.InUse(AccountKey.Of("john.roe@example.org")).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_write_the_account_again_after_it_was_forgotten()
+    {
+        var subject = Subject();
+        var key = AccountKey.Of("jane.doe@example.org");
+        subject.Remember(key);
+        subject.Forget();
+
+        subject.Remember(key);
+
+        _store.Account().Should().Be(key);
     }
 }

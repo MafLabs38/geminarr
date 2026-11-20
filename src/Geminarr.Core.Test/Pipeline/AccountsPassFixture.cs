@@ -157,4 +157,21 @@ public sealed class AccountsPassFixture : IDisposable
         _sink.Sent.Should().BeEmpty();
         new AccountWorkspaces(Options.Of(_data.Settings)).Known().Should().BeEmpty("no workspace is made for nobody");
     }
+
+    [Fact]
+    public async Task should_do_nothing_and_leave_the_workspace_as_it_was_once_the_operator_has_disconnected()
+    {
+        _reader.Say("c1", "T", "a", "b");
+        _account.SignIn(Jane);
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+        var sent = _sink.Sent.Count;
+
+        _account.SignIn(null);
+        _account.Forget();
+        _reader.Session = SessionCheck.SignedOut;
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Sent.Should().HaveCount(sent);
+        ConversationsOf(Jane).Should().Equal("c1");
+    }
 }

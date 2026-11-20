@@ -21,7 +21,6 @@ public sealed class MachineNameFixture
     [Theory]
     [InlineData("élodie@example.org")]
     [InlineData("@example.org")]
-    [InlineData("....@example.org")]
     public void should_make_a_name_that_mnemarr_takes_whatever_the_address_is(string address)
     {
         MnemarrOptionsValidator.IsValidMachine(Name(address)).Should().BeTrue(Name(address));

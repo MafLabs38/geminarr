@@ -84,7 +84,8 @@ Whichever account is signed in is the one that is read, and each account is a ma
 - **Forget an account** (page _Connection_ or _Mnemarr_, table _Accounts_): its workspace is deleted here; what Mnemarr holds stays there (delete the machine in Mnemarr if you want it gone). The account that is read cannot be forgotten: disconnect first.
 - **A long history on a main account**: the history is walked a few conversations per pass (`GEMINARR__READER__BACKFILLPERPASS`) and a round every `GEMINARR__EXTENSION__ROUNDMINUTES`; keep the pace gentle, since a provider that sees fast reads may ask for a verification (`rate-limited`: Geminarr pauses by itself).
 - **The first start** says _Waiting for a sign-in_ (information, not a fault): nobody has signed in yet.
-- **`GEMINARR__MNEMARR__KEYFILE`** is one key for the whole deployment: every account would share one machine. Leave it unset when more than one account is read.
+- **`GEMINARR__MNEMARR__KEYFILE`** is one key for the whole deployment, so one machine: it serves the first account, and a second one is not linked (the log says so). Leave it unset when more than one account is read.
+- **A data folder from before accounts** is not adopted: its conversations and its key are not read, and the first account that signs in is paired as a machine of its own (what Mnemarr holds stays under the old machine).
 
 ## Signing in
 

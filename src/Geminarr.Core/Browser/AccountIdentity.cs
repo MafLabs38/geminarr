@@ -4,7 +4,7 @@ namespace Geminarr.Core.Browser;
 
 /// <summary>
 /// Who the browser is signed in as, as the assistant's page says it for its own account button: an address, and a name when the page gives one. It is the operator's to see on the Connection page and nothing else's:
-/// it is never logged, never in the heartbeat, never sent to Mnemarr, and it lives in memory only (the next check reads it again).
+/// it is never logged, never in the heartbeat, and it lives in memory only (what leaves is the part before the @, as the name of the machine of the account) (the next check reads it again).
 /// </summary>
 public sealed record AccountIdentity(string? Name, string Email);
 

@@ -35,9 +35,9 @@ public sealed class PassRunner
     private readonly TimeProvider _clock;
     private readonly ILogger<PassRunner> _logger;
     private readonly SemaphoreSlim _running = new(1, 1);
+
     /// <summary>The account that the positions below were asked of Mnemarr for: another account has other machines, so they are asked again when it changes.</summary>
     private string? _positionsAccount;
-
     private DateTimeOffset? _positionsAt;
     private long _generation = -1;
 

@@ -11,6 +11,9 @@ public interface IConversationReader
     /// </summary>
     string? AccountAddress => null;
 
+    /// <summary>Whether a session is signed in to an account that the reader cannot name (the page did not say which): it is not the account that was signed in last, and nothing is read for it.</summary>
+    bool SignedInWithoutAccount => false;
+
     Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken);
 
     /// <summary>The most recent conversations, most recent first, at most <paramref name="limit"/>.</summary>

@@ -31,6 +31,7 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0024](0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md)                 | The history is walked slowly, and its end is told by the list                                        | D-32                              |
 | [0025](0025-a-conversation-is-read-from-its-end-as-far-as-geminarr-needs.md)                 | A conversation is read from its end, as far back as Geminarr needs                                   | D-33                              |
 | [0026](0026-one-account-signed-in-is-one-machine-of-notes.md)                                | One account signed in is one machine of notes                                                        | D-35                              |
+| [0027](0027-any-account-may-be-signed-in-and-there-is-no-import.md)                          | Any account may be signed in, and there is no import                                                 | D-34                              |
 
 ## Template
 

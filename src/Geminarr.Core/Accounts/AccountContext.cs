@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
 
@@ -13,6 +14,7 @@ public sealed class AccountContext : IAccountContext
 
     private readonly ReaderProvider _readers;
     private readonly IConnectionStore _store;
+    private readonly ConcurrentDictionary<string, int> _inUse = new();
     private readonly Lock _gate = new();
     private string? _remembered;
     private bool _loaded;
@@ -27,7 +29,27 @@ public sealed class AccountContext : IAccountContext
 
     public string? SignedIn => SignedInAddress is { } address ? AccountKey.Of(address) : null;
 
-    public string? Current => Ambient.Value is { } taken ? taken.Key : SignedIn ?? Remembered();
+    /// <summary>
+    /// A session that is signed in to an account that cannot be read (the label of the page did not parse) is not the account that was signed in last: nothing is read for it, and nothing is written to the other's workspace.
+    /// The last account is the one to work on only while nobody is signed in.
+    /// </summary>
+    public string? Current
+    {
+        get
+        {
+            if (Ambient.Value is { } taken)
+            {
+                return taken.Key;
+            }
+
+            if (SignedIn is { } signedIn)
+            {
+                return signedIn;
+            }
+
+            return _readers.Reader?.SignedInWithoutAccount == true ? null : Remembered();
+        }
+    }
 
     public void Remember(string key)
     {
@@ -58,8 +80,17 @@ public sealed class AccountContext : IAccountContext
     {
         var before = Ambient.Value;
         Ambient.Value = new Taken(key);
-        return new Restore(before);
+        if (key is not null)
+        {
+            _inUse.AddOrUpdate(key, 1, (_, count) => count + 1);
+        }
+
+        return new Restore(this, before, key);
     }
+
+    public bool InUse(string key) => _inUse.TryGetValue(key, out var count) && count > 0;
+
+    private void Release(string key) => _inUse.AddOrUpdate(key, 0, (_, count) => Math.Max(count - 1, 0));
 
     private string? Remembered()
     {
@@ -79,13 +110,25 @@ public sealed class AccountContext : IAccountContext
 
     private sealed class Restore : IDisposable
     {
+        private readonly AccountContext _owner;
         private readonly Taken? _before;
+        private readonly string? _key;
+        private int _disposed;
 
-        public Restore(Taken? before)
+        public Restore(AccountContext owner, Taken? before, string? key)
         {
+            _owner = owner;
             _before = before;
+            _key = key;
         }
 
-        public void Dispose() => Ambient.Value = _before;
+        public void Dispose()
+        {
+            Ambient.Value = _before;
+            if (_key is not null && Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                _owner.Release(_key);
+            }
+        }
     }
 }

@@ -21,6 +21,8 @@ public sealed class RecordingAccount : IAccountContext
 
     public IDisposable Use(string? key) => new Nothing();
 
+    public bool InUse(string key) => false;
+
     private sealed class Nothing : IDisposable
     {
         public void Dispose()

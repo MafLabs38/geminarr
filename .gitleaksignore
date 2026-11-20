@@ -1,0 +1,2 @@
+# A made-up account key of the tests (sixteen hex digits that open nothing): the generic rule takes it for a token. One exact finding, authorised by the maintainer for fictitious values (never for a real secret).
+dce740f85ad6a5a35d5b9565f84a9af2ec4ef7a7:src/Geminarr.Core.Test/Support/FixedAccount.cs:generic-api-key:8

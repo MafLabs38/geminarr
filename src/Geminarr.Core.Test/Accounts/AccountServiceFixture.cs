@@ -25,13 +25,14 @@ public sealed class AccountServiceFixture : IDisposable
     {
         _workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
         _database = new AccountDatabase(_account, _workspaces);
+        var keys = new KeyStore(Options.Of(new MnemarrOptions()), _account, _workspaces);
         var link = new LinkService(
             Options.Of(new MnemarrOptions()),
-            new LinkStores(new DestinationStore(_database), new KeyStore(Options.Of(new MnemarrOptions()), _account, _workspaces), new OutboxStore(_database), _account, _workspaces),
+            new LinkStores(new DestinationStore(_database), keys, new OutboxStore(_database), _account, _workspaces),
             new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))),
             new FakeTimeProvider(Now),
             NullLogger<LinkService>.Instance);
-        _subject = new AccountService(_account, _workspaces, link);
+        _subject = new AccountService(_account, _workspaces, link, keys);
     }
 
     public void Dispose() => _data.Dispose();
@@ -130,5 +131,53 @@ public sealed class AccountServiceFixture : IDisposable
         jane.Count().Should().Be(2);
         _subject.KeyOf(AccountService.IdOf(AccountKey.Of(Jane))).Should().Be(AccountKey.Of(Jane));
         _subject.KeyOf("ffffffff").Should().BeNull();
+    }
+
+    [Fact]
+    public void should_show_what_a_signed_out_account_holds_its_machine_its_link_and_what_waits()
+    {
+        Read(John, "c1");
+        var destination = new DestinationStore(_database);
+        destination.EnsureAddress("https://mnemarr.homelab.example");
+        destination.SaveLinked("geminarr-john-roe", Now);
+        new OutboxStore(_database).Replace("c1", [(0, ["a line", "another"])], Now);
+        var key = AccountKey.Of(John);
+        Directory.CreateDirectory(Path.Combine(_workspaces.Folder(key), "mnemarr"));
+        File.WriteAllText(Path.Combine(_workspaces.Folder(key), "mnemarr", "key"), "mnm_john");
+        _account.SignIn(Jane);
+
+        var john = _subject.List().Single(account => !account.Active);
+
+        (john.Machine, john.Linked, john.WaitingLines, john.Conversations, john.SignedIn).Should().Be(("geminarr-john-roe", true, 2, 1, false));
+        john.LastReadAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void should_not_name_an_account_by_an_id_that_two_accounts_share()
+    {
+        var first = Directory.CreateDirectory(Path.Combine(_data.Folder, "accounts", "aaaaaaaa00000001"));
+        var second = Directory.CreateDirectory(Path.Combine(_data.Folder, "accounts", "aaaaaaaa00000002"));
+        _account.SignIn(null);
+
+        _subject.KeyOf("aaaaaaaa").Should().BeNull("two accounts that the id cannot tell apart are named by none, so that the wrong one is never forgotten");
+        _subject.Forget("aaaaaaaa").Should().Be(ForgetResult.Unknown);
+        first.Exists.Should().BeTrue();
+        second.Exists.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_not_forget_an_account_that_a_pass_has_taken_even_when_nobody_is_signed_in_any_more()
+    {
+        Read(Jane, "c1");
+        _account.SignIn(null);
+        _account.Forget();
+
+        using (_account.Use(AccountKey.Of(Jane)))
+        {
+            _subject.Forget(AccountService.IdOf(AccountKey.Of(Jane))).Should().Be(ForgetResult.Active);
+        }
+
+        _workspaces.Exists(AccountKey.Of(Jane)).Should().BeTrue();
+        _subject.Forget(AccountService.IdOf(AccountKey.Of(Jane))).Should().Be(ForgetResult.Forgotten, "once the pass is done it can be forgotten");
     }
 }

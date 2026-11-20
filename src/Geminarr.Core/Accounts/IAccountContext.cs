@@ -26,4 +26,7 @@ public interface IAccountContext
     /// that it began with, so that a sign-out or a switch in the middle of it never writes to another account's workspace.
     /// </summary>
     IDisposable Use(string? key);
+
+    /// <summary>Whether a piece of work has taken this account and is not done: its workspace is not forgotten under it (the work would make it again).</summary>
+    bool InUse(string key);
 }

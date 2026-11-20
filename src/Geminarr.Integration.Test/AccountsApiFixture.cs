@@ -4,6 +4,7 @@ using Geminarr.Api.V1.Accounts;
 using Geminarr.Api.V1.Conversations;
 using Geminarr.Core.Accounts;
 using Geminarr.Core.Pipeline;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Geminarr.Integration.Test;
 
@@ -76,5 +77,46 @@ public sealed class AccountsApiFixture
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await client.GetFromJsonAsync<AccountsResource>("/api/v1/accounts", Token))!.Accounts.Should().BeEmpty();
+    }
+
+    private static readonly string OtherKey = AccountKey.Of("other.account@example.org");
+
+    /// <summary>An account that is not the one being read, with two conversations in its workspace.</summary>
+    private static void SeedOtherAccount(GeminarrFactory factory)
+    {
+        var now = new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero);
+        var store = new ConversationStore(factory.Services.GetRequiredService<IAccountWorkspaces>().Database(OtherKey));
+        foreach (var id in new[] { "c1", "c2" })
+        {
+            store.Save(new ConversationRecord(id, null, now, now, now, 0, 2, 2, null, 0, ConversationSources.Web, ConversationStates.Synced, null));
+        }
+    }
+
+    [Fact]
+    public async Task should_show_the_conversations_of_another_account_without_the_progress_of_its_history()
+    {
+        using var factory = new GeminarrFactory();
+        using var client = await factory.SignedInClientAsync();
+        SeedOtherAccount(factory);
+
+        var other = await client.GetFromJsonAsync<ConversationsResource>($"/api/v1/conversations?account={AccountService.IdOf(OtherKey)}", Token);
+
+        other!.Total.Should().Be(2);
+        other.Backfill.Should().BeNull("only the account that is being read has a history that is walked");
+    }
+
+    [Fact]
+    public async Task should_forget_an_account_that_is_not_the_one_being_read_and_then_not_know_it()
+    {
+        using var factory = new GeminarrFactory();
+        using var client = await factory.SignedInClientAsync();
+        SeedOtherAccount(factory);
+        var id = AccountService.IdOf(OtherKey);
+        (await client.GetFromJsonAsync<AccountsResource>("/api/v1/accounts", Token))!.Accounts.Should().Contain(account => account.Id == id);
+
+        (await client.DeleteAsync($"/api/v1/accounts/{id}", Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await client.GetFromJsonAsync<AccountsResource>("/api/v1/accounts", Token))!.Accounts.Should().NotContain(account => account.Id == id);
+        (await client.DeleteAsync($"/api/v1/accounts/{id}", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

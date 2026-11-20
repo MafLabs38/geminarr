@@ -122,6 +122,8 @@ public sealed class FakeKeys : IKeyStore
 
     public string? Read() => Key;
 
+    public bool ExistsFor(string account) => Key is not null;
+
     public string? Address { get; set; }
 
     public string? AddressOf() => Address;

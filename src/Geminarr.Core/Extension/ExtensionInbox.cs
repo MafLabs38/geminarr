@@ -6,7 +6,7 @@ using Geminarr.Core.Pipeline;
 namespace Geminarr.Core.Extension;
 
 /// <summary>What the extension said last about the session: signed in or not, with which version of itself, and when.</summary>
-/// <remarks><paramref name="Account"/> is who the page says is signed in (read from the label of its account button, in memory only, never logged and never sent to Mnemarr). <paramref name="Broken"/> is the step at which the page was not what the extension knows (<see cref="ExtensionBrokenSteps"/>), until the next thing it reads well.</remarks>
+/// <remarks><paramref name="Account"/> is who the page says is signed in (read from the label of its account button, in memory only, never logged; only the part before the @ leaves it, as the name of the machine of the account). <paramref name="Broken"/> is the step at which the page was not what the extension knows (<see cref="ExtensionBrokenSteps"/>), until the next thing it reads well.</remarks>
 public sealed record ExtensionSession(bool SignedIn, string? Version, DateTimeOffset At, string? Broken = null, AccountIdentity? Account = null);
 
 /// <summary>The steps at which the extension can say that the page is not what it knows: a closed list, so that nothing a page said can come through as a step.</summary>
@@ -44,6 +44,7 @@ public sealed class ExtensionInbox
     private readonly int _maxHeldCharacters;
     private readonly Dictionary<string, (string? Title, IReadOnlyList<Turn> Turns, DateTimeOffset At, int First)> _conversations = new(StringComparer.Ordinal);
     private ExtensionSession? _session;
+    private string? _heldFor;
     private DateTimeOffset? _lastHello;
     private DateTimeOffset? _firstHello;
     private DateTimeOffset? _lastPausedHello;
@@ -148,7 +149,9 @@ public sealed class ExtensionInbox
         lock (_gate)
         {
             var wasPending = _intents.SignOutPending;
-            _session = new ExtensionSession(signedIn, version, now, Account: signedIn ? AccountLabel.Parse(labels ?? []) : null);
+            var account = signedIn ? AccountLabel.Parse(labels ?? []) : null;
+            NoteAccount(account);
+            _session = new ExtensionSession(signedIn, version, now, Account: account);
             if (signedIn)
             {
                 _intents.SaidSignedIn();
@@ -183,9 +186,12 @@ public sealed class ExtensionInbox
             // A good list proves that the page and the list are what the extension knows, not that the turns are: that is for a conversation that is read.
             var turnsBroken = _session?.Broken == ExtensionBrokenSteps.Turns;
             var wasNotWell = _session is { SignedIn: false } or { Broken: ExtensionBrokenSteps.Page or ExtensionBrokenSteps.List };
+            // The account is what this list says: a label that was given and says nothing is no account (the session is not the one that was there before), and only a list that gave no label keeps the account that was.
+            var account = labels is null ? _session?.Account : AccountLabel.Parse(labels);
+            NoteAccount(account);
             _list = list;
             _listComplete = complete;
-            _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null, AccountLabel.Parse(labels ?? []) ?? _session?.Account);
+            _session = new ExtensionSession(SignedIn: true, version, now, turnsBroken ? ExtensionBrokenSteps.Turns : null, account);
             _intents.SaidSignedIn();
             return wasNotWell;
         }
@@ -293,9 +299,26 @@ public sealed class ExtensionInbox
         _live.Publish(LiveTopics.Status);
     }
 
+    /// <summary>What is held was read for the account that was signed in: another account that signs in (a switch in the browser, between two reports of the extension) is not given it.</summary>
+    private void NoteAccount(AccountIdentity? account)
+    {
+        if (account is null)
+        {
+            return;
+        }
+
+        if (_heldFor is not null && !string.Equals(_heldFor, account.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            ForgetWhatWasRead();
+        }
+
+        _heldFor = account.Email;
+    }
+
     /// <summary>What was read for an account is not kept for the next one (nobody is signed in, or the operator disconnected).</summary>
     private void ForgetWhatWasRead()
     {
+        _heldFor = null;
         _conversations.Clear();
         _asked.Clear();
         _unreadable.Clear();

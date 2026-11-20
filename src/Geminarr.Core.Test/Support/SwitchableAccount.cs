@@ -30,6 +30,8 @@ public sealed class SwitchableAccount : IAccountContext
 
     public void Forget() => Remembered = null;
 
+    public bool InUse(string key) => _isTaken && _taken == key;
+
     public IDisposable Use(string? key)
     {
         var before = (_isTaken, _taken);

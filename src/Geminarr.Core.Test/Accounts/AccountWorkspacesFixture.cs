@@ -107,6 +107,22 @@ public sealed class AccountWorkspacesFixture : IDisposable
     }
 
     [Fact]
+    public void should_ignore_what_is_not_a_workspace_in_the_folder_of_the_accounts()
+    {
+        using (_context.Use(A))
+        {
+            _conversations.Count();
+        }
+
+        var accounts = Path.Combine(_data.Folder, "accounts");
+        Directory.CreateDirectory(Path.Combine(accounts, "lost+found"));
+        Directory.CreateDirectory(Path.Combine(accounts, "0123456789ABCDEF"));
+        File.WriteAllText(Path.Combine(accounts, B), "a file that is named like a key");
+
+        _workspaces.Known().Should().Equal(A);
+    }
+
+    [Fact]
     public void should_delete_a_workspace_with_its_database_and_leave_the_others()
     {
         using (_context.Use(A))

@@ -15,12 +15,14 @@ public sealed class AccountService
     private readonly IAccountContext _accounts;
     private readonly IAccountWorkspaces _workspaces;
     private readonly LinkService _link;
+    private readonly IKeyStore _keys;
 
-    public AccountService(IAccountContext accounts, IAccountWorkspaces workspaces, LinkService link)
+    public AccountService(IAccountContext accounts, IAccountWorkspaces workspaces, LinkService link, IKeyStore keys)
     {
         _accounts = accounts;
         _workspaces = workspaces;
         _link = link;
+        _keys = keys;
     }
 
     public static string IdOf(string key) => key[..IdLength];
@@ -50,7 +52,8 @@ public sealed class AccountService
             return ForgetResult.Unknown;
         }
 
-        if (key == _accounts.Current)
+        // An account that a pass has taken is not forgotten under it: the pass would make its workspace again with what it reads.
+        if (key == _accounts.Current || _accounts.InUse(key))
         {
             return ForgetResult.Active;
         }
@@ -84,12 +87,13 @@ public sealed class AccountService
         var database = _workspaces.Database(key);
         var destination = new DestinationStore(database).Get();
         var conversations = new ConversationStore(database);
+        var status = active ? _link.Status() : null;
         return new AccountSummary(
             IdOf(key),
-            active ? _link.Status().Machine : destination?.Machine,
+            status?.Machine ?? destination?.Machine,
             active,
             signedIn,
-            active ? _link.Status().Linked : File.Exists(Path.Combine(_workspaces.Folder(key), "mnemarr", "key")),
+            status?.Linked ?? _keys.ExistsFor(key),
             destination?.LastHeartbeatAt,
             new OutboxStore(database).PendingLines(),
             conversations.Count(),

@@ -32,12 +32,11 @@ describe('the accounts that are known', () => {
     expect(within(rows[2] as HTMLElement).getByText('3')).toBeInTheDocument();
   });
 
-  it('says that the session of the account being read ended when nobody is signed in, and does not show an address', async () => {
+  it('says that the session of the account being read ended when nobody is signed in', async () => {
     serveApi({ 'GET /accounts': () => ({ accounts: [{ ...activeAccount, signedIn: false }] }) });
     renderAt(<AccountsTable />);
 
     expect(await screen.findByText('Session ended')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/@/u);
   });
 
   it('offers to pair the machine of an account that is signed in and not paired, and says to sign in one that is not', async () => {

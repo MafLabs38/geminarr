@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-20
-- **Spec**: D-34, D-35, §8; amends [ADR 0004](0004-a-dedicated-google-account-never-the-main-one.md) (no account is forbidden, no import)
+- **Spec**: D-35, §8; with [ADR 0027](0027-any-account-may-be-signed-in-and-there-is-no-import.md) (D-34: no account is forbidden, no import)
 
 ## Context
 
@@ -16,7 +16,7 @@ The maintainer wants to read two Google accounts with the one Geminarr: the main
 4. **Nothing is read for an account until its machine is paired**, and only the active account sends a heartbeat.
 5. **Switching is _Disconnect_ then _Sign in_.** *Disconnect* deletes the cookies, so every account is signed out. Two accounts signed in at once are not supported. An account that is signed out is not read.
 6. **The Connection, Mnemarr and Conversations pages know the accounts**, and an account can be forgotten (its workspace deleted; Mnemarr is not touched).
-7. **No account is forbidden** (the amendment of ADR 0004), and nothing is imported.
+7. **No account is forbidden**, and nothing is imported ([ADR 0027](0027-any-account-may-be-signed-in-and-there-is-no-import.md)).
 
 ## Alternatives considered
 
@@ -29,6 +29,8 @@ The maintainer wants to read two Google accounts with the one Geminarr: the main
 
 - Storage is split in two (a root database, a database per account). The singletons that kept state of their own (the link, the positions asked of Mnemarr, what the extension holds) are keyed by the account or dropped when it changes.
 - The machine of an account that is signed out stays in Mnemarr, silent. It is better made *intermittent* when it is approved there, so that it raises no alert.
-- A key that the deployment gives as a file is one key, for one machine: it serves every account, and a second one is refused.
+- A key that the deployment gives as a file is one key, for one machine: it serves the one account that exists, and a second account is not linked to it (a line in the log says so; pair it instead). Forget the first account and the second one is served.
+- The account that is **active** is the one signed in or, from the end of a session that expired until *Disconnect*, the one that was signed in last: its machine goes on telling Mnemarr, which sends the mail. A session signed in to an account that cannot be named is no account (nothing is read for it).
+- **A data folder from before accounts is not adopted.** The root database no longer holds conversations, an outbox or a destination, and `<data>/mnemarr/key` is not read: the first account that signs in starts a workspace and is paired as a machine of its own. Nothing was released with data in it (the first deployment was never signed in), so no move was written; an operator who has such a folder re-pairs, and what Mnemarr already holds stays under the old machine.
 - The name of the machine keeps the part of the address before the `@` on disk and in Mnemarr; the address itself is kept in memory only.
 - A large change in one pull request, as the maintainer asked; the micro-spec and the plan of the work were kept outside the repository to hold the thread.

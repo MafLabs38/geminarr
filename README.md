@@ -6,7 +6,7 @@
 
 Gemini keeps your conversations to itself: no API gives access to the history, and a good idea told by voice a year ago cannot be found again. Geminarr reads the Google account that you sign in to in its browser (each account is a machine of its own in Mnemarr), reads the conversations that appeared or grew since its last visit, and sends their new turns to Mnemarr, which stores them as notes and finds them **by meaning** and by text. It keeps no copy of its own, summarises nothing, and when its session ends it tells Mnemarr, which mails you a link to sign in again.
 
-> ⚠️ **Never sign it in to your main Google account.** A Google session is valid across all of the account's services (mailbox included): Geminarr is made for an account that holds nothing but Gemini conversations ([why](docs/adr/0004-a-dedicated-google-account-never-the-main-one.md)). Reading a consumer product by automation is against its terms of use; the risk is yours, on that dedicated account.
+> ⚠️ **A Google session is valid across all of the account's services (mailbox included)**, so whichever account Geminarr is signed in to is exposed as far as the container is ([why](SECURITY.md)). Geminarr forbids no account; a dedicated one is the careful choice. Reading a consumer product by automation is against its terms of use; the risk is yours.
 
 ## Documentation
 
