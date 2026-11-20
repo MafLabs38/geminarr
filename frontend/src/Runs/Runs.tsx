@@ -1,3 +1,4 @@
+import { useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import Button from 'Components/Form/Button';
@@ -31,6 +32,7 @@ function why(reason: string | null): string {
 export default function Runs() {
   const { data, error, isPending } = useRunsPage();
   const runNow = useRunNow();
+  const machine = useAccounts().data?.accounts.find((account) => account.active)?.machine ?? null;
 
   return (
     <PageContent title={translate('Runs')}>
@@ -38,6 +40,7 @@ export default function Runs() {
         <PageHeading scope={translate('AppName')} title={translate('Runs')} />
         <Card title={translate('Runs')}>
           <p>{translate('RunsIntro')}</p>
+          {machine && <p className={styles.account}>{translate('AccountMachineLine', { machine })}</p>}
           <div className={styles.actions}>
             <Button disabled={data?.running === true || runNow.isPending} onClick={() => runNow.mutate()}>
               {translate('RunNow')}

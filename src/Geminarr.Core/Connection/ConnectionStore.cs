@@ -1,13 +1,14 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Storage;
 
 namespace Geminarr.Core.Connection;
 
 public sealed class ConnectionStore : IConnectionStore
 {
-    private readonly IDatabase _database;
+    private readonly IRootDatabase _database;
     private readonly TimeProvider _clock;
 
-    public ConnectionStore(IDatabase database, TimeProvider clock)
+    public ConnectionStore(IRootDatabase database, TimeProvider clock)
     {
         _database = database;
         _clock = clock;
@@ -36,6 +37,29 @@ public sealed class ConnectionStore : IConnectionStore
 
         var failures = reader.IsDBNull(8) ? 0 : reader.GetInt32(8);
         return new ConnectionBefore(Enum.Parse<ConnectionState>(reader.GetString(6)), StorageText.ReadNullableString(reader, 7), failures);
+    }
+
+    public string? Account()
+    {
+        using var connection = _database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT account_key FROM connection WHERE id = 1;";
+        return command.ExecuteScalar() is string key && AccountKey.IsValid(key) ? key : null;
+    }
+
+    public void SetAccount(string? key)
+    {
+        using var connection = _database.Open();
+        using var command = connection.CreateCommand();
+        // The row may not exist yet (nothing was ever recorded): it is made as "not connected", which is what Get says of a missing one.
+        command.CommandText = """
+            INSERT INTO connection (id, state, since, account_key) VALUES (1, $state, $since, $key)
+            ON CONFLICT (id) DO UPDATE SET account_key = $key;
+            """;
+        command.Parameters.AddWithValue("$state", ConnectionState.NotConnected.ToString());
+        command.Parameters.AddWithValue("$since", StorageText.Moment(_clock.GetUtcNow()));
+        command.Parameters.AddWithValue("$key", StorageText.Value(key));
+        command.ExecuteNonQuery();
     }
 
     public void Save(ConnectionRecord record)

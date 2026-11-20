@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { renderAt, serveApi } from '__tests__/render';
+import { activeAccount, renderAt, serveApi } from '__tests__/render';
 import Connection, { PAUSE_HOURS } from 'Connection/Connection';
 import type { Connection as ConnectionResource } from 'Connection/useConnection';
 
@@ -35,14 +35,54 @@ describe('Connection', () => {
     ['Degraded', 'Degraded'],
     ['Paused', 'Paused'],
   ] as const)('says the state %s in words', async (state, words) => {
-    serveApi({ 'GET /connection': () => ({ ...base, state }) });
+    serveApi({ 'GET /connection': () => ({ ...base, state, lastOkAt: '2026-11-13T08:00:00Z' }) });
     renderAt(<Connection />);
 
     expect(await screen.findByText(words, { selector: 'span' })).toBeInTheDocument();
   });
 
+  it('says the machine of the account that is being read, and lists the accounts that are known', async () => {
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'Connected',
+        reason: null,
+        lastOkAt: '2026-11-13T08:00:00Z',
+        account: { name: 'Jane', email: 'jane@example.org' },
+      }),
+      'GET /accounts': () => ({
+        accounts: [
+          activeAccount,
+          { ...activeAccount, id: '89abcdef', machine: 'geminarr-john', active: false, signedIn: false },
+        ],
+      }),
+    });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Machine: geminarr-demo')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Accounts' })).toBeInTheDocument();
+    expect(screen.getByText('geminarr-john')).toBeInTheDocument();
+  });
+
+  it('says that a first start waits for a sign-in, as information and not as a session that expired', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'Degraded', reason: 'needs-login' }) });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Waiting for a sign-in', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByText('No account is signed in yet: sign in to start reading.')).toBeInTheDocument();
+    expect(screen.queryByText('Degraded')).not.toBeInTheDocument();
+    expect(screen.queryByText(/has expired/u)).not.toBeInTheDocument();
+  });
+
   it('says why the session needs a sign-in', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'NeedsLogin',
+        reason: 'needs-login',
+        lastOkAt: '2026-11-13T08:00:00Z',
+      }),
+    });
     renderAt(<Connection />);
 
     expect(await screen.findByText('The session has expired: sign in again.')).toBeInTheDocument();
@@ -65,7 +105,7 @@ describe('Connection', () => {
 
     expect(await screen.findByRole('button', { name: 'Sign in to the assistant' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /browser/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
+    expect(screen.queryByText(/dedicated account/u)).not.toBeInTheDocument();
   });
 
   it('says who the browser is signed in as, by name and by address', async () => {
@@ -135,7 +175,14 @@ describe('Connection', () => {
   });
 
   it('says that the session has ended when a sign-in is asked for again', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'NeedsLogin',
+        reason: 'needs-login',
+        lastOkAt: '2026-11-13T08:00:00Z',
+      }),
+    });
     renderAt(<Connection />);
 
     expect(await screen.findByText('The session has ended: sign in again')).toBeInTheDocument();

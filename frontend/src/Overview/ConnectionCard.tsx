@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 
+import { useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import Button from 'Components/Form/Button';
 import LoadingIndicator from 'Components/LoadingIndicator';
 import StatusLabel from 'Components/Status/StatusLabel';
-import { connectionStates } from 'Connection/connectionStates';
+import { connectionView } from 'Connection/connectionStates';
 import { useConnection } from 'Connection/useConnection';
 import { kinds } from 'Helpers/Props/kinds';
 import { hostOf } from 'Mnemarr/hostOf';
@@ -22,8 +23,9 @@ export default function ConnectionCard() {
   const mnemarr = useMnemarr();
   const runs = useRuns();
   const runNow = useRunNow();
-  const state = connection.data ? connectionStates[connection.data.state] : undefined;
-  const reason = reasonKeyOf(connection.data?.reason ?? null);
+  const machine = useAccounts().data?.accounts.find((account) => account.active)?.machine ?? null;
+  const state = connection.data ? connectionView(connection.data) : undefined;
+  const reason = reasonKeyOf(state?.reason ?? null);
 
   return (
     <Card title={translate('ConnectionCardTitle')}>
@@ -35,6 +37,7 @@ export default function ConnectionCard() {
           {connection.data.state !== 'Connected' && reason && (
             <span className={styles.reason}>{translate(reason)}</span>
           )}
+          {machine && <span className={styles.reason}>{translate('AccountMachineLine', { machine })}</span>}
           {connection.data.reader === 'Demo' && <span className={styles.notice}>{translate('DemoReaderNotice')}</span>}
         </div>
       )}

@@ -34,6 +34,9 @@ public static class HealthReasons
     /// <summary>Something waits for Mnemarr since more than an hour.</summary>
     public const string OutboxGrowing = "outbox-growing";
 
+    /// <summary>Nothing is wrong, something is waited for (the first sign-in): healthy, with the reason code that says what is waited for.</summary>
+    public static HealthCheckResult Waiting(string reason, string description) => HealthCheckResult.Healthy(description, data: Data(reason));
+
     /// <summary>Something is wrong but the container does what it must (and is safe): a stable reason code beside the words.</summary>
     public static HealthCheckResult Degraded(string reason, string description) => HealthCheckResult.Degraded(description, data: Data(reason));
 

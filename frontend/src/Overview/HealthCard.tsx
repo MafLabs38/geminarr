@@ -28,7 +28,7 @@ export default function HealthCard() {
               <li className={styles.check} key={check.name}>
                 <span className={styles.name}>{name ? translate(name) : check.name}</span>
                 <StatusLabel kind={statusKind(check.status)}>{translate(statusText(check.status))}</StatusLabel>
-                {check.status !== 'Healthy' && (
+                {(check.status !== 'Healthy' || reason) && (
                   <span className={styles.reason}>
                     {reason ? translate(reason) : (check.description ?? check.reason)}
                   </span>

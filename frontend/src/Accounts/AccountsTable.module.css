@@ -1,0 +1,47 @@
+.wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: var(--fontSizeBody);
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 600;
+}
+
+.machine {
+  font-family: var(--monoSpaceFontFamily);
+}
+
+.note {
+  display: block;
+  margin-top: 4px;
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+}
+
+.mono {
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

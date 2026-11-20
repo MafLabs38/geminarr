@@ -47,7 +47,7 @@ public sealed class MnemarrApiFixture
 
         var mnemarr = await client.GetFromJsonAsync<MnemarrResource>("/api/v1/mnemarr", Token);
 
-        mnemarr.Should().BeEquivalentTo(new MnemarrResource(null, "gemini", false, false, "mnemarr-not-linked", null, 0));
+        mnemarr.Should().BeEquivalentTo(new MnemarrResource(null, "geminarr-demo", false, false, "mnemarr-not-linked", null, 0));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class MnemarrApiFixture
         approved!.State.Should().Be("approved");
         var linked = await client.GetStringAsync("/api/v1/mnemarr", Token);
         linked.Should().Contain("\"linked\":true").And.Contain("\"machine\":\"gemini-2\"").And.NotContain(FakeKey);
-        File.ReadAllText(Path.Combine(factory.DataFolder, "mnemarr", "key")).Trim().Should().Be(FakeKey);
+        File.ReadAllText(KeyFile(factory, "key")).Trim().Should().Be(FakeKey);
         factory.Mnemarr.CallsSnapshot().Where(call => call.Call.StartsWith("POST /api/v1/ingest/pair", StringComparison.Ordinal)).Should().OnlyContain(call => call.Headers.ContainsKey("X-Mnemarr-Request"));
     }
 
@@ -156,8 +156,8 @@ public sealed class MnemarrApiFixture
         var mnemarr = await client.GetFromJsonAsync<MnemarrResource>("/api/v1/mnemarr", Token);
         mnemarr!.Linked.Should().BeFalse();
         mnemarr.Url.Should().BeNull();
-        File.Exists(Path.Combine(factory.DataFolder, "mnemarr", "key")).Should().BeFalse();
-        File.Exists(Path.Combine(factory.DataFolder, "mnemarr", "key.address")).Should().BeFalse();
+        File.Exists(KeyFile(factory, "key")).Should().BeFalse();
+        File.Exists(KeyFile(factory, "key.address")).Should().BeFalse();
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public sealed class MnemarrApiFixture
 
         conversations.Total.Should().BeGreaterThan(0);
         conversations.Conversations.Should().OnlyContain(conversation => conversation.Id.Length > 0 && conversation.TurnsKnown >= conversation.TurnsSent);
-        conversations.Backfill.Enabled.Should().BeTrue();
+        conversations.Backfill!.Enabled.Should().BeTrue();
         body.Should().NotContainEquivalentOf("\"title\"").And.NotContainEquivalentOf("\"text\"").And.NotContainEquivalentOf("\"turns\":");
     }
 
@@ -371,6 +371,10 @@ public sealed class MnemarrApiFixture
         await client.PostAsync("/api/v1/mnemarr/pairing/check", content: null, Token);
         return factory;
     }
+
+    /// <summary>A file of the key of the account of the demonstration: its workspace holds it (SPEC §8.1).</summary>
+    private static string KeyFile(MnemarrFactory factory, string name) =>
+        Path.Combine(factory.DataFolder, "accounts", Geminarr.Core.Accounts.AccountKey.Of(Geminarr.Core.Pipeline.DemoReader.DemoAccount), "mnemarr", name);
 
     private static async Task EventuallyAsync(Func<Task<bool>> condition)
     {

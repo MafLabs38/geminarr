@@ -24,7 +24,7 @@ services:
       # reach the desktop on the loopback, and is refused.
       SELKIES_ALLOWED_ORIGINS: https://geminarr.invalid
     volumes:
-      # The configuration of the browser, profile included: the signed-in session of the dedicated Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
+      # The configuration of the browser, profile included: the signed-in session of the Google account. Its own volume, never in a backup in the clear (ADR 0004, 0016).
       - browser-config:/config
       # Makes the web desktop listen on the loopback of the namespace and nowhere else: it has no sign-in, so nothing but Geminarr may reach it (ADR 0017). Executable, from this repository.
       - ./browser/loopback-only.sh:/custom-cont-init.d/10-loopback-only.sh:ro

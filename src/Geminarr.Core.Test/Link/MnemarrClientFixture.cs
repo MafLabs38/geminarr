@@ -118,7 +118,7 @@ public sealed class MnemarrClientFixture
     {
         var http = new FakeHttp(_ => FakeHttp.Json("""{"key":"mnm_new","machine":"gemini","kind":"satellite"}"""));
 
-        var enrolled = await new MnemarrClient(http).EnrolAsync(Url, "ABCD-1234", "gemini", TestContext.Current.CancellationToken);
+        var enrolled = await new MnemarrClient(http).EnrolAsync(Url, "ABCD-1234", "gemini", null, TestContext.Current.CancellationToken);
 
         enrolled.Should().Be(new Enrolled("mnm_new", "gemini"));
         http.Requests.Single().Headers.Should().NotContainKey("Authorization");
@@ -134,7 +134,7 @@ public sealed class MnemarrClientFixture
             : FakeHttp.Json("""{"userCode":"ABCD-EFGH","deviceCode":"secret-device","verificationUrl":"https://mnemarr.homelab.example/link?code=ABCD-EFGH","expiresInSeconds":600,"intervalSeconds":3}""", HttpStatusCode.Created));
         var client = new MnemarrClient(http);
 
-        var started = await client.PairStartAsync(Url, "gemini", TestContext.Current.CancellationToken);
+        var started = await client.PairStartAsync(Url, "gemini", null, TestContext.Current.CancellationToken);
         var polled = await client.PairPollAsync(Url, started.DeviceCode, TestContext.Current.CancellationToken);
 
         started.UserCode.Should().Be("ABCD-EFGH");
@@ -191,8 +191,8 @@ public sealed class MnemarrClientFixture
         var empty = new FakeHttp(_ => FakeHttp.Json("{}"));
         var client = new MnemarrClient(empty);
 
-        (await ((Func<Task>)(() => client.EnrolAsync(Url, "c", "gemini", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
-        (await ((Func<Task>)(() => client.PairStartAsync(Url, "gemini", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
+        (await ((Func<Task>)(() => client.EnrolAsync(Url, "c", "gemini", null, TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
+        (await ((Func<Task>)(() => client.PairStartAsync(Url, "gemini", null, TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
         (await ((Func<Task>)(() => client.PairPollAsync(Url, "d", TestContext.Current.CancellationToken))).Should().ThrowAsync<SinkException>()).Which.Failure.Should().Be(SinkFailure.Rejected);
     }
 

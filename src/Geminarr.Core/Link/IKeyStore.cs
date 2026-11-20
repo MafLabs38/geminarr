@@ -6,6 +6,9 @@ public interface IKeyStore
     /// <summary>The key, or null when there is none (or the file is empty or cannot be read).</summary>
     string? Read();
 
+    /// <summary>Whether an account (by its key) has one: the Accounts table says so for the accounts that are not signed in.</summary>
+    bool ExistsFor(string account);
+
     /// <summary>Keeps the key, and the address of the Mnemarr that gave it: the key belongs to that Mnemarr, and the binding lives next to the key, not in the database.</summary>
     void Write(string key, string address);
 

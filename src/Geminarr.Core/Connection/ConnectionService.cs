@@ -1,3 +1,4 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Extension;
 using Geminarr.Core.Live;
@@ -11,14 +12,16 @@ namespace Geminarr.Core.Connection;
 /// </summary>
 public sealed class ConnectionService
 {
+    private readonly IAccountContext _accounts;
     private readonly ConnectionTracker _tracker;
     private readonly ExtensionInbox _inbox;
     private readonly IOptions<ReaderOptions> _reader;
     private readonly TimeProvider _clock;
     private readonly ILiveNotifier _live;
 
-    public ConnectionService(ConnectionTracker tracker, ExtensionInbox inbox, IOptions<ReaderOptions> reader, TimeProvider clock, ILiveNotifier? live = null)
+    public ConnectionService(ConnectionTracker tracker, ExtensionInbox inbox, IOptions<ReaderOptions> reader, TimeProvider clock, IAccountContext accounts, ILiveNotifier? live = null)
     {
+        _accounts = accounts;
         _tracker = tracker;
         _inbox = inbox;
         _reader = reader;
@@ -62,6 +65,8 @@ public sealed class ConnectionService
     public void Disconnect()
     {
         _inbox.RequestSignOut();
+        // The operator disconnects on purpose: no account is the last one any more, and the machine of the one that was falls silent (SPEC §8.2, rule 7).
+        _accounts.Forget();
         _tracker.Disconnected();
         _live.Publish(LiveTopics.Connection);
     }

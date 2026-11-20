@@ -13,14 +13,13 @@
 | Vertical 1: operator access                                                                                                          | **Built**, in review                                                                                                                                                                                                 |
 | Vertical 1b: identity of the environment (name, picture, version in the menu; F-SYS-04)                                              | **Built**, in review                                                                                                                                                                                                 |
 | Spike S1: read Gemini from a container with a dedicated account                                                                      | **Done**: the answer is an extension in the browser a person signed in to ([ADR 0022](adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)); the debugging-port route was tried and rejected |
-| Spike S2: what a Takeout export holds                                                                                                | Waits for the export                                                                                                                                                                                                 |
 | Vertical 2: the link to Mnemarr                                                                                                      | **Built**, in review                                                                                                                                                                                                 |
 | Vertical 3: Gemini is read by an extension, and the sign-in through it                                                               | **Built**, in review                                                                                                                                                                                                 |
 | Vertical 3 (browser): the browser container and the connection to it ([ADR 0016](adr/0016-the-browser-is-a-container-of-its-own.md)) | **Built**, merged; the debugging port is gone ([ADR 0021](adr/0021-geminarr-has-no-debugging-port-to-the-browser.md))                                                                                                |
 | Vertical 4: sign in from Geminarr's page                                                                                             | **Built** with the extension (who is signed in, the end of a sign-in within a minute, Disconnect)                                                                                                                    |
 | Vertical 5: backfill, the Runs page (and the Conversations page)                                                                      | **Built**, in review ([ADR 0024](adr/0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md))                                                                                                                                                                                                  |
 | Vertical 7: run it for real                                                                                                          | **In progress**: the folder of the deployment is written (in the maintainer's private GitOps repository, inert until the first release), the signing key of the extension is a secret of the repository; the first release and the first connection on the cluster are left |
-| Vertical 6: the past, by Takeout                                                                                                     | Not started                                                                                                                                                                                                          |
+| Vertical 8: accounts (one account signed in is one machine of notes, D-35)                                                           | **In progress** ([ADR 0026](adr/0026-one-account-signed-in-is-one-machine-of-notes.md))                                                                                                                                                                                                                        |
 
 ## Vertical 0 — Foundation _(built)_
 
@@ -41,13 +40,9 @@ _Demo: the menu ends with the name of the laboratory, its picture and the versio
 
 _Output: [docs/spikes/s1-reading-gemini.md](spikes/) with the answers to Q-01 to Q-05, Q-08 and Q-10, and the recorded shape of the pages (no real content)._
 
-- On the build machine, one Chromium, capped, behind the sign-in of vertical 1. The maintainer signs in once to the **dedicated** account through a throw-away live view.
+- On the build machine, one Chromium, capped, behind the sign-in of vertical 1. The maintainer signs in once to an account through a throw-away live view.
 - Measure: is the headless browser accepted with that profile; how to detect a signed-out session; how the list is ordered; how a conversation's turns are read (page or internal calls); whether voice conversations come with their text; how long the session lasts (days: the answer comes later).
 - Everything lives in `.spike/` and `.profile/` (git-ignored). **Nothing real is committed.** The spike is deleted when its result is written down.
-
-## Spike S2 — What a Takeout export holds
-
-_Output: the answer to Q-06, and a synthetic fixture that has the same shape._
 
 ## Vertical 2 — The link to Mnemarr _(built)_
 
@@ -67,7 +62,7 @@ _Demo: a browser that a person signed in to Gemini in carries the extension (ins
 
 ## Vertical 3 — The browser container and the connection to it
 
-_Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected._
+_Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected._
 
 - ADR 0016. F-CON-01..04: the browser container and its web desktop relayed (`GEMINARR__BROWSER__DESKTOPURL`), the state machine, pause, the health of the browser. No debugging port (ADR 0021): the session state, the account and _Disconnect_ are the extension's (ADR 0022).
 - **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; the browser has no sub-domain, no port and no login of its own: Geminarr relays its web desktop on an origin of its own (a second port of Geminarr, opened by a single-use ticket of the operator's session, no second password: ADR 0017, 0019).
@@ -76,24 +71,17 @@ _Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a wind
 
 ## Vertical 4 — Sign in from Geminarr's page _(built with the extension)_
 
-_Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the dedicated account with the phone; the state is Connected; Disconnect and the session is gone._
+_Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the account with the phone; the state is Connected; Disconnect and the session is gone._
 
 - F-CON-01..04: the desktop of the browser relayed on an origin of its own behind a single-use ticket of the operator's session, the two containers (the browser and Geminarr) in the examples, the Connection page.
 - Who is signed in, the end of a sign-in within a minute and _Disconnect_ are the extension's (§7.3 of the spec, [ADR 0022](adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)): a heartbeat every half minute, the label of the account button, the deletion of the cookies of the browser.
-- Not now: the Takeout import.
 
 ## Vertical 5 — Backfill, the Runs page _(built)_
 
 _Demo: the first pass walks the older conversations at a slow pace until the end of the list, and the Runs page shows what each pass did._
 
 - F-RDR-04/07, F-VIEW-02/03: backfill, the Runs page. [ADR 0024](adr/0024-the-history-is-walked-slowly-and-its-end-is-told-by-the-list.md): a few older conversations a pass, no stored flag, the list says whether it ends there, the pages of an answer opened one after the other; the _Conversations_ page (metadata only, with the progress of the history) and the _Runs_ page.
-- Not now: `rate-limited` and its pause of six hours (F-RDR-05, the failure classes are those of the pass today), a very long list (the Takeout import).
-
-## Vertical 6 — The past, by Takeout
-
-_Demo: give Geminarr the archive; the conversations of the past appear in Mnemarr; give it again and nothing is duplicated._
-
-- F-IMP-01/02, with the safety rules of SPEC §8.
+- Not now: `rate-limited` and its pause of six hours (F-RDR-05, the failure classes are those of the pass today).
 
 ## Vertical 7 — Run it for real
 
@@ -107,3 +95,10 @@ _Demo: the maintainer lets the session expire (or disconnects), receives the mai
 - Several Mnemarr destinations (as the collector does).
 - Writing to Gemini, notifications other than Mnemarr's mail, a live search inside Geminarr.
 - Propagating renames and rewritten turns (Q-07; Mnemarr's M-5, optional).
+
+## Vertical 8 — Accounts
+
+_Demo: sign in to a first account, pair its machine (named from its address) and see its conversations in Mnemarr; disconnect, sign in to a second one, pair it, and see its conversations in another machine; sign in to the first again and it goes on from where it stopped, with nothing sent twice._
+
+- D-35, §8, F-ACT, [ADR 0026](adr/0026-one-account-signed-in-is-one-machine-of-notes.md): a workspace per account, the machine named from the address, the Connection, Mnemarr and Conversations pages that know the accounts, *Forget*. Also the end of the import and of the rule of the dedicated account (D-34), and a first start that waits for a sign-in as information.
+- Not now: two accounts signed in at once, an address of Mnemarr per account.

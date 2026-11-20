@@ -284,4 +284,58 @@ public sealed class ExtensionInboxFixture
     }
 
     private static ConversationHeader Header(string id) => new(id, null, 1);
+
+    private static string[] Labels(string address) => [$"Google Account: Someone ({address})"];
+
+    [Fact]
+    public void should_not_hand_what_was_read_for_one_account_to_the_next_one_that_signs_in()
+    {
+        _subject.RecordSession(signedIn: true, null, Now, Labels("jane.doe@example.org"));
+        _subject.Ask(["c1"], Now);
+        _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi")], Now);
+
+        // Another account is the one on the page before the extension said that nobody was signed in.
+        _subject.RecordSession(signedIn: true, null, Now.AddMinutes(1), Labels("john.roe@example.org"));
+
+        _subject.Has("c1").Should().BeFalse();
+        _subject.WasAsked("c1").Should().BeFalse();
+        _subject.Session!.Account!.Email.Should().Be("john.roe@example.org");
+    }
+
+    [Fact]
+    public void should_keep_what_was_read_while_the_same_account_is_said_again_in_another_case()
+    {
+        _subject.RecordSession(signedIn: true, null, Now, Labels("jane.doe@example.org"));
+        _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi")], Now);
+
+        _subject.RecordList([new ConversationHeader("c2", "T", 0)], null, Now.AddMinutes(1), Labels("Jane.Doe@Example.org"));
+
+        _subject.Has("c1").Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_say_no_account_for_a_list_whose_label_says_nothing_and_keep_it_for_a_list_without_labels()
+    {
+        _subject.RecordSession(signedIn: true, null, Now, Labels("jane.doe@example.org"));
+
+        _subject.RecordList([], null, Now.AddMinutes(1));
+        _subject.Session!.Account!.Email.Should().Be("jane.doe@example.org", "a list that gave no label says nothing about who is signed in");
+
+        _subject.RecordList([], null, Now.AddMinutes(2), ["Account", ""]);
+        _subject.Session!.Account.Should().BeNull("a label that was given and does not name an account is not the account that was there: it is not inherited");
+        _subject.Session.SignedIn.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_not_give_what_was_held_to_an_account_that_is_named_after_one_that_could_not_be()
+    {
+        _subject.RecordSession(signedIn: true, null, Now, Labels("jane.doe@example.org"));
+        _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi")], Now);
+
+        // Somebody signs in whose label says nothing, and then the label of the first account is read again: what was held may have been taken under the other.
+        _subject.RecordList([], null, Now.AddMinutes(1), ["Account"]);
+        _subject.RecordList([], null, Now.AddMinutes(2), Labels("jane.doe@example.org"));
+
+        _subject.Has("c1").Should().BeFalse();
+    }
 }

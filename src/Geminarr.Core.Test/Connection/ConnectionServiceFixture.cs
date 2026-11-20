@@ -21,9 +21,11 @@ public sealed class ConnectionServiceFixture : IDisposable
         _tracker = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
     }
 
+    private readonly RecordingAccount _accounts = new();
+
     public void Dispose() => _workspace.Dispose();
 
-    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _inbox, Options.Of(new ReaderOptions { Kind = kind }), _clock);
+    private ConnectionService Subject(ReaderKind kind = ReaderKind.Web) => new(_tracker, _inbox, Options.Of(new ReaderOptions { Kind = kind }), _clock, _accounts);
 
     [Theory]
     [InlineData(ReaderKind.None)]
@@ -120,6 +122,7 @@ public sealed class ConnectionServiceFixture : IDisposable
         subject.Disconnect();
 
         _inbox.Disconnected.Should().BeTrue();
+        _accounts.Forgotten.Should().Be(1, "no account is the last one after a disconnect that was asked for: the machine of the one that was falls silent");
         _inbox.TakeHints(_clock.GetUtcNow(), TimeSpan.FromMinutes(15)).SignOut.Should().BeTrue("the extension is asked the next time that it says that it is there");
         subject.Current().State.Should().Be(ConnectionState.NotConnected);
         subject.Current().LastReason.Should().Be(ConnectionReasons.Disconnected, "the record says so, so that a restart asks again");
@@ -220,7 +223,7 @@ public sealed class ConnectionServiceFixture : IDisposable
         var notifier = new RecordingNotifier();
         var tracker = Tracking.Of(new ConnectionStore(_workspace.Database, _clock), Options.Of(new ReaderOptions { Kind = ReaderKind.Web }), _clock, notifier);
         var inbox = ExtensionInbox.Restored(tracker.Current(), live: notifier);
-        var subject = new ConnectionService(tracker, inbox, Options.Of(new ReaderOptions { Kind = ReaderKind.Web }), _clock, notifier);
+        var subject = new ConnectionService(tracker, inbox, Options.Of(new ReaderOptions { Kind = ReaderKind.Web }), _clock, _accounts, notifier);
 
         subject.BeginSigningIn();
         notifier.Topics.Should().Equal(LiveTopics.Connection);

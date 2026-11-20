@@ -1,3 +1,6 @@
+import { useState } from 'react';
+
+import { type Account, useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import LoadingIndicator from 'Components/LoadingIndicator';
@@ -53,8 +56,33 @@ function BackfillCard({ backfill }: Readonly<{ backfill: Backfill }>) {
 }
 
 /** What Geminarr knows of the conversations, as counts and states (F-VIEW-02): never a title and never a word of one. */
+function AccountSelector({
+  accounts,
+  value,
+  onChange,
+}: Readonly<{ accounts: Account[]; value: string; onChange: (id: string) => void }>) {
+  return (
+    <label className={styles.selector}>
+      <span>{translate('ConversationsOfAccount')}</span>
+      <select onChange={(event) => onChange(event.target.value)} value={value}>
+        {accounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.machine ?? translate('AccountNotPaired')}
+            {account.active ? ` (${translate('AccountActive')})` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Conversations() {
-  const { data, error, isPending } = useConversations();
+  const [chosen, setChosen] = useState<string | undefined>();
+  const accounts = useAccounts();
+  const list = accounts.data?.accounts ?? [];
+  const activeId = list.find((account) => account.active)?.id;
+  // What was not chosen is the account that is being read: no parameter is sent for it.
+  const { data, error, isPending } = useConversations(chosen === undefined || chosen === activeId ? undefined : chosen);
 
   return (
     <PageContent title={translate('Conversations')}>
@@ -64,9 +92,12 @@ export default function Conversations() {
         {error && <Alert>{translate('ConversationsLoadError', { message: error.message })}</Alert>}
         {data && !error && (
           <>
-            <BackfillCard backfill={data.backfill} />
+            {data.backfill && <BackfillCard backfill={data.backfill} />}
             <Card title={translate('Conversations')}>
               <p>{translate('ConversationsIntro')}</p>
+              {list.length > 1 && (
+                <AccountSelector accounts={list} onChange={setChosen} value={chosen ?? activeId ?? ''} />
+              )}
               {data.conversations.length === 0 && <p>{translate('NoConversationsYet')}</p>}
               {data.conversations.length > 0 && (
                 <div className={styles.scroll}>

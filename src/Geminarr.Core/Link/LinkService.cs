@@ -1,3 +1,4 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,17 +23,21 @@ public sealed class LinkService
     private readonly TimeProvider _clock;
     private readonly ILogger<LinkService> _logger;
     private readonly IOutboxStore _outbox;
+    private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces _workspaces;
     private readonly Lock _gate = new();
     private readonly SemaphoreSlim _polling = new(1, 1);
     private PendingPairing? _pairing;
     private long _generation;
 
-    public LinkService(IOptions<MnemarrOptions> options, IDestinationStore store, IKeyStore keys, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger, IOutboxStore outbox)
+    public LinkService(IOptions<MnemarrOptions> options, LinkStores stores, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger)
     {
-        _outbox = outbox;
+        _accounts = stores.Accounts;
+        _workspaces = stores.Workspaces;
+        _outbox = stores.Outbox;
         _options = options;
-        _store = store;
-        _keys = keys;
+        _store = stores.Destination;
+        _keys = stores.Keys;
         _client = client;
         _clock = clock;
         _logger = logger;
@@ -46,17 +51,17 @@ public sealed class LinkService
     public DestinationStatus Status()
     {
         var row = _store.Get();
-        var url = SettingsUrl ?? row?.Url;
+        var url = SettingsUrl ?? row?.Url ?? SharedUrl();
         var hasKey = _keys.Read() is not null && KeyBelongsTo(row, url);
         var problem = ProblemOf(url, hasKey, row?.LastProblem);
-        return new DestinationStatus(url, row?.Machine ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
+        return new DestinationStatus(url, row?.Machine ?? DerivedMachine() ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
     }
 
     /// <summary>Where to send, as which machine, with which key; a <see cref="SinkException"/> says why there is nowhere to send.</summary>
     public ResolvedDestination Resolve()
     {
         var row = _store.Get();
-        var url = SettingsUrl ?? row?.Url;
+        var url = SettingsUrl ?? row?.Url ?? SharedUrl();
         var key = KeyBelongsTo(row, url) ? _keys.Read() : null;
         return ProblemOf(url, key is not null, problem: null) switch
         {
@@ -87,6 +92,7 @@ public sealed class LinkService
     /// <summary>The address, given on the page. Refused when the settings give it, or when a key is held (it belongs to the Mnemarr that gave it: unlink first).</summary>
     public void SetAddress(string address)
     {
+        RequireAccount();
         if (SettingsUrl is not null)
         {
             throw new InvalidOperationException("The address of Mnemarr is set by the deployment.");
@@ -101,18 +107,46 @@ public sealed class LinkService
         Interlocked.Increment(ref _generation);
     }
 
-    /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it.</summary>
+    /// <summary>The account that the link is for: what is asked of the link is about the account that is signed in (or was, until the operator disconnects), and with none there is nothing to ask it about (SPEC §8.2).</summary>
+    private string RequireAccount() => _accounts.Current ?? throw new NoAccountException("Sign in an account first: the link is its own.");
+
+    /// <summary>
+    /// The name of the machine of the account that is signed in, made from its address (SPEC §8.1) and told apart from the machines of the other accounts; null when nobody is signed in (the address is known only while
+    /// somebody is).
+    /// </summary>
+    public string? DerivedMachine()
+    {
+        if (_accounts.SignedIn is not { } key || _accounts.SignedInAddress is not { } address)
+        {
+            return null;
+        }
+
+        var taken = MachinesOfOtherAccounts(key);
+        return MachineName.Of(address, key, taken.Contains);
+    }
+
+    /// <summary>The address of Mnemarr is one for every account (SPEC §8.2): an account that has none takes the one that another account has, so that it is typed once.</summary>
+    private string? SharedUrl() =>
+        _workspaces.Known().Where(other => other != _accounts.Current).Select(other => new DestinationStore(_workspaces.Database(other)).Get()?.Url).FirstOrDefault(url => url is not null);
+
+    /// <summary>The machines that the other accounts have: two accounts never share a name, since Mnemarr replaces the key of a machine that is paired again under a name it knows.</summary>
+    private HashSet<string> MachinesOfOtherAccounts(string key) =>
+        [.. _workspaces.Known().Where(other => other != key).Select(other => new DestinationStore(_workspaces.Database(other)).Get()?.Machine).OfType<string>()];
+
+    /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it. It is for the account that is signed in, and the machine is named from its address.</summary>
     public async Task<PairingStatus> StartPairingAsync(CancellationToken cancellationToken)
     {
-        var url = SettingsUrl ?? _store.Get()?.Url ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
+        var account = RequireAccount();
+        var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new NoAccountException("Sign in the account first: its machine is named from its address.");
+        var url = SettingsUrl ?? _store.Get()?.Url ?? SharedUrl() ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
         if (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp)
         {
             throw new SinkException(SinkFailure.InsecureAddress, "The address of Mnemarr is not https.");
         }
 
         _store.EnsureAddress(url);
-        var started = await _client.PairStartAsync(url, _options.Value.Machine, cancellationToken);
-        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
+        var started = await _client.PairStartAsync(url, machine, AccountKey.ComputerId(account), cancellationToken);
+        var pairing = new PendingPairing(account, url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
         lock (_gate)
         {
             _pairing = pairing;
@@ -125,7 +159,7 @@ public sealed class LinkService
     {
         lock (_gate)
         {
-            return _pairing is { } pairing && pairing.ExpiresAt > _clock.GetUtcNow() ? pairing.ToStatus(PairingStates.Pending) : new PairingStatus(PairingStates.None, null, null, null);
+            return _pairing is { } pairing && pairing.Account == _accounts.Current && pairing.ExpiresAt > _clock.GetUtcNow() ? pairing.ToStatus(PairingStates.Pending) : new PairingStatus(PairingStates.None, null, null, null);
         }
     }
 
@@ -152,7 +186,8 @@ public sealed class LinkService
             pairing = _pairing;
         }
 
-        if (pairing is null)
+        // A pairing is for the account that started it: if another one is the account now, there is none to ask about (the key would be written to the wrong workspace).
+        if (pairing is null || pairing.Account != _accounts.Current)
         {
             return new PairingStatus(PairingStates.None, null, null, null);
         }
@@ -167,20 +202,24 @@ public sealed class LinkService
         switch (polled.State)
         {
             case PairingStates.Approved when !string.IsNullOrWhiteSpace(polled.Key):
-                // Given up (or unlinked) while Mnemarr was answering: the key is not kept. The check and the link are one step under the lock, so that an unlink cannot fall between them.
+                // Given up (or unlinked) while Mnemarr was answering: the key is not kept. The check and the link are one step under the lock, so that an unlink cannot fall between them. The key is written for the account that
+                // asked, whoever is signed in by the time that Mnemarr has answered.
                 var machine = MachineOf(polled.Machine);
-                lock (_gate)
+                using (_accounts.Use(pairing.Account))
                 {
-                    if (!ReferenceEquals(_pairing, pairing))
+                    lock (_gate)
                     {
-                        return new PairingStatus(PairingStates.None, null, null, null);
-                    }
+                        if (!ReferenceEquals(_pairing, pairing))
+                        {
+                            return new PairingStatus(PairingStates.None, null, null, null);
+                        }
 
-                    Link(pairing.Url, polled.Key, machine);
-                    _pairing = null;
+                        Link(pairing.Url, polled.Key, machine);
+                        _pairing = null;
+                    }
                 }
 
-                _logger.LogInformation("Linked to Mnemarr by pairing, as the machine {Machine}.", machine);
+                _logger.LogInformation("Linked to Mnemarr by pairing.");
                 return new PairingStatus(PairingStates.Approved, null, null, null);
             case PairingStates.Rejected or PairingStates.Expired:
                 Forget(pairing);
@@ -198,14 +237,18 @@ public sealed class LinkService
         }
     }
 
-    /// <summary>For a deployment as code: a one-time code in a file is exchanged for the key, when there is no key yet. A key that was given as a file is used as it is.</summary>
-    public async Task EnrolFromCodeFileAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// For a deployment as code: a one-time code in a file is exchanged for the key, when there is no key yet. A key that was given as a file is used as it is. True when Mnemarr was asked with the code (whatever it answered);
+    /// false when there was nothing to ask yet (no account is signed in, no address, no code), so that it is tried again at the next wake.
+    /// </summary>
+    public async Task<bool> EnrolFromCodeFileAsync(CancellationToken cancellationToken)
     {
         var file = _options.Value.EnrolmentCodeFile;
-        var url = SettingsUrl ?? _store.Get()?.Url;
-        if (string.IsNullOrWhiteSpace(file) || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
+        var url = SettingsUrl ?? _store.Get()?.Url ?? SharedUrl();
+        var account = _accounts.Current;
+        if (string.IsNullOrWhiteSpace(file) || account is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
         {
-            return;
+            return false;
         }
 
         string code;
@@ -216,23 +259,31 @@ public sealed class LinkService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             _logger.LogWarning(ex, "The enrolment code file cannot be read: check that it exists and who may read it.");
-            return;
+            return false;
         }
 
         if (code.Length == 0)
         {
-            return;
+            return false;
         }
 
-        var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, cancellationToken);
+        // Mnemarr gives a code to the machine that the deployment named (it refuses any other name), so the request carries the configured one. The key is written for the account that was signed in when the code was
+        // sent, whoever is signed in when Mnemarr has answered.
+        var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, AccountKey.ComputerId(account), cancellationToken);
         var machine = MachineOf(enrolled.Machine);
-        Link(url, enrolled.Key, machine);
-        _logger.LogInformation("Linked to Mnemarr by enrolment, as the machine {Machine}.", machine);
+        using (_accounts.Use(account))
+        {
+            Link(url, enrolled.Key, machine);
+        }
+
+        _logger.LogInformation("Linked to Mnemarr by enrolment.");
+        return true;
     }
 
     /// <summary>Forgets the key and the machine, and any pairing: Geminarr no longer sends. What Mnemarr already holds stays there.</summary>
     public void Unlink()
     {
+        RequireAccount();
         CancelPairing();
         _keys.Delete();
         if (_keys.Read() is not null)
@@ -290,7 +341,7 @@ public sealed class LinkService
             ? uri.ToString()
             : null;
 
-    private sealed record PendingPairing(string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
+    private sealed record PendingPairing(string Account, string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
     {
         /// <summary>Never what it holds: a record that is printed by mistake must not print the device code.</summary>
         public override string ToString() => nameof(PendingPairing);
