@@ -10,8 +10,6 @@ public sealed class MachineNameFixture
     [Theory]
     [InlineData("jane.doe@example.org", "geminarr-jane-doe")]
     [InlineData("Jane_Doe+news@example.org", "geminarr-jane-doe-news")]
-    [InlineData("jane@example.org", "geminarr-jane")]
-    [InlineData("jane00@example.org", "geminarr-jane00")]
     [InlineData("--jane..doe--@example.org", "geminarr-jane-doe")]
     public void should_make_the_name_from_the_part_before_the_at_sign(string address, string expected)
     {

@@ -1,3 +1,4 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Link;
 using Geminarr.Core.Pipeline;
 using Microsoft.AspNetCore.Http;
@@ -79,7 +80,7 @@ public sealed class MnemarrController : ControllerBase
         {
             return Failure(ex);
         }
-        catch (InvalidOperationException ex)
+        catch (NoAccountException ex)
         {
             // No account is signed in: the machine is named from its address.
             return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);

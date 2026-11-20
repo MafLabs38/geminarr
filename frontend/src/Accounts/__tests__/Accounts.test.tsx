@@ -17,19 +17,22 @@ const other: Account = {
   lastReadAt: '2026-11-19T10:00:00Z',
 };
 
+/** The row of an account, found by its machine (the name is what tells an account from another), not by its place in the table. */
+const rowOf = (machine: string): HTMLElement => screen.getByText(machine).closest('tr') as HTMLElement;
+
 describe('the accounts that are known', () => {
   it('shows each account by its machine, with its state and what it holds, and says which one is being read', async () => {
     serveApi({ 'GET /accounts': () => ({ accounts: [activeAccount, other] }) });
     renderAt(<AccountsTable />);
 
-    const rows = within(await screen.findByRole('table')).getAllByRole('row');
-    expect(rows).toHaveLength(3);
-    expect(within(rows[1] as HTMLElement).getByText('geminarr-demo')).toBeInTheDocument();
-    expect(within(rows[1] as HTMLElement).getByText('being read')).toBeInTheDocument();
-    expect(within(rows[1] as HTMLElement).getByText('Signed in')).toBeInTheDocument();
-    expect(within(rows[2] as HTMLElement).getByText('Signed out')).toBeInTheDocument();
-    expect(within(rows[2] as HTMLElement).getByText('12')).toBeInTheDocument();
-    expect(within(rows[2] as HTMLElement).getByText('3')).toBeInTheDocument();
+    expect(within(await screen.findByRole('table')).getAllByRole('row')).toHaveLength(3);
+    expect(within(rowOf('geminarr-demo')).getByText('being read')).toBeInTheDocument();
+    expect(within(rowOf('geminarr-demo')).getByText('Signed in')).toBeInTheDocument();
+    expect(within(rowOf('geminarr-john-roe')).getByText('Signed out')).toBeInTheDocument();
+    // Columns: machine, state, status, waiting lines, conversations, last read.
+    const cells = within(rowOf('geminarr-john-roe')).getAllByRole('cell');
+    expect(cells[3]).toHaveTextContent('3');
+    expect(cells[4]).toHaveTextContent('12');
   });
 
   it('says that the session of the account being read ended when nobody is signed in', async () => {
@@ -69,9 +72,9 @@ describe('the accounts that are known', () => {
     });
     renderAt(<AccountsTable canForget />);
 
-    const rows = within(await screen.findByRole('table')).getAllByRole('row');
-    expect(within(rows[1] as HTMLElement).queryByRole('button', { name: 'Forget' })).not.toBeInTheDocument();
-    await userEvent.click(within(rows[2] as HTMLElement).getByRole('button', { name: 'Forget' }));
+    await screen.findByRole('table');
+    expect(within(rowOf('geminarr-demo')).queryByRole('button', { name: 'Forget' })).not.toBeInTheDocument();
+    await userEvent.click(within(rowOf('geminarr-john-roe')).getByRole('button', { name: 'Forget' }));
     expect(forgotten).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Yes, forget it' }));
 
@@ -89,12 +92,12 @@ describe('the accounts that are known', () => {
     });
     renderAt(<AccountsTable canForget />);
 
-    const rows = within(await screen.findByRole('table')).getAllByRole('row');
-    await userEvent.click(within(rows[2] as HTMLElement).getByRole('button', { name: 'Forget' }));
+    await screen.findByRole('table');
+    await userEvent.click(within(rowOf('geminarr-john-roe')).getByRole('button', { name: 'Forget' }));
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(forgotten).not.toHaveBeenCalled();
-    expect(within(rows[2] as HTMLElement).getByRole('button', { name: 'Forget' })).toBeInTheDocument();
+    expect(within(rowOf('geminarr-john-roe')).getByRole('button', { name: 'Forget' })).toBeInTheDocument();
   });
 
   it('says why an account could not be forgotten', async () => {
@@ -108,8 +111,8 @@ describe('the accounts that are known', () => {
     });
     renderAt(<AccountsTable canForget />);
 
-    const rows = within(await screen.findByRole('table')).getAllByRole('row');
-    await userEvent.click(within(rows[2] as HTMLElement).getByRole('button', { name: 'Forget' }));
+    await screen.findByRole('table');
+    await userEvent.click(within(rowOf('geminarr-john-roe')).getByRole('button', { name: 'Forget' }));
     await userEvent.click(screen.getByRole('button', { name: 'Yes, forget it' }));
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();

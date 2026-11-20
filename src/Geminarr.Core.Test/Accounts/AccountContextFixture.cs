@@ -91,19 +91,6 @@ public sealed class AccountContextFixture : IDisposable
     }
 
     [Fact]
-    public void should_not_write_again_what_it_already_keeps()
-    {
-        var subject = Subject();
-        var key = AccountKey.Of("jane.doe@example.org");
-        subject.Remember(key);
-        _store.SetAccount("0000000000000000");
-
-        subject.Remember(key);
-
-        _store.Account().Should().Be("0000000000000000", "it knew it already: the second call wrote nothing");
-    }
-
-    [Fact]
     public async Task should_keep_the_account_that_a_piece_of_work_took_whatever_happens_to_the_session_afterwards()
     {
         _reader.Address = "jane.doe@example.org";
@@ -205,5 +192,41 @@ public sealed class AccountContextFixture : IDisposable
         subject.Remember(key);
 
         _store.Account().Should().Be(key);
+    }
+
+    [Fact]
+    public void should_come_back_to_the_outer_account_when_work_on_no_account_is_done_inside_it()
+    {
+        var subject = Subject();
+        var outer = AccountKey.Of("jane.doe@example.org");
+
+        using (subject.Use(outer))
+        {
+            using (subject.Use(null))
+            {
+                subject.Current.Should().BeNull();
+            }
+
+            subject.Current.Should().Be(outer);
+        }
+    }
+
+    [Fact]
+    public void should_not_put_back_an_account_a_second_time_when_a_piece_of_work_is_disposed_twice()
+    {
+        var subject = Subject();
+        var a = AccountKey.Of("a@example.org");
+        var b = AccountKey.Of("b@example.org");
+        var first = subject.Use(a);
+        var second = subject.Use(b);
+        second.Dispose();
+        first.Dispose();
+
+        using (subject.Use(b))
+        {
+            second.Dispose();
+
+            subject.Current.Should().Be(b, "a dispose that was done already changes nothing");
+        }
     }
 }

@@ -109,7 +109,7 @@ public sealed class PassRunner
         try
         {
             await ReconcileAsync(state, cancellationToken);
-            await ReadWithinItsTimeAsync(state, reading, cancellationToken);
+            await ReadWithinItsTimeAsync(state, reading, account, cancellationToken);
             if (Unlinked())
             {
                 // Unlinked while this pass was reading: what it queued is text for a Mnemarr that is gone.
@@ -167,7 +167,7 @@ public sealed class PassRunner
     /// Reading has a time of its own (the setting of the pass): a reader that hangs ends the reading, and what waits is still sent and Mnemarr still hears from the machine. The time follows the
     /// clock of the application, so that a test moves it.
     /// </summary>
-    private async Task ReadWithinItsTimeAsync(PassState state, bool reading, CancellationToken cancellationToken)
+    private async Task ReadWithinItsTimeAsync(PassState state, bool reading, string? account, CancellationToken cancellationToken)
     {
         if (!reading)
         {
@@ -180,7 +180,7 @@ public sealed class PassRunner
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
         try
         {
-            await ReadAsync(state, linked.Token);
+            await ReadAsync(state, account, linked.Token);
         }
         catch (OperationCanceledException) when (limit.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
@@ -191,7 +191,7 @@ public sealed class PassRunner
     }
 
     /// <summary>Steps 1 to 4: may we read, is the session good, what is new.</summary>
-    private async Task ReadAsync(PassState state, CancellationToken cancellationToken)
+    private async Task ReadAsync(PassState state, string? account, CancellationToken cancellationToken)
     {
         if (_settings.Reader is null)
         {
@@ -235,12 +235,23 @@ public sealed class PassRunner
             // The window goes past what a pass looks at when the history is walked (SPEC §6.3): the conversations below it are the backfill's.
             var window = reading.BackfillPerPass > 0 ? reading.MaxListed + BackfillWindow : reading.MaxListed;
             var headers = await FromReader(() => _settings.Reader.ListRecentAsync(window, cancellationToken), cancellationToken);
+            if (AccountMoved(state, account))
+            {
+                return;
+            }
+
             state.Listed = headers.Count;
             var recent = headers.Where(header => header.Rank < reading.MaxListed).ToList();
             var older = headers.Where(header => header.Rank >= reading.MaxListed).ToList();
             foreach (var header in Candidates(recent).Take(reading.MaxOpenPerPass).Concat(Backfill(older)))
             {
-                Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken));
+                var content = await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken);
+                if (AccountMoved(state, account))
+                {
+                    return;
+                }
+
+                Queue(header, content);
                 state.Opened++;
             }
 
@@ -251,6 +262,21 @@ public sealed class PassRunner
             _connection.Failed(ex.Reason);
             state.Fail(RunOutcomes.Failed, ex.Reason);
         }
+    }
+
+    /// <summary>
+    /// The reader follows the session of the browser, not the account that this pass took: when another account signs in while the pass is reading, what the reader gives is that account's, and it is not kept in the workspace of
+    /// the first (SPEC §8.2, rule 1). The pass stops, says so, and the next one is the new account's.
+    /// </summary>
+    private bool AccountMoved(PassState state, string? account)
+    {
+        if (string.Equals(_accounts.SignedIn, account, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        state.Fail(RunOutcomes.Partial, "account-changed");
+        return true;
     }
 
     /// <summary>

@@ -124,8 +124,14 @@ public sealed class AccountContext : IAccountContext
 
         public void Dispose()
         {
+            // Once: a second dispose neither puts back an account that was left since nor frees what another piece of work holds.
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
             Ambient.Value = _before;
-            if (_key is not null && Interlocked.Exchange(ref _disposed, 1) == 0)
+            if (_key is not null)
             {
                 _owner.Release(_key);
             }

@@ -32,6 +32,20 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
+    public void should_name_the_account_that_the_session_says_and_say_when_a_session_is_signed_in_to_one_that_it_cannot_name()
+    {
+        var subject = Subject();
+        _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow(), ["Google Account: Jane Doe (jane.doe@example.org)"]);
+        (subject.AccountAddress, subject.SignedInWithoutAccount).Should().Be(("jane.doe@example.org", false));
+
+        _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow(), ["Account"]);
+        (subject.AccountAddress, subject.SignedInWithoutAccount).Should().Be((null, true), "the page is signed in, and nobody can say to whom");
+
+        _inbox.RecordSession(signedIn: false, null, _clock.GetUtcNow());
+        (subject.AccountAddress, subject.SignedInWithoutAccount).Should().Be((null, false));
+    }
+
+    [Fact]
     public async Task should_take_a_silent_extension_for_a_reader_that_cannot_say()
     {
         _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow());

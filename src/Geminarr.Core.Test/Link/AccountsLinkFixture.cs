@@ -78,6 +78,64 @@ public sealed class AccountsLinkFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_write_the_key_for_the_account_that_asked_when_another_signs_in_while_mnemarr_answers()
+    {
+        _account.SignIn(Jane);
+        _subject.SetAddress(Url);
+        _http.Answer = Mnemarr();
+        await _subject.StartPairingAsync(TestContext.Current.CancellationToken);
+        var approved = Mnemarr("approved", "mnm_jane", _subject.DerivedMachine()!);
+        // The other account signs in while the answer is on its way.
+        _http.Answer = request =>
+        {
+            _account.SignIn(John);
+            return approved(request);
+        };
+
+        await _subject.PollPairingAsync(TestContext.Current.CancellationToken);
+
+        _account.SignIn(John);
+        _keys.Read().Should().BeNull("the key of Jane was not written to the workspace of John");
+        _account.SignIn(Jane);
+        _keys.Read().Should().Be("mnm_jane");
+    }
+
+    [Fact]
+    public async Task should_write_the_key_of_an_enrolment_for_the_account_that_sent_the_code()
+    {
+        var file = Path.Combine(_data.Folder, "code");
+        await File.WriteAllTextAsync(file, "ABCD-1234\n", TestContext.Current.CancellationToken);
+        var options = new MnemarrOptions { Url = Url, EnrolmentCodeFile = file };
+        var workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
+        var database = new AccountDatabase(_account, workspaces);
+        var keys = new KeyStore(Options.Of(options), _account, workspaces);
+        var subject = new LinkService(Options.Of(options), new LinkStores(new DestinationStore(database), keys, new OutboxStore(database), _account, workspaces), new MnemarrClient(_http), _clock, NullLogger<LinkService>.Instance);
+        _account.SignIn(Jane);
+        _http.Answer = _ =>
+        {
+            _account.SignIn(John);
+            return FakeHttp.Json("""{"key":"mnm_enrolled","machine":"gemini","kind":"satellite"}""");
+        };
+
+        await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken);
+
+        _account.SignIn(John);
+        keys.Read().Should().BeNull();
+        _account.SignIn(Jane);
+        keys.Read().Should().Be("mnm_enrolled");
+    }
+
+    [Fact]
+    public async Task should_say_that_no_account_is_signed_in_with_a_type_of_its_own()
+    {
+        var setAddress = () => _subject.SetAddress(Url);
+        var start = () => _subject.StartPairingAsync(TestContext.Current.CancellationToken);
+
+        setAddress.Should().Throw<NoAccountException>();
+        await start.Should().ThrowAsync<NoAccountException>();
+    }
+
+    [Fact]
     public async Task should_ask_mnemarr_for_a_machine_named_from_the_address_of_the_account()
     {
         _account.SignIn(Jane);

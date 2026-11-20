@@ -108,7 +108,7 @@ public sealed class LinkService
     }
 
     /// <summary>The account that the link is for: what is asked of the link is about the account that is signed in (or was, until the operator disconnects), and with none there is nothing to ask it about (SPEC §8.2).</summary>
-    private string RequireAccount() => _accounts.Current ?? throw new InvalidOperationException("Sign in an account first: the link is its own.");
+    private string RequireAccount() => _accounts.Current ?? throw new NoAccountException("Sign in an account first: the link is its own.");
 
     /// <summary>
     /// The name of the machine of the account that is signed in, made from its address (SPEC §8.1) and told apart from the machines of the other accounts; null when nobody is signed in (the address is known only while
@@ -133,7 +133,7 @@ public sealed class LinkService
     public async Task<PairingStatus> StartPairingAsync(CancellationToken cancellationToken)
     {
         var account = RequireAccount();
-        var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new InvalidOperationException("Sign in the account first: its machine is named from its address.");
+        var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new NoAccountException("Sign in the account first: its machine is named from its address.");
         var url = SettingsUrl ?? _store.Get()?.Url ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
         if (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp)
         {
@@ -198,20 +198,24 @@ public sealed class LinkService
         switch (polled.State)
         {
             case PairingStates.Approved when !string.IsNullOrWhiteSpace(polled.Key):
-                // Given up (or unlinked) while Mnemarr was answering: the key is not kept. The check and the link are one step under the lock, so that an unlink cannot fall between them.
+                // Given up (or unlinked) while Mnemarr was answering: the key is not kept. The check and the link are one step under the lock, so that an unlink cannot fall between them. The key is written for the account that
+                // asked, whoever is signed in by the time that Mnemarr has answered.
                 var machine = MachineOf(polled.Machine);
-                lock (_gate)
+                using (_accounts.Use(pairing.Account))
                 {
-                    if (!ReferenceEquals(_pairing, pairing))
+                    lock (_gate)
                     {
-                        return new PairingStatus(PairingStates.None, null, null, null);
-                    }
+                        if (!ReferenceEquals(_pairing, pairing))
+                        {
+                            return new PairingStatus(PairingStates.None, null, null, null);
+                        }
 
-                    Link(pairing.Url, polled.Key, machine);
-                    _pairing = null;
+                        Link(pairing.Url, polled.Key, machine);
+                        _pairing = null;
+                    }
                 }
 
-                _logger.LogInformation("Linked to Mnemarr by pairing, as the machine {Machine}.", machine);
+                _logger.LogInformation("Linked to Mnemarr by pairing.");
                 return new PairingStatus(PairingStates.Approved, null, null, null);
             case PairingStates.Rejected or PairingStates.Expired:
                 Forget(pairing);
@@ -237,7 +241,8 @@ public sealed class LinkService
     {
         var file = _options.Value.EnrolmentCodeFile;
         var url = SettingsUrl ?? _store.Get()?.Url;
-        if (string.IsNullOrWhiteSpace(file) || _accounts.Current is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
+        var account = _accounts.Current;
+        if (string.IsNullOrWhiteSpace(file) || account is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
         {
             return false;
         }
@@ -258,10 +263,16 @@ public sealed class LinkService
             return false;
         }
 
+        // Mnemarr gives a code to the machine that the deployment named (it refuses any other name), so the request carries the configured one. The key is written for the account that was signed in when the code was
+        // sent, whoever is signed in when Mnemarr has answered.
         var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, cancellationToken);
         var machine = MachineOf(enrolled.Machine);
-        Link(url, enrolled.Key, machine);
-        _logger.LogInformation("Linked to Mnemarr by enrolment, as the machine {Machine}.", machine);
+        using (_accounts.Use(account))
+        {
+            Link(url, enrolled.Key, machine);
+        }
+
+        _logger.LogInformation("Linked to Mnemarr by enrolment.");
         return true;
     }
 

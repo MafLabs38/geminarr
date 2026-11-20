@@ -133,7 +133,7 @@ public sealed class AccountsPassFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_not_write_to_the_workspace_of_another_account_when_one_signs_in_while_a_pass_runs()
+    public async Task should_stop_and_keep_nothing_when_another_account_signs_in_while_a_pass_reads()
     {
         _account.SignIn(Jane);
         _reader.Say("jane-1", "T", "a", "b");
@@ -142,8 +142,14 @@ public sealed class AccountsPassFixture : IDisposable
 
         await _subject.RunAsync(TestContext.Current.CancellationToken);
 
-        ConversationsOf(Jane).Should().Equal("jane-1");
+        // The reader follows the session of the browser: what it gave after the switch is John's, and is kept nowhere.
+        ConversationsOf(Jane).Should().BeEmpty();
         ConversationsOf(John).Should().BeEmpty("the pass was Jane's from its first line to its last");
+        _sink.Sent.Should().BeEmpty();
+        using (_account.Use(AccountKey.Of(Jane)))
+        {
+            _runs.Recent(1).Single().Should().Match<RunRecord>(run => run.Outcome == RunOutcomes.Partial && run.Reason == "account-changed");
+        }
     }
 
     [Fact]
