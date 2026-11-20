@@ -13,7 +13,7 @@ The maintainer talks to Gemini every day, mostly by voice on the phone, sometime
 1. **Bring the Gemini history into Mnemarr, automatically**, as it grows (the phone and the web share one history), without the maintainer doing anything after the first sign-in.
 2. **Bring the past too**, once, by the safest means available.
 3. **Keep the conversations raw.** They are an idea repository: no summary, no structure imposed. Found by meaning, readable as written, like in Google's own history.
-4. **Never put the main Google account at risk.** Reading Gemini means holding a signed-in session, and a session is the whole account: so it is a dedicated account that shares the maintainer's plan.
+4. **A session is the whole account.** Reading Gemini means holding a signed-in session, and a session is the whole account: the maintainer chooses which account to sign in, and none is forbidden (a dedicated account is the careful choice; ADR 0004, amended).
 5. **Say when it needs a person**: when the session ends, ask for a sign-in again, by mail, with a link, and nothing more.
 6. **Be one more *arr** in the family: one container, an API, a small page, the same quality chain, described as code and deployed by GitOps like the others.
 

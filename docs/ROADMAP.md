@@ -40,7 +40,7 @@ _Demo: the menu ends with the name of the laboratory, its picture and the versio
 
 _Output: [docs/spikes/s1-reading-gemini.md](spikes/) with the answers to Q-01 to Q-05, Q-08 and Q-10, and the recorded shape of the pages (no real content)._
 
-- On the build machine, one Chromium, capped, behind the sign-in of vertical 1. The maintainer signs in once to the **dedicated** account through a throw-away live view.
+- On the build machine, one Chromium, capped, behind the sign-in of vertical 1. The maintainer signs in once to an account through a throw-away live view.
 - Measure: is the headless browser accepted with that profile; how to detect a signed-out session; how the list is ordered; how a conversation's turns are read (page or internal calls); whether voice conversations come with their text; how long the session lasts (days: the answer comes later).
 - Everything lives in `.spike/` and `.profile/` (git-ignored). **Nothing real is committed.** The spike is deleted when its result is written down.
 
@@ -62,7 +62,7 @@ _Demo: a browser that a person signed in to Gemini in carries the extension (ins
 
 ## Vertical 3 — The browser container and the connection to it
 
-_Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the dedicated account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected._
+_Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a window, on an origin of its own opened by a ticket, no second login), sign in to the account by hand, and Geminarr's page says Connected; restart both containers and it is still connected; disconnect (the session of the browser is cleared) and it says not connected._
 
 - ADR 0016. F-CON-01..04: the browser container and its web desktop relayed (`GEMINARR__BROWSER__DESKTOPURL`), the state machine, pause, the health of the browser. No debugging port (ADR 0021): the session state, the account and _Disconnect_ are the extension's (ADR 0022).
 - **The browser container in the infrastructure as code and in every deployment file, in this pull request**: `deploy/` (Compose and Kubernetes, its volume, its limits, the shared network namespace so that the debugging port never leaves the pair), `docs/DEPLOYMENT.md`, `docs/network.md`, `docs/configuration.md`, `docs/runbook.md`, the spec, the maintainer's GitOps folder and Portarr; the browser has no sub-domain, no port and no login of its own: Geminarr relays its web desktop on an origin of its own (a second port of Geminarr, opened by a single-use ticket of the operator's session, no second password: ADR 0017, 0019).
@@ -71,7 +71,7 @@ _Demo: press *Sign in* on Geminarr's page (the browser's desktop opens in a wind
 
 ## Vertical 4 — Sign in from Geminarr's page _(built with the extension)_
 
-_Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the dedicated account with the phone; the state is Connected; Disconnect and the session is gone._
+_Demo: press Sign in on Geminarr's Connection page; the browser's desktop appears on the page; sign in to the account with the phone; the state is Connected; Disconnect and the session is gone._
 
 - F-CON-01..04: the desktop of the browser relayed on an origin of its own behind a single-use ticket of the operator's session, the two containers (the browser and Geminarr) in the examples, the Connection page.
 - Who is signed in, the end of a sign-in within a minute and _Disconnect_ are the extension's (§7.3 of the spec, [ADR 0022](adr/0022-the-reader-is-an-extension-in-the-browser-a-person-signed-in-to.md)): a heartbeat every half minute, the label of the account button, the deletion of the cookies of the browser.

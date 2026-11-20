@@ -184,7 +184,7 @@ Geminarr is a client of Mnemarr's existing ingest API ([collector.md](https://gi
 
 ### 5.1 Joining Mnemarr
 
-Two ways, both ending with a key file (`GEMINARR__MNEMARR__KEYFILE`, default `<data>/mnemarr/key`, mode `0600`):
+Two ways, both ending with a key file (`GEMINARR__MNEMARR__KEYFILE`, by default one for each account, `<data>/accounts/<key>/mnemarr/key`, mode `0600`; a key given by this setting is one for the deployment):
 
 - **By asking (pairing, ADR 0030)**, for a person at the page: Geminarr calls `POST /api/v1/ingest/pair`, shows the approval address and a code; a person approves in Mnemarr, names the machine (default `gemini`); `…/pair/poll` returns the key once.
 - **By a code (enrolment, ADR 0027)**, for a deployment as code: `GEMINARR__MNEMARR__ENROLMENTCODEFILE` names a file with a one-time code; Geminarr exchanges it at start (`POST /api/v1/ingest/enrol`) and writes the key. A key already provided as a file (`…KEYFILE` mounted from a sealed secret) is used as it is.
@@ -469,7 +469,7 @@ Environment variables prefixed `GEMINARR__` (a double underscore is a level), or
 | `AUTH__SESSIONHOURS` | **12** | How long a session lasts, used or not (1 to 720) |
 | `MNEMARR__URL` | none | The Mnemarr to send to (HTTPS); when not set, the operator gives it on the page |
 | `MNEMARR__MACHINE` | **`gemini`** | The name of the machine **when one key is given by the deployment** (`KEYFILE`); otherwise each account's machine is named from its address (§8.1) and this is not used |
-| `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` | `<data>/mnemarr/key`, none | See §5.1 |
+| `MNEMARR__KEYFILE`, `MNEMARR__ENROLMENTCODEFILE` | per account (`<data>/accounts/<key>/mnemarr/key`), none | See §5.1 |
 | `MNEMARR__ALLOWINSECUREHTTP` | **`false`** | A sandbox only |
 | `READER__KIND` | **`None`** | `None`, `Web` (the extension, ADR 0022) or `Demo` (a sandbox only: invented conversations that grow, ADR 0014) |
 

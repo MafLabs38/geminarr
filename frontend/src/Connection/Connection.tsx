@@ -59,7 +59,7 @@ function Identity({ connection, machine }: Readonly<{ connection: ConnectionStat
   );
 }
 
-/** Where a person signs in: the page of the browser container, opened in a tab of its own (the account is the dedicated one, never the main one). */
+/** Where a person signs in: the page of the browser container, opened in a tab of its own. */
 function SignIn({
   hasDesktop,
   signingIn,

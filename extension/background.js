@@ -133,7 +133,7 @@ function round() {
 }
 
 /**
- * Signs the account out, when the operator disconnected: the cookies of the browser are cleared (the permission `browsingData` only deletes, it reads nothing), which ends the session of the dedicated account (this
+ * Signs the account out, when the operator disconnected: the cookies of the browser are cleared (the permission `browsingData` only deletes, it reads nothing), which ends the session of the account (this
  * browser holds no other), and a round follows to see what the page shows. A sign-out page of the account provider cannot do it: it asks for a click, and this extension clicks nothing.
  */
 // One at a time, decided before the first await: the request that waits and the heartbeat can both be told the same order together.

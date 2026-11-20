@@ -16,7 +16,7 @@ Until 1.0, only the latest release receives security fixes.
 
 The full model, with the threats and their controls, is [SPEC §11](docs/SPEC.md#11-security-and-privacy); the decisions are [ADR 0004](docs/adr/0004-a-dedicated-google-account-never-the-main-one.md) and [ADR 0008](docs/adr/0008-the-agent-merges-technical-pull-requests.md).
 
-**The one rule that matters to you as an operator: sign Geminarr in to a dedicated Google account, never to your main one.** A Google session is valid across all the services of an account, mailbox included, and a copy of it bypasses 2-step verification. A leak of this container must reach nothing but Gemini conversations.
+**What matters to you as an operator: whichever Google account Geminarr is signed in to, its session is the whole account.** A Google session is valid across all the services of an account, mailbox included, and a copy of it bypasses 2-step verification, so a leak of this container reaches whatever that account reaches. Geminarr forbids no account ([ADR 0004](docs/adr/0004-a-dedicated-google-account-never-the-main-one.md), amended): choose one that you can afford to expose, and press _Disconnect_ when the history of a sensitive account has been read.
 
 **True today** (foundation, operator access, the link to Mnemarr)
 
