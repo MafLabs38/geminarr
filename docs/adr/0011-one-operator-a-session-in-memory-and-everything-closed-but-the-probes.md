@@ -29,4 +29,4 @@ The container will hold the signed-in session of a Google account and the live v
 - The sign-in page is the first screen; **the whole application is behind a gate in the interface** (nothing asked of the API before the session is known; a 401 anywhere puts the sign-in back and forgets what was read).
 - Every setting added later that holds a secret follows the same rule: a file, read when used, never shown (the *Settings* page says only *set* or *not set*).
 - A `/health` resource for the operator lists every check with a stable reason code (the page maps codes to sentences); the probes say nothing more than up or not.
-- The roadmap is renumbered: access (this), the link to Mnemarr, the session and the live view, the reader, the Takeout import, production. The ADRs written before that say "vertical N" with the old numbers; the roadmap is the reference.
+- The roadmap is renumbered: access (this), the link to Mnemarr, the session and the live view, the reader, production. The ADRs written before that say "vertical N" with the old numbers; the roadmap is the reference.
