@@ -26,7 +26,7 @@ public sealed class DestinationHealthFixture : IDisposable
     private static string? Reason(HealthCheckResult result) => result.Data.TryGetValue(HealthReasons.Key, out var reason) ? reason as string : null;
 
     private LinkService Link(MnemarrOptions? options = null) =>
-        new(Options.Of(options ?? new MnemarrOptions()), new DestinationStore(_workspace.Database), _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, new OutboxStore(_workspace.Database));
+        new(Options.Of(options ?? new MnemarrOptions()), TestLinks.Stores(new DestinationStore(_workspace.Database), _keys, new OutboxStore(_workspace.Database), _workspace.Folder), new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
 
     [Fact]
     public async Task should_say_the_database_is_healthy_when_it_opens()
@@ -113,11 +113,10 @@ public sealed class DestinationHealthFixture : IDisposable
     {
         var broken = new LinkService(
             Options.Of(new MnemarrOptions()),
-            new DestinationStore(new Database(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = Path.Combine(_workspace.Folder, "missing") }))),
-            _keys,
+            TestLinks.Stores(new DestinationStore(new Database(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = Path.Combine(_workspace.Folder, "missing") }))), _keys, new OutboxStore(_workspace.Database), _workspace.Folder),
             new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(HttpStatusCode.NotFound))),
             _clock,
-            NullLogger<LinkService>.Instance, new OutboxStore(_workspace.Database));
+            NullLogger<LinkService>.Instance);
 
         var result = await new MnemarrHealthCheck(broken).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 
@@ -132,13 +131,29 @@ public sealed class DestinationHealthFixture : IDisposable
     public async Task should_say_the_state_of_the_connection_by_its_reason_code(ConnectionState state, HealthStatus status, string? reason)
     {
         var store = new ConnectionStore(_workspace.Database, _clock);
-        store.Save(new ConnectionRecord(state, _clock.GetUtcNow(), null, 0, reason));
+        // Something was read before: a session that needs a sign-in is one that expired, which is a defect to say.
+        store.Save(new ConnectionRecord(state, _clock.GetUtcNow(), _clock.GetUtcNow().AddDays(-1), 0, reason));
         var tracker = Tracking.Of(store, Options.Of(new ReaderOptions()), _clock);
 
         var result = await new ConnectionHealthCheck(tracker).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
 
         result.Status.Should().Be(status);
         Reason(result).Should().Be(reason);
+    }
+
+    [Theory]
+    [InlineData(ConnectionState.NeedsLogin)]
+    [InlineData(ConnectionState.Degraded)]
+    public async Task should_say_that_a_first_start_waits_for_a_sign_in_and_is_not_degraded(ConnectionState state)
+    {
+        var store = new ConnectionStore(_workspace.Database, _clock);
+        // Nothing was ever read and nobody is signed in: not a defect, what a first start waits for.
+        store.Save(new ConnectionRecord(state, _clock.GetUtcNow(), null, 1, ConnectionReasons.NeedsLogin));
+
+        var result = await new ConnectionHealthCheck(Tracking.Of(store, Options.Of(new ReaderOptions()), _clock)).CheckHealthAsync(Context, TestContext.Current.CancellationToken);
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+        Reason(result).Should().Be(ConnectionReasons.AwaitingSignIn);
     }
 
     [Fact]

@@ -11,6 +11,9 @@ public interface IAccountWorkspaces
     /// <summary>The folder of the workspace of an account (it may not exist yet).</summary>
     string Folder(string key);
 
+    /// <summary>Makes the folder of the workspace of an account if it is not there (only the owner may read it), and gives it.</summary>
+    string Ensure(string key);
+
     /// <summary>The keys of the accounts that have a workspace, in order.</summary>
     IReadOnlyList<string> Known();
 

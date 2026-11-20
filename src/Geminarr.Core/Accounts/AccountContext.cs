@@ -23,7 +23,9 @@ public sealed class AccountContext : IAccountContext
         _store = store;
     }
 
-    public string? SignedIn => _readers.Reader?.AccountAddress is { Length: > 0 } address ? AccountKey.Of(address) : null;
+    public string? SignedInAddress => _readers.Reader?.AccountAddress is { Length: > 0 } address ? address : null;
+
+    public string? SignedIn => SignedInAddress is { } address ? AccountKey.Of(address) : null;
 
     public string? Current => Ambient.Value is { } taken ? taken.Key : SignedIn ?? Remembered();
 

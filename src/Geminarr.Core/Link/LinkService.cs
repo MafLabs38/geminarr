@@ -1,3 +1,4 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Pipeline;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,17 +23,21 @@ public sealed class LinkService
     private readonly TimeProvider _clock;
     private readonly ILogger<LinkService> _logger;
     private readonly IOutboxStore _outbox;
+    private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces _workspaces;
     private readonly Lock _gate = new();
     private readonly SemaphoreSlim _polling = new(1, 1);
     private PendingPairing? _pairing;
     private long _generation;
 
-    public LinkService(IOptions<MnemarrOptions> options, IDestinationStore store, IKeyStore keys, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger, IOutboxStore outbox)
+    public LinkService(IOptions<MnemarrOptions> options, LinkStores stores, MnemarrClient client, TimeProvider clock, ILogger<LinkService> logger)
     {
-        _outbox = outbox;
+        _accounts = stores.Accounts;
+        _workspaces = stores.Workspaces;
+        _outbox = stores.Outbox;
         _options = options;
-        _store = store;
-        _keys = keys;
+        _store = stores.Destination;
+        _keys = stores.Keys;
         _client = client;
         _clock = clock;
         _logger = logger;
@@ -49,7 +54,7 @@ public sealed class LinkService
         var url = SettingsUrl ?? row?.Url;
         var hasKey = _keys.Read() is not null && KeyBelongsTo(row, url);
         var problem = ProblemOf(url, hasKey, row?.LastProblem);
-        return new DestinationStatus(url, row?.Machine ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
+        return new DestinationStatus(url, row?.Machine ?? DerivedMachine() ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
     }
 
     /// <summary>Where to send, as which machine, with which key; a <see cref="SinkException"/> says why there is nowhere to send.</summary>
@@ -101,9 +106,30 @@ public sealed class LinkService
         Interlocked.Increment(ref _generation);
     }
 
-    /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it.</summary>
+    /// <summary>
+    /// The name of the machine of the account that is signed in, made from its address (SPEC §8.1) and told apart from the machines of the other accounts; null when nobody is signed in (the address is known only while
+    /// somebody is).
+    /// </summary>
+    public string? DerivedMachine()
+    {
+        if (_accounts.SignedIn is not { } key || _accounts.SignedInAddress is not { } address)
+        {
+            return null;
+        }
+
+        var taken = MachinesOfOtherAccounts(key);
+        return MachineName.Of(address, key, taken.Contains);
+    }
+
+    /// <summary>The machines that the other accounts have: two accounts never share a name, since Mnemarr replaces the key of a machine that is paired again under a name it knows.</summary>
+    private HashSet<string> MachinesOfOtherAccounts(string key) =>
+        [.. _workspaces.Known().Where(other => other != key).Select(other => new DestinationStore(_workspaces.Database(other)).Get()?.Machine).OfType<string>()];
+
+    /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it. It is for the account that is signed in, and the machine is named from its address.</summary>
     public async Task<PairingStatus> StartPairingAsync(CancellationToken cancellationToken)
     {
+        var account = _accounts.Current ?? throw new InvalidOperationException("Sign in an account first: its machine is named from its address.");
+        var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new InvalidOperationException("Sign in the account first: its machine is named from its address.");
         var url = SettingsUrl ?? _store.Get()?.Url ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
         if (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp)
         {
@@ -111,8 +137,8 @@ public sealed class LinkService
         }
 
         _store.EnsureAddress(url);
-        var started = await _client.PairStartAsync(url, _options.Value.Machine, cancellationToken);
-        var pairing = new PendingPairing(url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
+        var started = await _client.PairStartAsync(url, machine, cancellationToken);
+        var pairing = new PendingPairing(account, url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
         lock (_gate)
         {
             _pairing = pairing;
@@ -125,7 +151,7 @@ public sealed class LinkService
     {
         lock (_gate)
         {
-            return _pairing is { } pairing && pairing.ExpiresAt > _clock.GetUtcNow() ? pairing.ToStatus(PairingStates.Pending) : new PairingStatus(PairingStates.None, null, null, null);
+            return _pairing is { } pairing && pairing.Account == _accounts.Current && pairing.ExpiresAt > _clock.GetUtcNow() ? pairing.ToStatus(PairingStates.Pending) : new PairingStatus(PairingStates.None, null, null, null);
         }
     }
 
@@ -152,7 +178,8 @@ public sealed class LinkService
             pairing = _pairing;
         }
 
-        if (pairing is null)
+        // A pairing is for the account that started it: if another one is the account now, there is none to ask about (the key would be written to the wrong workspace).
+        if (pairing is null || pairing.Account != _accounts.Current)
         {
             return new PairingStatus(PairingStates.None, null, null, null);
         }
@@ -203,7 +230,7 @@ public sealed class LinkService
     {
         var file = _options.Value.EnrolmentCodeFile;
         var url = SettingsUrl ?? _store.Get()?.Url;
-        if (string.IsNullOrWhiteSpace(file) || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
+        if (string.IsNullOrWhiteSpace(file) || _accounts.Current is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
         {
             return;
         }
@@ -290,7 +317,7 @@ public sealed class LinkService
             ? uri.ToString()
             : null;
 
-    private sealed record PendingPairing(string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
+    private sealed record PendingPairing(string Account, string Url, string DeviceCode, string UserCode, string? VerificationUrl, DateTimeOffset ExpiresAt)
     {
         /// <summary>Never what it holds: a record that is printed by mistake must not print the device code.</summary>
         public override string ToString() => nameof(PendingPairing);

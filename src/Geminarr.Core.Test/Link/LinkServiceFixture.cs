@@ -25,7 +25,7 @@ public sealed class LinkServiceFixture : IDisposable
 
     public void Dispose() => _workspace.Dispose();
 
-    private LinkService Subject(MnemarrOptions? options = null) => new(Options.Of(options ?? new MnemarrOptions()), _store, _keys, new MnemarrClient(_http), _clock, NullLogger<LinkService>.Instance, new OutboxStore(_workspace.Database));
+    private LinkService Subject(MnemarrOptions? options = null) => new(Options.Of(options ?? new MnemarrOptions()), TestLinks.Stores(_store, _keys, new OutboxStore(_workspace.Database), _workspace.Folder), new MnemarrClient(_http), _clock, NullLogger<LinkService>.Instance);
 
     private static Func<SeenRequest, HttpResponseMessage> Mnemarr(string pollState = "pending", string? key = null, string machine = "gemini-2") => request =>
         request.Address.EndsWith("/pair/poll", StringComparison.Ordinal)
@@ -39,7 +39,7 @@ public sealed class LinkServiceFixture : IDisposable
 
         status.Linked.Should().BeFalse();
         status.Problem.Should().Be(DestinationProblems.NotLinked);
-        status.Machine.Should().Be("gemini");
+        status.Machine.Should().Be("geminarr-account", "the machine of an account is named from its address, which is what it will be paired as");
         status.Url.Should().BeNull();
     }
 

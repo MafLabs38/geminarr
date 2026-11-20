@@ -20,22 +20,21 @@ public sealed class AccountWorkspaces : IAccountWorkspaces
 
     public string Folder(string key) => AccountKey.IsValid(key) ? Path.Combine(_dataFolder, FolderName, key) : throw new ArgumentException("That is not the key of an account.", nameof(key));
 
-    public IDatabase Database(string key)
+    public string Ensure(string key)
     {
         var folder = Folder(key);
-        return _databases.GetOrAdd(key, _ =>
+        // A volume that was never mounted must not look like a fresh, empty one: the workspace is made only inside a data folder that is there.
+        if (!Directory.Exists(_dataFolder))
         {
-            // A volume that was never mounted must not look like a fresh, empty one: the workspace is made only inside a data folder that is there.
-            if (!Directory.Exists(_dataFolder))
-            {
-                throw new DirectoryNotFoundException("The data folder does not exist.");
-            }
+            throw new DirectoryNotFoundException("The data folder does not exist.");
+        }
 
-            MakeFolder(Path.Combine(_dataFolder, FolderName));
-            MakeFolder(folder);
-            return new Database(folder);
-        });
+        MakeFolder(Path.Combine(_dataFolder, FolderName));
+        MakeFolder(folder);
+        return folder;
     }
+
+    public IDatabase Database(string key) => _databases.GetOrAdd(key, workspace => new Database(Ensure(workspace)));
 
     public IReadOnlyList<string> Known()
     {

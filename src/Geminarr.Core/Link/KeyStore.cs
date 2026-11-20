@@ -1,4 +1,4 @@
-using Geminarr.Core.Configuration;
+using Geminarr.Core.Accounts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -8,23 +8,44 @@ namespace Geminarr.Core.Link;
 public sealed class KeyStore : IKeyStore
 {
     private readonly IOptions<MnemarrOptions> _mnemarr;
-    private readonly IOptions<GeminarrOptions> _geminarr;
+    private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces _workspaces;
     private readonly ILogger<KeyStore> _logger;
 
-    public KeyStore(IOptions<MnemarrOptions> mnemarr, IOptions<GeminarrOptions> geminarr, ILogger<KeyStore>? logger = null)
+    public KeyStore(IOptions<MnemarrOptions> mnemarr, IAccountContext accounts, IAccountWorkspaces workspaces, ILogger<KeyStore>? logger = null)
     {
         _mnemarr = mnemarr;
-        _geminarr = geminarr;
+        _accounts = accounts;
+        _workspaces = workspaces;
         _logger = logger ?? NullLogger<KeyStore>.Instance;
     }
 
-    private string Path => string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) ? System.IO.Path.Combine(_geminarr.Value.DataFolder, "mnemarr", "key") : _mnemarr.Value.KeyFile;
+    /// <summary>
+    /// The file of the key: the one that the deployment gives (one key for one machine, SPEC §8.2), or the one of the workspace of the account that the work is for. Null when there is none: no account, no key.
+    /// </summary>
+    private string? Path
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile))
+            {
+                return _mnemarr.Value.KeyFile;
+            }
+
+            return _accounts.Current is { } key ? System.IO.Path.Combine(_workspaces.Folder(key), "mnemarr", "key") : null;
+        }
+    }
 
     public string? Read()
     {
+        if (Path is not { } path)
+        {
+            return null;
+        }
+
         try
         {
-            var text = File.ReadAllText(Path).Trim();
+            var text = File.ReadAllText(path).Trim();
             return text.Length == 0 ? null : text;
         }
         catch (FileNotFoundException)
@@ -45,9 +66,14 @@ public sealed class KeyStore : IKeyStore
 
     public string? AddressOf()
     {
+        if (Path is not { } path)
+        {
+            return null;
+        }
+
         try
         {
-            var text = File.ReadAllText(Path + ".address").Trim();
+            var text = File.ReadAllText(path + ".address").Trim();
             return text.Length == 0 ? null : text;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -58,7 +84,14 @@ public sealed class KeyStore : IKeyStore
 
     public void Write(string key, string address)
     {
-        var folder = System.IO.Path.GetDirectoryName(Path);
+        var path = Path ?? throw new InvalidOperationException("No account is signed in: its key has nowhere to be kept.");
+        if (string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) && _accounts.Current is { } account)
+        {
+            // The workspace is made first, for its owner alone: the folder of the key is made inside it.
+            _workspaces.Ensure(account);
+        }
+
+        var folder = System.IO.Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
         {
             CreateFolder(folder);
@@ -66,8 +99,8 @@ public sealed class KeyStore : IKeyStore
 
         // Written to a file of its own first and moved over the old one: a crash never leaves half a key, and the key is never readable by another user, not even for a moment.
         // The address that binds it is written the same way (it decides which Mnemarr may be given the key), and after it: a crash between the two leaves a key without its address, which is not bound to an address (as a key that the deployment gives), never an old key bound to a new address.
-        WriteOwnerOnly(Path, key);
-        WriteOwnerOnly(Path + ".address", address);
+        WriteOwnerOnly(path, key);
+        WriteOwnerOnly(path + ".address", address);
     }
 
     private static void WriteOwnerOnly(string path, string text)
@@ -102,10 +135,15 @@ public sealed class KeyStore : IKeyStore
 
     public void Delete()
     {
+        if (Path is not { } path)
+        {
+            return;
+        }
+
         try
         {
-            File.Delete(Path);
-            File.Delete(Path + ".address");
+            File.Delete(path);
+            File.Delete(path + ".address");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -61,6 +61,7 @@ public static class CoreServiceCollectionExtensions
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddHttpClient(nameof(DesktopBrowserHost)).ConfigurePrimaryHttpMessageHandler(DesktopBrowserHost.NewHandler);
         services.AddSingleton<MnemarrClient>();
+        services.AddSingleton(provider => new LinkStores(provider.GetRequiredService<IDestinationStore>(), provider.GetRequiredService<IKeyStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IAccountContext>(), provider.GetRequiredService<IAccountWorkspaces>()));
         services.AddSingleton<LinkService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
@@ -88,7 +89,7 @@ public static class CoreServiceCollectionExtensions
             ReaderKind.Web => ActivatorUtilities.CreateInstance<ExtensionReader>(provider),
             _ => null,
         }));
-        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>()));
+        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>(), provider.GetRequiredService<IAccountContext>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();

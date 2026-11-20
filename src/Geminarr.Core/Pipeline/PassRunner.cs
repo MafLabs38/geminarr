@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Link;
 using Geminarr.Core.Masking;
@@ -27,12 +28,16 @@ public sealed class PassRunner
     private readonly IConversationStore _conversations;
     private readonly IOutboxStore _outbox;
     private readonly IRunStore _runs;
+    private readonly IAccountContext _accounts;
     private readonly ConnectionTracker _connection;
     private readonly LinkService _link;
     private readonly PassSettings _settings;
     private readonly TimeProvider _clock;
     private readonly ILogger<PassRunner> _logger;
     private readonly SemaphoreSlim _running = new(1, 1);
+    /// <summary>The account that the positions below were asked of Mnemarr for: another account has other machines, so they are asked again when it changes.</summary>
+    private string? _positionsAccount;
+
     private DateTimeOffset? _positionsAt;
     private long _generation = -1;
 
@@ -46,6 +51,7 @@ public sealed class PassRunner
         _conversations = stores.Conversations;
         _outbox = stores.Outbox;
         _runs = stores.Runs;
+        _accounts = stores.Accounts;
         _connection = connection;
         _link = link;
         _settings = settings;
@@ -78,6 +84,22 @@ public sealed class PassRunner
     {
         var watch = Stopwatch.StartNew();
         var startedAt = _clock.GetUtcNow();
+        // The account that is signed in is the last one from now on (an expired session is still told to Mnemarr by its machine), and the pass works on that account's workspace whatever happens to the session while it runs (SPEC §8.2).
+        if (_accounts.SignedIn is { } signedIn)
+        {
+            _accounts.Remember(signedIn);
+        }
+
+        var account = _accounts.Current;
+        using var taken = _accounts.Use(account);
+        if (!string.Equals(account, _positionsAccount, StringComparison.Ordinal))
+        {
+            _positionsAccount = account;
+            _positions = null;
+            _positionsAt = null;
+            _generation = -1;
+        }
+
         _passGeneration = _link.Generation;
         // A heartbeat between two readings writes its row at the end, and only if it has something to say: no row flickers in the list, and a process that dies leaves nothing half done.
         long? runId = reading ? _runs.Start(RunKinds.Pass, startedAt) : null;

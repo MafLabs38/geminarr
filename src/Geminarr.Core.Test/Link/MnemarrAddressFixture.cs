@@ -1,4 +1,6 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Link;
+using Geminarr.Core.Test.Support;
 using Geminarr.Core.Test.Access;
 
 namespace Geminarr.Core.Test.Link;
@@ -89,7 +91,7 @@ public sealed class MnemarrAddressFixture
         var folder = Directory.CreateTempSubdirectory("geminarr-key-").FullName;
         try
         {
-            var store = new KeyStore(Options.Of(new MnemarrOptions()), Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = folder }));
+            var store = new KeyStore(Options.Of(new MnemarrOptions()), new FixedAccount(), new AccountWorkspaces(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions { DataFolder = folder })));
             store.Read().Should().BeNull();
 
             store.Write("mnm_secret-key", "https://mnemarr.homelab.example");
@@ -97,13 +99,13 @@ public sealed class MnemarrAddressFixture
 
             store.Read().Should().Be("mnm_other-key");
             store.AddressOf().Should().Be("https://other.homelab.example");
-            var file = Path.Combine(folder, "mnemarr", "key");
+            var file = Path.Combine(folder, "accounts", FixedAccount.Key, "mnemarr", "key");
             File.Exists(file).Should().BeTrue();
             File.Exists(file + ".new").Should().BeFalse();
             if (!OperatingSystem.IsWindows())
             {
                 File.GetUnixFileMode(file).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite);
-                File.GetUnixFileMode(Path.Combine(folder, "mnemarr")).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                File.GetUnixFileMode(Path.GetDirectoryName(file)!).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             }
 
             store.Delete();
@@ -125,11 +127,11 @@ public sealed class MnemarrAddressFixture
         {
             var file = Path.Combine(folder, "given-key");
             File.WriteAllText(file, "mnm_given\n");
-            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = file }), Options.Of(new Geminarr.Core.Configuration.GeminarrOptions())).Read().Should().Be("mnm_given");
+            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = file }), new FixedAccount(), new AccountWorkspaces(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions()))).Read().Should().Be("mnm_given");
 
             File.WriteAllText(file, "\n");
-            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = file }), Options.Of(new Geminarr.Core.Configuration.GeminarrOptions())).Read().Should().BeNull();
-            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = "bad\0path" }), Options.Of(new Geminarr.Core.Configuration.GeminarrOptions())).Read().Should().BeNull();
+            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = file }), new FixedAccount(), new AccountWorkspaces(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions()))).Read().Should().BeNull();
+            new KeyStore(Options.Of(new MnemarrOptions { KeyFile = "bad\0path" }), new FixedAccount(), new AccountWorkspaces(Options.Of(new Geminarr.Core.Configuration.GeminarrOptions()))).Read().Should().BeNull();
         }
         finally
         {
