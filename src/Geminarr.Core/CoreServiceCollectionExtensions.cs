@@ -63,6 +63,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<MnemarrClient>();
         services.AddSingleton(provider => new LinkStores(provider.GetRequiredService<IDestinationStore>(), provider.GetRequiredService<IKeyStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IAccountContext>(), provider.GetRequiredService<IAccountWorkspaces>()));
         services.AddSingleton<LinkService>();
+        services.AddSingleton<AccountService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, DesktopOriginValidator>();

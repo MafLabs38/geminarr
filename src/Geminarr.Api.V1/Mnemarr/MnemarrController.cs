@@ -79,6 +79,11 @@ public sealed class MnemarrController : ControllerBase
         {
             return Failure(ex);
         }
+        catch (InvalidOperationException ex)
+        {
+            // No account is signed in: the machine is named from its address.
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
+        }
     }
 
     /// <summary>The pairing that waits, as it was started (nothing is asked of Mnemarr).</summary>

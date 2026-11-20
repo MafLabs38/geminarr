@@ -294,7 +294,7 @@ public sealed class MnemarrApiFixture
 
         conversations.Total.Should().BeGreaterThan(0);
         conversations.Conversations.Should().OnlyContain(conversation => conversation.Id.Length > 0 && conversation.TurnsKnown >= conversation.TurnsSent);
-        conversations.Backfill.Enabled.Should().BeTrue();
+        conversations.Backfill!.Enabled.Should().BeTrue();
         body.Should().NotContainEquivalentOf("\"title\"").And.NotContainEquivalentOf("\"text\"").And.NotContainEquivalentOf("\"turns\":");
     }
 

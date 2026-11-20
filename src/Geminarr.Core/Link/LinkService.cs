@@ -92,6 +92,7 @@ public sealed class LinkService
     /// <summary>The address, given on the page. Refused when the settings give it, or when a key is held (it belongs to the Mnemarr that gave it: unlink first).</summary>
     public void SetAddress(string address)
     {
+        RequireAccount();
         if (SettingsUrl is not null)
         {
             throw new InvalidOperationException("The address of Mnemarr is set by the deployment.");
@@ -105,6 +106,9 @@ public sealed class LinkService
         _store.SaveAddress(MnemarrAddress.Normalize(address) ?? throw new ArgumentException("Not an address of Mnemarr.", nameof(address)));
         Interlocked.Increment(ref _generation);
     }
+
+    /// <summary>The account that the link is for: what is asked of the link is about the account that is signed in (or was, until the operator disconnects), and with none there is nothing to ask it about (SPEC §8.2).</summary>
+    private string RequireAccount() => _accounts.Current ?? throw new InvalidOperationException("Sign in an account first: the link is its own.");
 
     /// <summary>
     /// The name of the machine of the account that is signed in, made from its address (SPEC §8.1) and told apart from the machines of the other accounts; null when nobody is signed in (the address is known only while
@@ -128,7 +132,7 @@ public sealed class LinkService
     /// <summary>Starts a pairing by asking (ADR 0030): Mnemarr gives a code and a page where a person approves it. It is for the account that is signed in, and the machine is named from its address.</summary>
     public async Task<PairingStatus> StartPairingAsync(CancellationToken cancellationToken)
     {
-        var account = _accounts.Current ?? throw new InvalidOperationException("Sign in an account first: its machine is named from its address.");
+        var account = RequireAccount();
         var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new InvalidOperationException("Sign in the account first: its machine is named from its address.");
         var url = SettingsUrl ?? _store.Get()?.Url ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
         if (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp)
@@ -260,6 +264,7 @@ public sealed class LinkService
     /// <summary>Forgets the key and the machine, and any pairing: Geminarr no longer sends. What Mnemarr already holds stays there.</summary>
     public void Unlink()
     {
+        RequireAccount();
         CancelPairing();
         _keys.Delete();
         if (_keys.Read() is not null)
