@@ -126,6 +126,20 @@ public sealed class AccountsLinkFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_give_a_new_account_the_address_of_mnemarr_that_another_account_has()
+    {
+        _account.SignIn(Jane);
+        _subject.SetAddress(Url);
+
+        _account.SignIn(John);
+
+        _subject.Status().Url.Should().Be(Url, "the address is one for every account: it is typed once");
+        _http.Answer = Mnemarr();
+        await _subject.StartPairingAsync(TestContext.Current.CancellationToken);
+        _http.Requests.Single().Address.Should().StartWith(Url);
+    }
+
+    [Fact]
     public async Task should_say_that_no_account_is_signed_in_with_a_type_of_its_own()
     {
         var setAddress = () => _subject.SetAddress(Url);

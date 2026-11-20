@@ -327,14 +327,15 @@ public sealed class ExtensionInboxFixture
     }
 
     [Fact]
-    public void should_hold_what_is_read_for_the_account_that_comes_back_after_a_label_that_said_nothing()
+    public void should_not_give_what_was_held_to_an_account_that_is_named_after_one_that_could_not_be()
     {
         _subject.RecordSession(signedIn: true, null, Now, Labels("jane.doe@example.org"));
         _subject.RecordConversation("c1", "T", [new Turn("user", null, "hi")], Now);
-        _subject.RecordList([], null, Now.AddMinutes(1), ["Account"]);
 
+        // Somebody signs in whose label says nothing, and then the label of the first account is read again: what was held may have been taken under the other.
+        _subject.RecordList([], null, Now.AddMinutes(1), ["Account"]);
         _subject.RecordList([], null, Now.AddMinutes(2), Labels("jane.doe@example.org"));
 
-        _subject.Has("c1").Should().BeTrue("the same account is back: nothing was given to another");
+        _subject.Has("c1").Should().BeFalse();
     }
 }

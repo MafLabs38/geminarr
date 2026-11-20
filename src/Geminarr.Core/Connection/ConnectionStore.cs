@@ -1,3 +1,4 @@
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Storage;
 
 namespace Geminarr.Core.Connection;
@@ -43,7 +44,7 @@ public sealed class ConnectionStore : IConnectionStore
         using var connection = _database.Open();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT account_key FROM connection WHERE id = 1;";
-        return command.ExecuteScalar() is string key && Accounts.AccountKey.IsValid(key) ? key : null;
+        return command.ExecuteScalar() is string key && AccountKey.IsValid(key) ? key : null;
     }
 
     public void SetAccount(string? key)

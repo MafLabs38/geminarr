@@ -51,7 +51,7 @@ public sealed class LinkService
     public DestinationStatus Status()
     {
         var row = _store.Get();
-        var url = SettingsUrl ?? row?.Url;
+        var url = SettingsUrl ?? row?.Url ?? SharedUrl();
         var hasKey = _keys.Read() is not null && KeyBelongsTo(row, url);
         var problem = ProblemOf(url, hasKey, row?.LastProblem);
         return new DestinationStatus(url, row?.Machine ?? DerivedMachine() ?? _options.Value.Machine, hasKey && url is not null, SettingsUrl is not null, !string.IsNullOrWhiteSpace(_options.Value.KeyFile), problem, row?.LastHeartbeatAt);
@@ -61,7 +61,7 @@ public sealed class LinkService
     public ResolvedDestination Resolve()
     {
         var row = _store.Get();
-        var url = SettingsUrl ?? row?.Url;
+        var url = SettingsUrl ?? row?.Url ?? SharedUrl();
         var key = KeyBelongsTo(row, url) ? _keys.Read() : null;
         return ProblemOf(url, key is not null, problem: null) switch
         {
@@ -125,6 +125,10 @@ public sealed class LinkService
         return MachineName.Of(address, key, taken.Contains);
     }
 
+    /// <summary>The address of Mnemarr is one for every account (SPEC §8.2): an account that has none takes the one that another account has, so that it is typed once.</summary>
+    private string? SharedUrl() =>
+        _workspaces.Known().Where(other => other != _accounts.Current).Select(other => new DestinationStore(_workspaces.Database(other)).Get()?.Url).FirstOrDefault(url => url is not null);
+
     /// <summary>The machines that the other accounts have: two accounts never share a name, since Mnemarr replaces the key of a machine that is paired again under a name it knows.</summary>
     private HashSet<string> MachinesOfOtherAccounts(string key) =>
         [.. _workspaces.Known().Where(other => other != key).Select(other => new DestinationStore(_workspaces.Database(other)).Get()?.Machine).OfType<string>()];
@@ -134,7 +138,7 @@ public sealed class LinkService
     {
         var account = RequireAccount();
         var machine = _store.Get()?.Machine ?? DerivedMachine() ?? throw new NoAccountException("Sign in the account first: its machine is named from its address.");
-        var url = SettingsUrl ?? _store.Get()?.Url ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
+        var url = SettingsUrl ?? _store.Get()?.Url ?? SharedUrl() ?? throw new SinkException(SinkFailure.NotLinked, "Give the address of Mnemarr first.");
         if (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp)
         {
             throw new SinkException(SinkFailure.InsecureAddress, "The address of Mnemarr is not https.");
@@ -240,7 +244,7 @@ public sealed class LinkService
     public async Task<bool> EnrolFromCodeFileAsync(CancellationToken cancellationToken)
     {
         var file = _options.Value.EnrolmentCodeFile;
-        var url = SettingsUrl ?? _store.Get()?.Url;
+        var url = SettingsUrl ?? _store.Get()?.Url ?? SharedUrl();
         var account = _accounts.Current;
         if (string.IsNullOrWhiteSpace(file) || account is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
         {

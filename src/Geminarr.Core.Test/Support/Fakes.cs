@@ -23,8 +23,12 @@ public sealed class FakeReader : IConversationReader
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(Session);
 
+    /// <summary>Something that happens while the list is being read (another account signs in, for example).</summary>
+    public Action? WhileListing { get; set; }
+
     public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken)
     {
+        WhileListing?.Invoke();
         if (FailWith is not null)
         {
             throw FailWith;

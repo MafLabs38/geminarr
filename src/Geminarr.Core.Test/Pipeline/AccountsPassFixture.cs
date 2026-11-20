@@ -180,4 +180,55 @@ public sealed class AccountsPassFixture : IDisposable
         _sink.Sent.Should().HaveCount(sent);
         ConversationsOf(Jane).Should().Equal("c1");
     }
+
+    [Fact]
+    public async Task should_stop_before_reading_anything_when_another_account_signs_in_while_the_list_is_read()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        _reader.WhileListing = () => _account.SignIn(John);
+
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _reader.Opened.Should().BeEmpty("the list is John's: nothing of it is opened for Jane");
+        ConversationsOf(Jane).Should().BeEmpty();
+        ConversationsOf(John).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_keep_what_was_read_before_the_switch_and_nothing_after_it()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        _reader.Say("jane-2", "T", "a", "b");
+        var opened = 0;
+        _reader.WhileOpening = () =>
+        {
+            if (++opened == 2)
+            {
+                _account.SignIn(John);
+            }
+        };
+
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        ConversationsOf(Jane).Should().Equal("jane-1");
+        ConversationsOf(John).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_leave_a_sign_out_in_the_middle_of_a_pass_to_the_session_and_keep_nothing_after_it()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        _reader.WhileOpening = () => _account.SignIn(null);
+
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        ConversationsOf(Jane).Should().BeEmpty();
+        using (_account.Use(AccountKey.Of(Jane)))
+        {
+            _runs.Recent(1).Single().Reason.Should().Be("signed-out");
+        }
+    }
 }

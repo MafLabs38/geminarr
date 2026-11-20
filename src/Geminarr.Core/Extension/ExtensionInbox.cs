@@ -304,6 +304,12 @@ public sealed class ExtensionInbox
     {
         if (account is null)
         {
+            // Nobody, or somebody that cannot be named, after an account that was: what is held was read for that one and may not be for the page now, so it is not given to the next account that is named.
+            if (_heldFor is not null)
+            {
+                ForgetWhatWasRead();
+            }
+
             return;
         }
 

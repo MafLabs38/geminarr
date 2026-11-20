@@ -47,7 +47,7 @@ The reader is an extension in a browser that a person signed in to ([ADR 0022](a
 1. The release `0.1.0` exists and its image is public (or the pull secret is in the folder).
 2. The folder is added to the GitOps repository; Flux applies it; the pod starts; `/health/ready` is green; the browser container is up; the state is `not-connected` (or asks to sign in).
 3. The operator opens Geminarr's page (the proxy's single sign-on if there is one, then its own login), presses **Sign in** on the page _Connection_, which opens the browser's desktop in a window (its own origin, opened by a ticket of the session: no second login), and **signs in by hand to the account to read**. The next pass finds the session: `connected`. The machine of that account is named from its address (`geminarr-` and the part before the `@`): the operator pairs it with Mnemarr on the page _Mnemarr_ (or a code was provided for the first account). Another account is read the same way, after _Disconnect_.
-4. Mnemarr shows the machine `gemini` online; the first pass sends the recent conversations; the backfill walks the rest slowly.
+4. Mnemarr shows the machine of the account (`geminarr-` and the part of its address before the `@`, or the name that the enrolment code was made for) online; the first pass sends the recent conversations; the backfill walks the rest slowly.
 5. Portarr registers the application and checks its health endpoint.
 
 ## Test instances

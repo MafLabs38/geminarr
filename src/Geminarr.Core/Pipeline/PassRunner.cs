@@ -270,12 +270,14 @@ public sealed class PassRunner
     /// </summary>
     private bool AccountMoved(PassState state, string? account)
     {
-        if (string.Equals(_accounts.SignedIn, account, StringComparison.Ordinal))
+        var signedIn = _accounts.SignedIn;
+        if (string.Equals(signedIn, account, StringComparison.Ordinal))
         {
             return false;
         }
 
-        state.Fail(RunOutcomes.Partial, "account-changed");
+        // Nobody is signed in any more (a sign-out, an expiry): that is the session's own news, told by the next check. Another account is the one that this pass must not keep.
+        state.Fail(RunOutcomes.Partial, signedIn is null ? "signed-out" : "account-changed");
         return true;
     }
 

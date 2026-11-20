@@ -29,6 +29,13 @@ public sealed class AccountContext : IAccountContext
 
     public string? SignedIn => SignedInAddress is { } address ? AccountKey.Of(address) : null;
 
+    /// <summary>One reading of the reader, so that the answer is of one state of the session: the address, and whether a session is signed in to somebody that cannot be named.</summary>
+    private (string? Address, bool WithoutAccount) Session()
+    {
+        var reader = _readers.Reader;
+        return (reader?.AccountAddress is { Length: > 0 } address ? address : null, reader?.SignedInWithoutAccount == true);
+    }
+
     /// <summary>
     /// A session that is signed in to an account that cannot be read (the label of the page did not parse) is not the account that was signed in last: nothing is read for it, and nothing is written to the other's workspace.
     /// The last account is the one to work on only while nobody is signed in.
@@ -42,12 +49,13 @@ public sealed class AccountContext : IAccountContext
                 return taken.Key;
             }
 
-            if (SignedIn is { } signedIn)
+            var (address, withoutAccount) = Session();
+            if (address is not null)
             {
-                return signedIn;
+                return AccountKey.Of(address);
             }
 
-            return _readers.Reader?.SignedInWithoutAccount == true ? null : Remembered();
+            return withoutAccount ? null : Remembered();
         }
     }
 

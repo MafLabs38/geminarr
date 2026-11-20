@@ -46,6 +46,16 @@ public sealed class ExtensionReaderFixture
     }
 
     [Fact]
+    public void should_name_no_account_once_the_operator_disconnected_whatever_the_session_was_last_said_to_be()
+    {
+        var subject = Subject();
+        _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow(), ["Google Account: Jane Doe (jane.doe@example.org)"]);
+        _inbox.RequestSignOut();
+
+        (subject.AccountAddress, subject.SignedInWithoutAccount).Should().Be((null, false), "the sign-out is asked for and not done yet: the session that the page last showed is not an account that is signed in");
+    }
+
+    [Fact]
     public async Task should_take_a_silent_extension_for_a_reader_that_cannot_say()
     {
         _inbox.RecordSession(signedIn: true, null, _clock.GetUtcNow());
