@@ -10,7 +10,11 @@ public static class MachineName
     /// <summary>The longest name that Mnemarr takes.</summary>
     public const int MaxLength = 40;
 
-    private const int SuffixLength = 5;
+    /// <summary>How many characters of the key are added to a name that is taken.</summary>
+    private const int KeyCharacters = 4;
+
+    /// <summary>The hyphen and the characters of the key.</summary>
+    private const int SuffixLength = KeyCharacters + 1;
 
     /// <summary>
     /// The name for an address: lower case, every character that is not a letter or a digit made a hyphen (several in a row are one), at most <see cref="MaxLength"/> characters, starting and ending with a letter or a digit.
@@ -18,8 +22,9 @@ public static class MachineName
     /// </summary>
     public static string Of(string address, string key, Func<string, bool> isTaken)
     {
-        var name = Cut(Prefix + Local(address), MaxLength);
-        return isTaken(name) ? Cut(Prefix + Local(address), MaxLength - SuffixLength) + "-" + key[..4] : name;
+        var start = Prefix + Local(address);
+        var name = Cut(start, MaxLength);
+        return isTaken(name) ? Cut(start, MaxLength - SuffixLength) + "-" + key[..KeyCharacters] : name;
     }
 
     private static string Local(string address)

@@ -25,7 +25,7 @@ public sealed class AccountContext : IAccountContext
         _store = store;
     }
 
-    public string? SignedInAddress => _readers.Reader?.AccountAddress is { Length: > 0 } address ? address : null;
+    public string? SignedInAddress => Session().Address;
 
     public string? SignedIn => SignedInAddress is { } address ? AccountKey.Of(address) : null;
 

@@ -76,7 +76,7 @@ public sealed class AccountsPassFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_keep_the_same_conversation_of_two_accounts_apart()
+    public async Task should_count_the_turns_of_one_conversation_per_account_across_passes()
     {
         _reader.Say("c1", "T", "a", "b");
         _account.SignIn(Jane);

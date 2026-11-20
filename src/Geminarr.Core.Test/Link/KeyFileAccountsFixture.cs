@@ -50,10 +50,27 @@ public sealed class KeyFileAccountsFixture : IDisposable
     }
 
     [Fact]
+    public void should_go_on_serving_the_first_account_when_a_second_one_has_signed_in_and_has_a_workspace()
+    {
+        _account.SignIn(Jane);
+        _workspaces.Ensure(AccountKey.Of(Jane));
+        _subject.Read().Should().Be("mnm_given");
+
+        _account.SignIn(John);
+        _workspaces.Ensure(AccountKey.Of(John));
+        _subject.Read().Should().BeNull();
+        _account.SignIn(Jane);
+
+        _subject.Read().Should().Be("mnm_given", "the key is Jane's machine whoever else has a workspace");
+        _subject.ExistsFor(AccountKey.Of(Jane)).Should().BeTrue();
+    }
+
+    [Fact]
     public void should_serve_the_second_account_once_the_first_is_forgotten()
     {
         _account.SignIn(Jane);
         _workspaces.Ensure(AccountKey.Of(Jane));
+        _subject.Read().Should().Be("mnm_given");
         _account.SignIn(John);
         _subject.Read().Should().BeNull();
 

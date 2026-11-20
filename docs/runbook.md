@@ -81,11 +81,12 @@ Whichever account is signed in is the one that is read, and each account is a ma
 
 - **A second account**: press _Disconnect_ (the cookies of the browser are cleared, so nobody is signed in), then _Sign in_ and sign in to the other account. Two accounts are never signed in at once. The page _Connection_ names the machine; pair it on the page _Mnemarr_ (the first pass of a new account waits for that: nothing is read with nowhere to send it).
 - **Approve the machine as _intermittent_ in Mnemarr** when the account is often signed out (a main account that was read once, say): an always-on machine that goes silent is an alert. A signed-out account is not read and sends no sign of life; Mnemarr's mail asks to sign in again only for the account whose session expired.
+- **What waits for Mnemarr when an account is disconnected** (the table says how many lines) stays in its workspace and is sent the next time that account is signed in, or deleted if it is forgotten: only the account that is signed in sends. Disconnect once the table says 0 for it.
 - **Switching back resumes**: the account keeps its workspace (its conversations, its key, its pairing). Geminarr goes on from what Mnemarr holds, and nothing is sent twice.
 - **Forget an account** (page _Connection_ or _Mnemarr_, table _Accounts_): its workspace is deleted here; what Mnemarr holds stays there (delete the machine in Mnemarr if you want it gone). The account that is read cannot be forgotten: disconnect first.
 - **A long history on a main account**: the history is walked a few conversations per pass (`GEMINARR__READER__BACKFILLPERPASS`) and a round every `GEMINARR__EXTENSION__ROUNDMINUTES`; keep the pace gentle, since a provider that sees fast reads may ask for a verification (`rate-limited`: Geminarr pauses by itself).
 - **The first start** says _Waiting for a sign-in_ (information, not a fault): nobody has signed in yet.
-- **`GEMINARR__MNEMARR__KEYFILE`** is one key for the whole deployment, so one machine: it serves the first account, and a second one is not linked (the log says so). Leave it unset when more than one account is read.
+- **`GEMINARR__MNEMARR__KEYFILE`** is one key for the whole deployment, so one machine: it serves the first account, and a second one is not linked (the log says so). Leave it unset when more than one account is read. With it, *Disconnect* does not silence the machine: the key is the deployment's machine, which goes on telling Mnemarr that it is alive.
 - **A data folder from before accounts** is not adopted: its conversations and its key are not read, and the first account that signs in is paired as a machine of its own (what Mnemarr holds stays under the old machine).
 
 ## Signing in

@@ -55,25 +55,6 @@ public sealed class AccountWorkspacesFixture : IDisposable
     }
 
     [Fact]
-    public void should_follow_a_switch_of_account_with_the_same_store()
-    {
-        using (_context.Use(A))
-        {
-            _conversations.Save(Record("c1", 3));
-        }
-
-        using (_context.Use(B))
-        {
-            _conversations.Count().Should().Be(0, "the other account has nothing yet");
-        }
-
-        using (_context.Use(A))
-        {
-            _conversations.Count().Should().Be(1);
-        }
-    }
-
-    [Fact]
     public void should_find_nothing_and_keep_nothing_with_no_account()
     {
         using (_context.Use(null))

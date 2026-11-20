@@ -52,20 +52,23 @@ public sealed class AccountsLinkFixture : IDisposable
         await _subject.PollPairingAsync(TestContext.Current.CancellationToken);
     }
 
+    /// <summary>A link that enrols with the code in the file: a deployment as code.</summary>
+    private (LinkService Subject, KeyStore Keys) EnrolmentSubject(string codeFile)
+    {
+        var options = new MnemarrOptions { Url = Url, EnrolmentCodeFile = codeFile };
+        var workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
+        var database = new AccountDatabase(_account, workspaces);
+        var keys = new KeyStore(Options.Of(options), _account, workspaces);
+        var subject = new LinkService(Options.Of(options), new LinkStores(new DestinationStore(database), keys, new OutboxStore(database), _account, workspaces), new MnemarrClient(_http), _clock, NullLogger<LinkService>.Instance);
+        return (subject, keys);
+    }
+
     [Fact]
     public async Task should_enrol_with_the_code_of_the_deployment_only_once_an_account_is_signed_in()
     {
         var file = Path.Combine(_data.Folder, "code");
         await File.WriteAllTextAsync(file, "ABCD-1234\n", TestContext.Current.CancellationToken);
-        var options = new MnemarrOptions { Url = Url, EnrolmentCodeFile = file };
-        var workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
-        var database = new AccountDatabase(_account, workspaces);
-        var subject = new LinkService(
-            Options.Of(options),
-            new LinkStores(new DestinationStore(database), new KeyStore(Options.Of(options), _account, workspaces), new OutboxStore(database), _account, workspaces),
-            new MnemarrClient(_http),
-            _clock,
-            NullLogger<LinkService>.Instance);
+        var (subject, _) = EnrolmentSubject(file);
         _http.Answer = _ => FakeHttp.Json("""{"key":"mnm_enrolled","machine":"gemini","kind":"satellite"}""");
 
         // Nobody is signed in: there is no workspace for the key, so nothing is asked and the next wake tries again.
@@ -105,11 +108,7 @@ public sealed class AccountsLinkFixture : IDisposable
     {
         var file = Path.Combine(_data.Folder, "code");
         await File.WriteAllTextAsync(file, "ABCD-1234\n", TestContext.Current.CancellationToken);
-        var options = new MnemarrOptions { Url = Url, EnrolmentCodeFile = file };
-        var workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
-        var database = new AccountDatabase(_account, workspaces);
-        var keys = new KeyStore(Options.Of(options), _account, workspaces);
-        var subject = new LinkService(Options.Of(options), new LinkStores(new DestinationStore(database), keys, new OutboxStore(database), _account, workspaces), new MnemarrClient(_http), _clock, NullLogger<LinkService>.Instance);
+        var (subject, keys) = EnrolmentSubject(file);
         _account.SignIn(Jane);
         _http.Answer = _ =>
         {
@@ -137,6 +136,21 @@ public sealed class AccountsLinkFixture : IDisposable
         _http.Answer = Mnemarr();
         await _subject.StartPairingAsync(TestContext.Current.CancellationToken);
         _http.Requests.Single().Address.Should().StartWith(Url);
+    }
+
+    [Fact]
+    public void should_give_a_new_account_the_address_of_the_first_account_in_the_order_of_the_keys_when_two_differ()
+    {
+        _account.SignIn(Jane);
+        _subject.SetAddress("https://one.homelab.example");
+        _account.SignIn(John);
+        _subject.SetAddress("https://two.homelab.example");
+        var third = "kim.lee@example.org";
+        var first = new[] { Jane, John }.OrderBy(AccountKey.Of, StringComparer.Ordinal).First();
+
+        _account.SignIn(third);
+
+        _subject.Status().Url.Should().Be(first == Jane ? "https://one.homelab.example" : "https://two.homelab.example", "the rule is the order of the keys of the accounts that have an address");
     }
 
     [Fact]
