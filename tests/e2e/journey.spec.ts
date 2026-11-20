@@ -286,3 +286,174 @@ test.describe('a person signs in, the extension reads the assistant, and the ope
     },
   );
 });
+
+interface AccountRow {
+  id: string;
+  machine: string | null;
+  active: boolean;
+  signedIn: boolean;
+  linked: boolean;
+  conversations: number;
+}
+
+type Operator = Awaited<ReturnType<typeof signedInRequest>>;
+
+const accountsOf = async (request: Operator) =>
+  ((await (await request.get('/api/v1/accounts')).json()) as { accounts: AccountRow[] }).accounts;
+
+async function heldBy(
+  playwright: PlaywrightWorkerArgs['playwright'],
+  machine: string,
+): Promise<Record<string, number>> {
+  const request = await playwright.request.newContext();
+  const held = (await (await request.get(`${MNEMARR}/admin/conversations?machine=${machine}`)).json()) as Record<
+    string,
+    number
+  >;
+  await request.dispose();
+  return held;
+}
+
+/** The operator disconnects (the extension deletes the cookies of the browser, so nobody is signed in), then a person signs in to the assistant as the address, and the page says whose account it is. */
+async function switchTo(playwright: PlaywrightWorkerArgs['playwright'], request: Operator, address: string) {
+  const assistant = await playwright.request.newContext();
+  const seen = await guests(playwright);
+  expect((await request.post('/api/v1/connection/disconnect')).status()).toBe(200);
+  await expect
+    .poll(() => guests(playwright), { timeout: 120_000, intervals: [3000], message: 'the cookies were deleted' })
+    .toBeGreaterThan(seen);
+  expect((await request.post('/api/v1/connection/desktop')).status()).toBe(200);
+  expect((await assistant.post(`${ASSISTANT}/admin/signin?as=${address}`)).status()).toBe(204);
+  await expect
+    .poll(async () => (await connectionOf(request)).account?.email, {
+      timeout: 120_000,
+      intervals: [3000],
+      message: `the page says that ${address} signed in`,
+    })
+    .toBe(address);
+  await assistant.dispose();
+}
+
+/** Pairs the machine of the account that is signed in (the fake Mnemarr approves at once) and gives its name. */
+async function pairActive(request: Operator): Promise<string> {
+  expect((await request.post('/api/v1/mnemarr/pairing')).status()).toBe(200);
+  const checked = (await (await request.post('/api/v1/mnemarr/pairing/check')).json()) as { state: string };
+  expect(checked.state).toBe('approved');
+  const active = (await accountsOf(request)).find((account) => account.active);
+  expect(active?.linked).toBe(true);
+  return active?.machine ?? '';
+}
+
+// One Geminarr, several accounts: whichever account is signed in is read, into a machine of its own that is named from its address (SPEC §8). The first account is the one the group above left signed in, linked by its enrolment code.
+test.describe('two accounts, signed in in turn, are two machines of notes @smoke', () => {
+  test.describe.configure({ mode: 'serial' });
+  const SECOND = 'sam.lee@example.org';
+  const THIRD = 'sam.lee@example.net';
+  let firstId = '';
+  let secondMachine = '';
+  let thirdMachine = '';
+
+  test(
+    'a second account that signs in asks for its machine, named from its address, and its conversations reach that machine alone',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(900_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+      const firstHeld = await heldBy(playwright, 'gemini');
+      const first = (await accountsOf(request)).find((account) => account.active);
+      expect(first).toMatchObject({ machine: 'gemini', linked: true });
+      firstId = first?.id ?? '';
+
+      await switchTo(playwright, request, SECOND);
+      // Its workspace is new: nobody paired a machine for it, and the page says which one it will be.
+      const before = (await accountsOf(request)).find((account) => account.active);
+      expect(before).toMatchObject({ machine: 'geminarr-sam-lee', linked: false, signedIn: true });
+      expect((await accountsOf(request)).find((account) => account.id === firstId)).toMatchObject({
+        active: false,
+        signedIn: false,
+        linked: true,
+      });
+
+      secondMachine = await pairActive(request);
+      expect(secondMachine).toBe('geminarr-sam-lee');
+      await expect
+        .poll(async () => Object.keys(await heldBy(playwright, secondMachine)).length, {
+          timeout: 360_000,
+          intervals: [3000],
+          message: 'the conversations of the second account reach its machine',
+        })
+        .toBe(2);
+      // The first account's machine is untouched.
+      expect(await heldBy(playwright, 'gemini')).toEqual(firstHeld);
+      await request.dispose();
+    },
+  );
+
+  test(
+    'the first account signs in again: reading resumes where Mnemarr says, nothing is sent twice, and the account that is read cannot be forgotten',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(900_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+      const firstHeld = await heldBy(playwright, 'gemini');
+      const secondHeld = await heldBy(playwright, secondMachine);
+
+      await switchTo(playwright, request, 'jane.doe@example.org');
+      // The list of passes is a window: the id of the latest one is what grows.
+      const latestRun = async () =>
+        ((await (await request.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ?? 0;
+      const runBefore = await latestRun();
+      await expect
+        .poll(latestRun, { timeout: 360_000, intervals: [3000], message: 'a pass of the first account ran' })
+        .toBeGreaterThan(runBefore);
+      expect(await heldBy(playwright, 'gemini')).toEqual(firstHeld);
+      expect(await heldBy(playwright, secondMachine)).toEqual(secondHeld);
+      expect((await request.delete(`/api/v1/accounts/${firstId}`)).status()).toBe(409);
+      await request.dispose();
+    },
+  );
+
+  test(
+    'two addresses with the same first part get two machines with two names',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(900_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+
+      await switchTo(playwright, request, THIRD);
+      const third = await pairActive(request);
+      thirdMachine = third;
+
+      expect(third).toMatch(/^geminarr-sam-lee-[0-9a-f]{4}$/);
+      expect(third).not.toBe(secondMachine);
+      await expect
+        .poll(async () => Object.keys(await heldBy(playwright, third)).length, {
+          timeout: 360_000,
+          intervals: [3000],
+          message: 'the conversations of the third account reach its machine',
+        })
+        .toBe(2);
+      await request.dispose();
+    },
+  );
+
+  test(
+    'an account that is forgotten is gone, and the others are untouched',
+    { tag: '@browserless' },
+    async ({ playwright }) => {
+      test.setTimeout(900_000);
+      const request = await signedInRequest(playwright, GEMINARR);
+
+      await switchTo(playwright, request, 'jane.doe@example.org');
+      const others = (await accountsOf(request)).filter((account) => account.id !== firstId);
+      expect(others.map((account) => account.machine).sort()).toEqual([secondMachine, thirdMachine].sort());
+      for (const account of others) {
+        expect((await request.delete(`/api/v1/accounts/${account.id}`)).status()).toBe(204);
+      }
+
+      expect((await request.delete(`/api/v1/accounts/${others[0].id}`)).status()).toBe(404);
+      expect(await accountsOf(request)).toEqual([expect.objectContaining({ id: firstId, linked: true, active: true })]);
+      await request.dispose();
+    },
+  );
+});

@@ -248,13 +248,13 @@ public sealed class LinkServiceFixture : IDisposable
         _http.Answer = (_ => FakeHttp.Json("""{"key":"mnm_enrolled","machine":"gemini","kind":"satellite"}"""));
         var subject = Subject(new MnemarrOptions { Url = Url, EnrolmentCodeFile = file });
 
-        await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken);
+        (await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken)).Should().BeTrue();
 
         _keys.Key.Should().Be("mnm_enrolled");
         _http.Requests.Single().Body.Should().Contain("ABCD-1234");
         subject.Status().Linked.Should().BeTrue();
 
-        await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken);
+        (await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken)).Should().BeFalse();
         _http.Requests.Should().ContainSingle("a key that is held is not exchanged again");
     }
 

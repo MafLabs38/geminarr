@@ -229,14 +229,17 @@ public sealed class LinkService
         }
     }
 
-    /// <summary>For a deployment as code: a one-time code in a file is exchanged for the key, when there is no key yet. A key that was given as a file is used as it is.</summary>
-    public async Task EnrolFromCodeFileAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// For a deployment as code: a one-time code in a file is exchanged for the key, when there is no key yet. A key that was given as a file is used as it is. True when Mnemarr was asked with the code (whatever it answered);
+    /// false when there was nothing to ask yet (no account is signed in, no address, no code), so that it is tried again at the next wake.
+    /// </summary>
+    public async Task<bool> EnrolFromCodeFileAsync(CancellationToken cancellationToken)
     {
         var file = _options.Value.EnrolmentCodeFile;
         var url = SettingsUrl ?? _store.Get()?.Url;
         if (string.IsNullOrWhiteSpace(file) || _accounts.Current is null || url is null || _keys.Read() is not null || (!MnemarrAddress.IsSecure(url) && !_options.Value.AllowInsecureHttp))
         {
-            return;
+            return false;
         }
 
         string code;
@@ -247,18 +250,19 @@ public sealed class LinkService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             _logger.LogWarning(ex, "The enrolment code file cannot be read: check that it exists and who may read it.");
-            return;
+            return false;
         }
 
         if (code.Length == 0)
         {
-            return;
+            return false;
         }
 
         var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, cancellationToken);
         var machine = MachineOf(enrolled.Machine);
         Link(url, enrolled.Key, machine);
         _logger.LogInformation("Linked to Mnemarr by enrolment, as the machine {Machine}.", machine);
+        return true;
     }
 
     /// <summary>Forgets the key and the machine, and any pairing: Geminarr no longer sends. What Mnemarr already holds stays there.</summary>

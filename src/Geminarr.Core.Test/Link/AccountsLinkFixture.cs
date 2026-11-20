@@ -53,6 +53,31 @@ public sealed class AccountsLinkFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_enrol_with_the_code_of_the_deployment_only_once_an_account_is_signed_in()
+    {
+        var file = Path.Combine(_data.Folder, "code");
+        await File.WriteAllTextAsync(file, "ABCD-1234\n", TestContext.Current.CancellationToken);
+        var options = new MnemarrOptions { Url = Url, EnrolmentCodeFile = file };
+        var workspaces = new AccountWorkspaces(Options.Of(_data.Settings));
+        var database = new AccountDatabase(_account, workspaces);
+        var subject = new LinkService(
+            Options.Of(options),
+            new LinkStores(new DestinationStore(database), new KeyStore(Options.Of(options), _account, workspaces), new OutboxStore(database), _account, workspaces),
+            new MnemarrClient(_http),
+            _clock,
+            NullLogger<LinkService>.Instance);
+        _http.Answer = _ => FakeHttp.Json("""{"key":"mnm_enrolled","machine":"gemini","kind":"satellite"}""");
+
+        // Nobody is signed in: there is no workspace for the key, so nothing is asked and the next wake tries again.
+        (await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken)).Should().BeFalse();
+        _http.Requests.Should().BeEmpty();
+
+        _account.SignIn(Jane);
+        (await subject.EnrolFromCodeFileAsync(TestContext.Current.CancellationToken)).Should().BeTrue();
+        subject.Status().Should().Match<DestinationStatus>(status => status.Linked && status.Machine == "gemini");
+    }
+
+    [Fact]
     public async Task should_ask_mnemarr_for_a_machine_named_from_the_address_of_the_account()
     {
         _account.SignIn(Jane);

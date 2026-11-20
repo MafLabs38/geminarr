@@ -411,25 +411,18 @@ test.describe('smoke @smoke', () => {
   test.describe('on a fresh deployment', () => {
     test.use({ baseURL: process.env.GEMINARR_FRESH_URL ?? 'http://localhost:8284' });
 
-    test('the overview of a fresh deployment says that nothing is connected and nothing is linked, shows the passes, and runs one on request', async ({
+    test('the overview of a fresh deployment says that nothing is connected and nothing is linked, and shows no pass (no account is signed in)', async ({
       page,
     }) => {
       await signIn(page);
 
       const connection = page.getByRole('region', { name: 'Connection' });
       // Nothing is read: not connected, and nothing to ask a person to sign in to. (Nobody has signed in to a browser either way: the instance that has one is the other.)
-      await expect(connection.getByText(/^(Not connected|Sign in again|Degraded)$/)).toBeVisible();
+      await expect(connection.getByText('Not connected', { exact: true })).toBeVisible();
       await expect(connection.getByText('Not linked')).toBeVisible();
-      // A pass runs a few seconds after the start, and again when asked: each is a row, in counts only.
+      // The passes belong to an account: with nobody signed in there is none to show, and nothing waits for a click.
       const passes = page.getByRole('region', { name: 'Latest passes' });
-      await expect(passes.getByText(/turns sent/).first()).toBeVisible({ timeout: 20_000 });
-      // The card holds a few rows only, so a count could not grow: the id of the latest run does.
-      const latestRunId = async (): Promise<number> =>
-        ((await (await page.request.get('/api/v1/runs?limit=1')).json()) as { runs: { id: number }[] }).runs[0]?.id ??
-        0;
-      const before = await latestRunId();
-      await connection.getByRole('button', { name: 'Run now' }).click();
-      await expect(async () => expect(await latestRunId()).toBeGreaterThan(before)).toPass({ timeout: 20_000 });
+      await expect(passes.getByText('No pass has run yet.')).toBeVisible();
       // The health names what is not there yet, with a sentence and no code.
       const health = page.getByRole('region', { name: 'Health' });
       await expect(health.getByText(/No Mnemarr is linked: nothing is sent/)).toBeVisible();
@@ -437,25 +430,19 @@ test.describe('smoke @smoke', () => {
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     });
 
-    test('the Mnemarr page asks for an address, keeps it (the browsers share one server), and offers to pair', async ({
+    test('the Mnemarr page says that an account signs in first, and lists the accounts (none yet)', async ({
       page,
     }) => {
       await signIn(page);
-      try {
-        await page.getByRole('link', { name: 'Mnemarr' }).first().click();
+      await page.getByRole('link', { name: 'Mnemarr' }).first().click();
 
-        await expect(page.getByRole('heading', { name: 'Mnemarr', level: 1 })).toBeVisible();
-        await page.getByLabel('Address of Mnemarr').fill('https://mnemarr.homelab.example');
-        await page.getByRole('button', { name: 'Save the address' }).click();
-        await expect(page.getByText('https://mnemarr.homelab.example', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Pair with Mnemarr' })).toBeEnabled();
-        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-      } finally {
-        // The browsers share one server: the address does not stay for the tests that read "Not linked".
-        expect(
-          (await page.request.delete('/api/v1/mnemarr', { headers: { 'X-Geminarr-Request': '1' } })).status(),
-        ).toBe(204);
-      }
+      await expect(page.getByRole('heading', { name: 'Mnemarr', level: 1 })).toBeVisible();
+      // The machine of an account is named from its address: with nobody signed in, there is nothing to pair, and no form that asks for a name.
+      await expect(page.getByText('Sign in an account first', { exact: false })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Pair with Mnemarr' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
+      await expect(page.getByText('No account has been signed in yet.')).toBeVisible();
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     });
   });
 });
