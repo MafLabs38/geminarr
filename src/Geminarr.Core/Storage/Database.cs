@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace Geminarr.Core.Storage;
 
-public sealed class Database : IDatabase
+public sealed class Database : IRootDatabase
 {
     public const string FileName = "geminarr.db";
 
@@ -15,8 +15,14 @@ public sealed class Database : IDatabase
     private volatile bool _ready;
 
     public Database(IOptions<GeminarrOptions> options)
+        : this(options.Value.DataFolder)
     {
-        _folder = options.Value.DataFolder;
+    }
+
+    /// <summary>The database of a folder: the data folder (the root database) or the workspace of an account (SPEC §8.1).</summary>
+    public Database(string folder)
+    {
+        _folder = folder;
         _file = Path.Combine(_folder, FileName);
         _connectionString = new SqliteConnectionStringBuilder { DataSource = _file, Mode = SqliteOpenMode.ReadWriteCreate, ForeignKeys = true }.ToString();
     }

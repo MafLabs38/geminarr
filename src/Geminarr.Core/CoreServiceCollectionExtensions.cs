@@ -1,4 +1,5 @@
 using Geminarr.Core.Access;
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
@@ -37,7 +38,11 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<IdentityOptions>, IdentityOptionsValidator>();
         services.AddOptions<IdentityOptions>().Bind(configuration.GetSection(IdentityOptions.SectionName)).ValidateOnStart();
         services.AddSingleton<IdentityService>();
-        services.AddSingleton<IDatabase, Database>();
+        // What is not an account's is in the root database; what is, in the workspace of the account that the work is for (SPEC §8).
+        services.AddSingleton<IRootDatabase>(provider => new Database(provider.GetRequiredService<IOptions<GeminarrOptions>>()));
+        services.AddSingleton<IAccountWorkspaces, AccountWorkspaces>();
+        services.AddSingleton<IAccountContext, AccountContext>();
+        services.AddSingleton<IDatabase, AccountDatabase>();
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IOutboxStore, OutboxStore>();

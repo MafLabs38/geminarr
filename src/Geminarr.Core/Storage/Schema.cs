@@ -81,6 +81,10 @@ public static class Schema
         """
         ALTER TABLE conversations ADD COLUMN anchor TEXT;
         """,
+        // 5: the account that was signed in last (its key, never its address), in the root database: an expired session is told to Mnemarr by the machine of that account, until the operator disconnects (ADR 0026).
+        """
+        ALTER TABLE connection ADD COLUMN account_key TEXT;
+        """,
     ];
 
     /// <summary>The version this code writes: the number of its steps.</summary>

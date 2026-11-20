@@ -25,6 +25,8 @@ public sealed class ExtensionReader : IConversationReader
 
     public string Source => ConversationSources.Web;
 
+    public string? AccountAddress => _inbox.Session is { SignedIn: true, Account: { } account } ? account.Email : null;
+
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;

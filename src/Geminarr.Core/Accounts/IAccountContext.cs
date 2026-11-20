@@ -1,14 +1,26 @@
 namespace Geminarr.Core.Accounts;
 
-/// <summary>Which account the work is for (SPEC §8): the one that is signed in, unless a piece of work has taken one for its whole length (<see cref="Use"/>).</summary>
+/// <summary>Which account the work is for (SPEC §8): the one that is signed in, then the one that was signed in last, unless a piece of work has taken one for its whole length (<see cref="Use"/>).</summary>
 public interface IAccountContext
 {
-    /// <summary>The key of the account to work on, or null when there is none (nobody is signed in).</summary>
+    /// <summary>The key of the account to work on, or null when there is none: nobody is signed in and the operator disconnected (or nobody ever signed in).</summary>
     string? Current { get; }
+
+    /// <summary>The key of the account that is signed in now, or null.</summary>
+    string? SignedIn { get; }
+
+    /// <summary>
+    /// Keeps this account as the one that was signed in last: when its session ends without the operator asking (it expired), the machine of this account is still the one that tells Mnemarr, which sends the mail that
+    /// asks for a sign-in. It is kept in the root database (the key, never the address) and survives a restart.
+    /// </summary>
+    void Remember(string key);
+
+    /// <summary>The operator disconnected: no account is the last one any more, and the machine of the account that was is silent (SPEC §8.2, rule 7).</summary>
+    void Forget();
 
     /// <summary>
     /// Works on this account (null: on none) until the result is disposed, whatever happens to the session in the meantime: what is started in between, and what is awaited, sees the same account. A pass takes the account
-    /// that was signed in when it began, so that a sign-out or a switch in the middle of it never writes to another account's workspace.
+    /// that it began with, so that a sign-out or a switch in the middle of it never writes to another account's workspace.
     /// </summary>
     IDisposable Use(string? key);
 }

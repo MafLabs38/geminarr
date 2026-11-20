@@ -1,22 +1,44 @@
 using Geminarr.Core.Accounts;
-using Geminarr.Core.Extension;
+using Geminarr.Core.Connection;
 using Geminarr.Core.Pipeline;
+using Geminarr.Core.Test.Support;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Geminarr.Core.Test.Accounts;
 
-public sealed class AccountContextFixture
+public sealed class AccountContextFixture : IDisposable
 {
-    private static readonly DateTimeOffset Now = new(2026, 11, 20, 9, 0, 0, TimeSpan.Zero);
+    private readonly TestDatabase _data = new();
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero));
+    private readonly AddressedReader _reader = new();
+    private readonly ConnectionStore _store;
 
-    private readonly ExtensionInbox _inbox = new();
+    public AccountContextFixture()
+    {
+        _store = new ConnectionStore(_data.Database, _clock);
+    }
 
-    private AccountContext Subject() => new(_inbox);
+    public void Dispose() => _data.Dispose();
 
-    private void SignedIn(string address) =>
-        _inbox.RecordList([new ConversationHeader("c1", "T", 0)], "1.0.0", Now, [$"Google Account: Jane Doe ({address})"]);
+    private AccountContext Subject() => new(new ReaderProvider(_reader), _store);
+
+    private sealed class AddressedReader : IConversationReader
+    {
+        public string? Address { get; set; }
+
+        public string Source => ConversationSources.Web;
+
+        public string? AccountAddress => Address;
+
+        public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) => Task.FromResult(SessionCheck.SignedIn);
+
+        public Task<IReadOnlyList<ConversationHeader>> ListRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ConversationHeader>>([]);
+
+        public Task<ConversationContent> OpenAsync(string id, CancellationToken cancellationToken) => Task.FromResult(new ConversationContent([]));
+    }
 
     [Fact]
-    public void should_have_no_account_when_nobody_is_signed_in()
+    public void should_have_no_account_when_nobody_is_signed_in_and_none_was()
     {
         Subject().Current.Should().BeNull();
     }
@@ -24,34 +46,75 @@ public sealed class AccountContextFixture
     [Fact]
     public void should_have_the_account_that_is_signed_in()
     {
-        SignedIn("jane.doe@example.org");
+        _reader.Address = "jane.doe@example.org";
 
-        Subject().Current.Should().Be(AccountKey.Of("jane.doe@example.org"));
+        var subject = Subject();
+
+        subject.Current.Should().Be(AccountKey.Of("jane.doe@example.org"));
+        subject.SignedIn.Should().Be(subject.Current);
     }
 
     [Fact]
-    public void should_have_no_account_again_once_it_is_signed_out()
+    public void should_keep_the_account_that_was_signed_in_last_when_the_session_ends_and_after_a_restart()
     {
-        SignedIn("jane.doe@example.org");
-        _inbox.RecordSession(false, "1.0.0", Now.AddMinutes(1));
+        _reader.Address = "jane.doe@example.org";
+        var key = AccountKey.Of("jane.doe@example.org");
+        Subject().Remember(key);
+        _reader.Address = null;
 
+        Subject().Current.Should().Be(key, "an expired session is still the account whose machine tells Mnemarr");
+        Subject().SignedIn.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_forget_it_when_the_operator_disconnects_and_not_come_back_with_a_restart()
+    {
+        var subject = Subject();
+        subject.Remember(AccountKey.Of("jane.doe@example.org"));
+
+        subject.Forget();
+
+        subject.Current.Should().BeNull();
         Subject().Current.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_prefer_the_account_that_is_signed_in_to_the_one_that_was_remembered()
+    {
+        var subject = Subject();
+        subject.Remember(AccountKey.Of("jane.doe@example.org"));
+        _reader.Address = "john.roe@example.org";
+
+        subject.Current.Should().Be(AccountKey.Of("john.roe@example.org"));
+    }
+
+    [Fact]
+    public void should_not_write_again_what_it_already_keeps()
+    {
+        var subject = Subject();
+        var key = AccountKey.Of("jane.doe@example.org");
+        subject.Remember(key);
+        _store.SetAccount("0000000000000000");
+
+        subject.Remember(key);
+
+        _store.Account().Should().Be("0000000000000000", "it knew it already: the second call wrote nothing");
     }
 
     [Fact]
     public async Task should_keep_the_account_that_a_piece_of_work_took_whatever_happens_to_the_session_afterwards()
     {
-        SignedIn("jane.doe@example.org");
+        _reader.Address = "jane.doe@example.org";
         var subject = Subject();
         var first = AccountKey.Of("jane.doe@example.org");
 
         using (subject.Use(first))
         {
             // The operator signs another account in while the work goes on: the work is still for the first one, across awaits and in what it starts.
-            SignedIn("john.roe@example.org");
+            _reader.Address = "john.roe@example.org";
             await Task.Yield();
             var seenAfterAwait = subject.Current;
-            var seenInATask = await Task.Run(() => subject.Current);
+            var seenInATask = await Task.Run(() => subject.Current, TestContext.Current.CancellationToken);
 
             seenAfterAwait.Should().Be(first);
             seenInATask.Should().Be(first);
@@ -63,7 +126,7 @@ public sealed class AccountContextFixture
     [Fact]
     public void should_work_on_no_account_when_asked_to_and_come_back_afterwards()
     {
-        SignedIn("jane.doe@example.org");
+        _reader.Address = "jane.doe@example.org";
         var subject = Subject();
 
         using (subject.Use(null))

@@ -6,6 +6,11 @@ public interface IConversationReader
     /// <summary>Where this reader's conversations come from (<c>web</c>): the source of the meta line that goes to Mnemarr.</summary>
     string Source { get; }
 
+    /// <summary>
+    /// The address of the account that this reader reads as while somebody is signed in, or null (nobody is signed in, or the reader has no account). It is kept in memory for the page and told apart by its hash (SPEC §8.1).
+    /// </summary>
+    string? AccountAddress => null;
+
     Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken);
 
     /// <summary>The most recent conversations, most recent first, at most <paramref name="limit"/>.</summary>

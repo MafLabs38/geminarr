@@ -9,9 +9,9 @@ namespace Geminarr.Core.Health;
 /// </summary>
 public sealed class DatabaseHealthCheck : IHealthCheck
 {
-    private readonly IDatabase _database;
+    private readonly IRootDatabase _database;
 
-    public DatabaseHealthCheck(IDatabase database)
+    public DatabaseHealthCheck(IRootDatabase database)
     {
         _database = database;
     }

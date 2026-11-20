@@ -35,7 +35,7 @@ public sealed class SchemaFixture : IDisposable
         using (var connection = _workspace.Database.Open())
         {
             // A database as the first step left it: the columns of the next ones are not there yet.
-            foreach (var column in new[] { "sign_out_pending", "paused_until", "before_state", "before_reason", "before_failures" })
+            foreach (var column in new[] { "account_key", "sign_out_pending", "paused_until", "before_state", "before_reason", "before_failures" })
             {
                 Run(connection, $"ALTER TABLE connection DROP COLUMN {column};");
             }
