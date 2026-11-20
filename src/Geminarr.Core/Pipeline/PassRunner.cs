@@ -29,6 +29,7 @@ public sealed class PassRunner
     private readonly IOutboxStore _outbox;
     private readonly IRunStore _runs;
     private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces? _workspaces;
     private readonly ConnectionTracker _connection;
     private readonly LinkService _link;
     private readonly PassSettings _settings;
@@ -52,6 +53,7 @@ public sealed class PassRunner
         _outbox = stores.Outbox;
         _runs = stores.Runs;
         _accounts = stores.Accounts;
+        _workspaces = stores.Workspaces;
         _connection = connection;
         _link = link;
         _settings = settings;
@@ -118,6 +120,7 @@ public sealed class PassRunner
 
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
+            await SendWhatWaitsForOthersAsync(account, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -418,6 +421,38 @@ public sealed class PassRunner
         {
             state.Destination = ex.Failure;
             state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
+        }
+    }
+
+    /// <summary>
+    /// What waits for Mnemarr in the workspace of an account that is signed out (Mnemarr was down when the operator disconnected, say) is sent by the pass of the account that is signed in: sending needs the key and the outbox of that
+    /// account, not its session. It is sent as that account (its key, its machine), with no run and no heartbeat of its own (SPEC §8.2, rule 6): a failure leaves it waiting for the next pass.
+    /// </summary>
+    private async Task SendWhatWaitsForOthersAsync(string? account, CancellationToken cancellationToken)
+    {
+        if (_workspaces is null)
+        {
+            return;
+        }
+
+        foreach (var other in _workspaces.Known().Where(key => !string.Equals(key, account, StringComparison.Ordinal)))
+        {
+            using (_accounts.Use(other))
+            {
+                if (_outbox.PendingLines() == 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await FlushAsync(new PassState(), cancellationToken);
+                }
+                catch (SinkException ex)
+                {
+                    _logger.LogInformation(ex, "What waits for an account that is signed out could not be sent ({Failure}); it waits for the next pass.", ex.Failure);
+                }
+            }
         }
     }
 

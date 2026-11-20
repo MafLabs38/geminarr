@@ -177,6 +177,23 @@ public sealed class AccountsLinkFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_tell_mnemarr_which_computer_an_account_is_so_that_another_account_cannot_take_its_machine()
+    {
+        _account.SignIn(Jane);
+        _subject.SetAddress(Url);
+        _http.Answer = Mnemarr();
+        await _subject.StartPairingAsync(TestContext.Current.CancellationToken);
+        _account.SignIn(John);
+        await _subject.StartPairingAsync(TestContext.Current.CancellationToken);
+
+        var ids = _http.Requests.Select(request => System.Text.RegularExpressions.Regex.Match(request.Body, "\"computerId\":\"([0-9a-f]{64})\"").Groups[1].Value).ToList();
+        ids.Should().HaveCount(2).And.OnlyContain(id => id.Length == 64);
+        ids[0].Should().NotBe(ids[1]);
+        ids[0].Should().Be(AccountKey.ComputerId(AccountKey.Of(Jane)), "it is the same for the same account, whichever Geminarr asks");
+        ids[0].Should().NotContain(AccountKey.Of(Jane), "it carries neither the address nor the key");
+    }
+
+    [Fact]
     public async Task should_keep_the_key_and_the_link_of_each_account_apart()
     {
         _account.SignIn(Jane);

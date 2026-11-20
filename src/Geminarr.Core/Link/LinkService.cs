@@ -145,7 +145,7 @@ public sealed class LinkService
         }
 
         _store.EnsureAddress(url);
-        var started = await _client.PairStartAsync(url, machine, cancellationToken);
+        var started = await _client.PairStartAsync(url, machine, AccountKey.ComputerId(account), cancellationToken);
         var pairing = new PendingPairing(account, url, started.DeviceCode, started.UserCode, SafeLink(started.VerificationUrl, url), _clock.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(started.ExpiresInSeconds, MinPairingSeconds, MaxPairingSeconds)));
         lock (_gate)
         {
@@ -269,7 +269,7 @@ public sealed class LinkService
 
         // Mnemarr gives a code to the machine that the deployment named (it refuses any other name), so the request carries the configured one. The key is written for the account that was signed in when the code was
         // sent, whoever is signed in when Mnemarr has answered.
-        var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, cancellationToken);
+        var enrolled = await _client.EnrolAsync(url, code, _options.Value.Machine, AccountKey.ComputerId(account), cancellationToken);
         var machine = MachineOf(enrolled.Machine);
         using (_accounts.Use(account))
         {

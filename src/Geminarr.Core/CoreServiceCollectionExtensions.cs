@@ -90,7 +90,7 @@ public static class CoreServiceCollectionExtensions
             ReaderKind.Web => ActivatorUtilities.CreateInstance<ExtensionReader>(provider),
             _ => null,
         }));
-        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>(), provider.GetRequiredService<IAccountContext>()));
+        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>(), provider.GetRequiredService<IAccountContext>(), provider.GetRequiredService<IAccountWorkspaces>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();

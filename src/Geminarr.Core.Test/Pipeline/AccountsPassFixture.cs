@@ -41,7 +41,7 @@ public sealed class AccountsPassFixture : IDisposable
             _clock,
             NullLogger<LinkService>.Instance);
         var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(_reader), new NoExposure());
-        _subject = new PassRunner(_sink, new PassStores(_conversations, outbox, _runs, _account), tracker, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        _subject = new PassRunner(_sink, new PassStores(_conversations, outbox, _runs, _account, workspaces), tracker, link, settings, _clock, NullLogger<PassRunner>.Instance);
     }
 
     public void Dispose() => _data.Dispose();
@@ -230,5 +230,45 @@ public sealed class AccountsPassFixture : IDisposable
         {
             _runs.Recent(1).Single().Reason.Should().Be("signed-out");
         }
+    }
+
+    [Fact]
+    public async Task should_send_what_waits_for_an_account_that_is_signed_out_when_another_account_has_its_pass()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        // Mnemarr is down when the pass of Jane ends: what she read waits in her workspace.
+        _sink.FailSend = new SinkException(SinkFailure.Unreachable, "down");
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.Sent.Should().BeEmpty();
+        _sink.FailSend = null;
+
+        _account.SignIn(null);
+        _account.Forget();
+        _account.SignIn(John);
+        _reader.Conversations.Clear();
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Sent.Should().ContainSingle(sent => sent.Session.Contains("jane-1", StringComparison.Ordinal), "the pass of John sent what waited for Jane, with her key and nothing of his own");
+        using (_account.Use(AccountKey.Of(Jane)))
+        {
+            _runs.Recent(10).Should().OnlyContain(run => run.EndedAt != null);
+        }
+    }
+
+    [Fact]
+    public async Task should_leave_what_waits_for_a_signed_out_account_when_mnemarr_is_down_and_go_on_with_the_pass()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        _sink.FailSend = new SinkException(SinkFailure.Unreachable, "down");
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _account.SignIn(John);
+        _reader.Conversations.Clear();
+        var pass = async () => await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        await pass.Should().NotThrowAsync();
+        _sink.Sent.Should().BeEmpty();
     }
 }

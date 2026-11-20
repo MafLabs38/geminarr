@@ -28,6 +28,7 @@ The maintainer wants to read two Google accounts with the one Geminarr: the main
 ## Consequences
 
 - Storage is split in two (a root database, a database per account). The singletons that kept state of their own (the link, the positions asked of Mnemarr, what the extension holds) are keyed by the account or dropped when it changes.
+- What waits for Mnemarr in the workspace of an account that is signed out is sent by the pass of the account that is signed in, as that account. Each account is a "computer" of its own for Mnemarr (`computerId`, a hash of the key): Mnemarr refuses to give the machine of one account to another that asks for the same name.
 - The machine of an account that is signed out stays in Mnemarr, silent. It is better made *intermittent* when it is approved there, so that it raises no alert.
 - A key that the deployment gives as a file is one key, for one machine: it serves the one account that exists, and a second account is not linked to it (a line in the log says so; pair it instead). Forget the first account and the second one is served.
 - The account that is **active** is the one signed in or, from the end of a session that expired until *Disconnect*, the one that was signed in last: its machine goes on telling Mnemarr, which sends the mail. A session signed in to an account that cannot be named is no account (nothing is read for it).
