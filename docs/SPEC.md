@@ -186,6 +186,7 @@ Geminarr is a client of Mnemarr's existing ingest API ([collector.md](https://gi
 
 Two ways, both ending with a key file (`GEMINARR__MNEMARR__KEYFILE`, by default one for each account, `<data>/accounts/<key>/mnemarr/key`, mode `0600`; a key given by this setting is one for the deployment):
 
+- **Each account is a computer of its own for Mnemarr.** Both calls below carry a `computerId`: the SHA-256 of `geminarr-account:` and the key of the account, in 64 lower-case hexadecimal digits (no address in it). Mnemarr binds the machine to it (its ADR 0031 and 0033, D-53): a machine that is enrolled on one computer is not given to another (`409`), and the computer that comes back is told that it is that machine and writes its name to take it over. A Mnemarr older than those decisions ignores the field, and then rule 5 of §8.2 is Geminarr's own check only.
 - **By asking (pairing, Mnemarr's ADR 0030)**, for a person at the page: Geminarr calls `POST /api/v1/ingest/pair`, shows the approval address and a code; a person approves in Mnemarr, names the machine (default `gemini`); `…/pair/poll` returns the key once.
 - **By a code (enrolment, Mnemarr's ADR 0027)**, for a deployment as code: `GEMINARR__MNEMARR__ENROLMENTCODEFILE` names a file with a one-time code; Geminarr exchanges it at start (`POST /api/v1/ingest/enrol`) and writes the key. A key already provided as a file (`…KEYFILE` mounted from a sealed secret) is used as it is.
 

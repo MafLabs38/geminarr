@@ -66,6 +66,18 @@ public sealed class KeyFileAccountsFixture : IDisposable
     }
 
     [Fact]
+    public void should_not_give_the_key_to_an_account_because_a_page_asked_about_it()
+    {
+        _workspaces.Ensure(AccountKey.Of(John));
+        _subject.ExistsFor(AccountKey.Of(John)).Should().BeFalse("nobody has used the key yet: a question claims nothing");
+
+        _account.SignIn(Jane);
+        _workspaces.Ensure(AccountKey.Of(Jane));
+
+        _subject.Read().Should().Be("mnm_given", "the account that works is the one that gets it, not the first that was listed");
+    }
+
+    [Fact]
     public void should_serve_the_second_account_once_the_first_is_forgotten()
     {
         _account.SignIn(Jane);

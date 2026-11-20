@@ -120,7 +120,7 @@ public sealed class PassRunner
 
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
-            await SendWhatWaitsForOthersAsync(account, cancellationToken);
+            await SendWhatWaitsForOthersAsync(account, state, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -428,9 +428,10 @@ public sealed class PassRunner
     /// What waits for Mnemarr in the workspace of an account that is signed out (Mnemarr was down when the operator disconnected, say) is sent by the pass of the account that is signed in: sending needs the key and the outbox of that
     /// account, not its session. It is sent as that account (its key, its machine), with no run and no heartbeat of its own (SPEC §8.2, rule 6): a failure leaves it waiting for the next pass.
     /// </summary>
-    private async Task SendWhatWaitsForOthersAsync(string? account, CancellationToken cancellationToken)
+    private async Task SendWhatWaitsForOthersAsync(string? account, PassState state, CancellationToken cancellationToken)
     {
-        if (_workspaces is null)
+        // The address is one for every account: Mnemarr that did not answer this pass does not answer the others, and each call would wait for its whole time limit.
+        if (_workspaces is null || state.Destination == SinkFailure.Unreachable)
         {
             return;
         }
@@ -447,9 +448,12 @@ public sealed class PassRunner
                 try
                 {
                     await FlushAsync(new PassState(), cancellationToken);
+                    _link.RecordTalk(null);
                 }
                 catch (SinkException ex)
                 {
+                    // The row of that account says what is wrong (a key that was refused, Mnemarr that does not answer), as its own pass would.
+                    _link.RecordTalk(HeartbeatContent.ProblemOf(ex.Failure));
                     _logger.LogInformation(ex, "What waits for an account that is signed out could not be sent ({Failure}); it waits for the next pass.", ex.Failure);
                 }
             }

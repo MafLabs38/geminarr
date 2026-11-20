@@ -24,6 +24,7 @@ public sealed class AccountsPassFixture : IDisposable
     private readonly FakeSink _sink = new();
     private readonly ConversationStore _conversations;
     private readonly RunStore _runs;
+    private readonly OutboxStore _outbox;
     private readonly PassRunner _subject;
 
     public AccountsPassFixture()
@@ -33,6 +34,7 @@ public sealed class AccountsPassFixture : IDisposable
         _conversations = new ConversationStore(database);
         _runs = new RunStore(database);
         var outbox = new OutboxStore(database);
+        _outbox = outbox;
         var tracker = Tracking.Of(new ConnectionStore(_data.Database, _clock), Options.Of(new ReaderOptions { LoginFailures = 2 }), _clock);
         var link = new LinkService(
             Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }),
@@ -257,7 +259,7 @@ public sealed class AccountsPassFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_leave_what_waits_for_a_signed_out_account_when_mnemarr_is_down_and_go_on_with_the_pass()
+    public async Task should_leave_what_waits_for_a_signed_out_account_when_mnemarr_is_down_and_send_it_at_the_next_pass()
     {
         _account.SignIn(Jane);
         _reader.Say("jane-1", "T", "a", "b");
@@ -266,9 +268,45 @@ public sealed class AccountsPassFixture : IDisposable
 
         _account.SignIn(John);
         _reader.Conversations.Clear();
-        var pass = async () => await _subject.RunAsync(TestContext.Current.CancellationToken);
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
 
-        await pass.Should().NotThrowAsync();
         _sink.Sent.Should().BeEmpty();
+        PendingOf(Jane).Should().BeGreaterThan(0, "the lines still wait");
+        _sink.FailSend = null;
+
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        PendingOf(Jane).Should().Be(0);
+        _sink.Sent.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task should_send_what_waits_for_each_other_account_and_not_what_waits_for_the_one_that_is_signed_in_twice()
+    {
+        _account.SignIn(Jane);
+        _reader.Say("jane-1", "T", "a", "b");
+        _sink.FailSend = new SinkException(SinkFailure.Unreachable, "down");
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+        _account.SignIn(John);
+        _reader.Conversations.Clear();
+        _reader.Say("john-1", "T", "c", "d");
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+        _sink.FailSend = null;
+        _account.SignIn("kim.lee@example.org");
+        _reader.Conversations.Clear();
+
+        await _subject.RunAsync(TestContext.Current.CancellationToken);
+
+        _sink.Sent.Select(sent => sent.Session).Should().BeEquivalentTo([ConversationLines.Session("jane-1"), ConversationLines.Session("john-1")]);
+        PendingOf(Jane).Should().Be(0);
+        PendingOf(John).Should().Be(0);
+    }
+
+    private long PendingOf(string address)
+    {
+        using (_account.Use(AccountKey.Of(address)))
+        {
+            return _outbox.PendingLines();
+        }
     }
 }

@@ -26,11 +26,11 @@ public sealed class KeyStore : IKeyStore
     /// The file of the key for an account: the one that the deployment gives (one key is one machine, so it serves the first account only, SPEC §8.2), or the one of the workspace of the account. Null when there is none:
     /// no account, no key; or an account that the key of the deployment does not serve.
     /// </summary>
-    private string? PathFor(string? account)
+    private string? PathFor(string? account, bool claim = true)
     {
         if (!string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile))
         {
-            return KeyFileServes(account) ? _mnemarr.Value.KeyFile : null;
+            return KeyFileServes(account, claim) ? _mnemarr.Value.KeyFile : null;
         }
 
         return account is null ? null : System.IO.Path.Combine(_workspaces.Folder(account), "mnemarr", "key");
@@ -40,7 +40,7 @@ public sealed class KeyStore : IKeyStore
     /// A key from the deployment is one machine: it serves nobody in particular while no account is signed in (the page says it is there), the first account that uses it (a marker in its workspace says which, so that a
     /// second account that signs in and has a workspace does not take it away), and never another one, whose notes would go to the machine of the first. Forget the first account and the next one that uses it is served.
     /// </summary>
-    private bool KeyFileServes(string? account)
+    private bool KeyFileServes(string? account, bool claim)
     {
         if (account is null)
         {
@@ -55,8 +55,13 @@ public sealed class KeyStore : IKeyStore
 
         if (owner is null)
         {
-            ClaimKeyFile(account);
-            return true;
+            // Only the account that the work is for claims the key; a question about another account (the table of accounts) changes nothing.
+            if (claim)
+            {
+                ClaimKeyFile(account);
+            }
+
+            return claim;
         }
 
         if (_refused.TryAdd(account, true))
@@ -89,7 +94,7 @@ public sealed class KeyStore : IKeyStore
 
     public string? Read() => ReadFile(PathFor(_accounts.Current));
 
-    public bool ExistsFor(string account) => ReadFile(PathFor(account)) is not null;
+    public bool ExistsFor(string account) => ReadFile(PathFor(account, claim: false)) is not null;
 
     private string? ReadFile(string? path)
     {
