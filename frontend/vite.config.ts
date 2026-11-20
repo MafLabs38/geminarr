@@ -8,6 +8,7 @@ const src = fileURLToPath(new URL('./src', import.meta.url));
 // Absolute imports from src: every top-level folder becomes an alias.
 const aliases = [
   '__tests__',
+  'Accounts',
   'App',
   'Components',
   'Connection',

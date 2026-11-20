@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import Button from 'Components/Form/Button';
@@ -22,6 +23,7 @@ export default function ConnectionCard() {
   const mnemarr = useMnemarr();
   const runs = useRuns();
   const runNow = useRunNow();
+  const machine = useAccounts().data?.accounts.find((account) => account.active)?.machine ?? null;
   const state = connection.data ? connectionView(connection.data) : undefined;
   const reason = reasonKeyOf(state?.reason ?? null);
 
@@ -35,6 +37,7 @@ export default function ConnectionCard() {
           {connection.data.state !== 'Connected' && reason && (
             <span className={styles.reason}>{translate(reason)}</span>
           )}
+          {machine && <span className={styles.reason}>{translate('AccountMachineLine', { machine })}</span>}
           {connection.data.reader === 'Demo' && <span className={styles.notice}>{translate('DemoReaderNotice')}</span>}
         </div>
       )}

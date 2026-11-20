@@ -1,5 +1,7 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import AccountsTable from 'Accounts/AccountsTable';
+import { useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import DescriptionList from 'Components/DescriptionList/DescriptionList';
@@ -145,6 +147,9 @@ function Unlink() {
 export default function Mnemarr() {
   const { data, error, isPending } = useMnemarr();
   const reason = reasonKeyOf(data?.problem ?? null);
+  const accounts = useAccounts();
+  // What is paired is the machine of the account that the pages follow: with none, there is nothing to pair.
+  const hasAccount = accounts.data?.accounts.some((account) => account.active) ?? false;
 
   return (
     <PageContent title={translate('MnemarrTitle')}>
@@ -183,10 +188,15 @@ export default function Mnemarr() {
             </>
           )}
         </Card>
-        {data && !error && !data.linked && (
+        {data && !error && !data.linked && hasAccount && (
           <Card title={translate('MnemarrStartPairing')}>
             {!data.addressFromSettings && <AddressForm current={data.url} key={data.url ?? ''} />}
             <PairingBlock hasAddress={data.url !== null} />
+          </Card>
+        )}
+        {data && !error && !data.linked && !hasAccount && accounts.data && (
+          <Card title={translate('MnemarrStartPairing')}>
+            <p>{translate('AccountPairFirst')}</p>
           </Card>
         )}
         {data && !error && data.linked && (
@@ -194,6 +204,10 @@ export default function Mnemarr() {
             <Unlink />
           </Card>
         )}
+        <Card title={translate('AccountsTitle')}>
+          <p>{translate('AccountsIntro')}</p>
+          <AccountsTable />
+        </Card>
       </PageContentBody>
     </PageContent>
   );

@@ -1,5 +1,7 @@
 import { type MutableRefObject, useEffect, useRef, useState } from 'react';
 
+import AccountsTable from 'Accounts/AccountsTable';
+import { useAccounts } from 'Accounts/useAccounts';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import DescriptionList from 'Components/DescriptionList/DescriptionList';
@@ -33,7 +35,7 @@ export const PAUSE_HOURS = 6;
 const SIGN_IN_STATES: ReadonlySet<ConnectionState['state']> = new Set(['NotConnected', 'NeedsLogin', 'Degraded']);
 
 /** Who the browser is signed in as, or that nobody is: the first thing the page says, in words and not only in a color. */
-function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
+function Identity({ connection, machine }: Readonly<{ connection: ConnectionState; machine: string | null }>) {
   const { account } = connection;
   let headline = translate('NotSignedIn');
   if (account) {
@@ -52,6 +54,7 @@ function Identity({ connection }: Readonly<{ connection: ConnectionState }>) {
     <div className={styles.identity}>
       <p className={styles.who}>{headline}</p>
       {account?.name && <p className={styles.email}>{account.email}</p>}
+      {machine && <p className={styles.email}>{translate('AccountMachineLine', { machine })}</p>}
     </div>
   );
 }
@@ -180,6 +183,8 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
 /** The session of the assistant: its state, where a person signs in (the browser container's desktop, on an origin of its own), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
 export default function Connection() {
   const { data, error, isPending } = useConnection(CONNECTION_WAITING_REFRESH_MS);
+  const accounts = useAccounts();
+  const activeMachine = accounts.data?.accounts.find((account) => account.active)?.machine ?? null;
   const view = data ? connectionView(data) : undefined;
   const reason = reasonKeyOf(view?.reason ?? null);
   // The window of the browser that this page opened to sign in: closed by this page once the connection says that it is done.
@@ -206,7 +211,7 @@ export default function Connection() {
           {error && <Alert>{translate('ConnectionCouldNotRead', { message: error.message })}</Alert>}
           {data && state && !error && (
             <>
-              <Identity connection={data} />
+              <Identity connection={data} machine={activeMachine} />
               <DescriptionList
                 items={[
                   {
@@ -244,6 +249,10 @@ export default function Connection() {
               {data.hasBrowser && <Actions connection={data} />}
             </>
           )}
+        </Card>
+        <Card title={translate('AccountsTitle')}>
+          <p>{translate('AccountsIntro')}</p>
+          <AccountsTable canForget />
         </Card>
       </PageContentBody>
     </PageContent>

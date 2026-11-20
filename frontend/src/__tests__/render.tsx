@@ -24,6 +24,22 @@ function requestAddress(input: RequestInfo | URL): string {
   return input instanceof URL ? input.href : input.url;
 }
 
+/** The account that the pages follow in the tests, unless a test says otherwise: signed in, with its machine, not paired. */
+export const activeAccount = {
+  id: '0123abcd',
+  machine: 'geminarr-demo',
+  active: true,
+  signedIn: true,
+  linked: false,
+  lastSignOfLifeAt: null,
+  waitingLines: 0,
+  conversations: 0,
+  lastReadAt: null,
+};
+
+/** What the accounts answer when a test does not say: one account, the one that is signed in. */
+const defaultAccounts = { accounts: [activeAccount] };
+
 /**
  * Answers the calls of the application like the API would, from a table of paths (the method is not looked at). A value is the JSON body of a 200, or a
  * `Response` for any other answer. A path that is not in the table is a 404.
@@ -33,10 +49,10 @@ export function stubApi(routes: Readonly<Record<string, unknown>>) {
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const path = new URL(requestAddress(input), 'http://localhost').pathname.replace(/^\/api\/v1/, '');
-      if (!(path in routes)) {
+      if (!(path in routes) && path !== '/accounts') {
         return Promise.resolve(new Response(null, { status: 404 }));
       }
-      const value = routes[path];
+      const value = path in routes ? routes[path] : defaultAccounts;
       return Promise.resolve(value instanceof Response ? value.clone() : Response.json(value));
     }),
   );
@@ -70,7 +86,7 @@ export function serveApi(routes: Readonly<Record<string, () => unknown>>) {
       const path = new URL(requestAddress(input), 'http://localhost').pathname.replace(/^\/api\/v1/, '');
       const key = `${init?.method ?? 'GET'} ${path}`;
       calls.push({ key, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-      const route = routes[key];
+      const route = routes[key] ?? (key === 'GET /accounts' ? () => defaultAccounts : undefined);
       if (!route) {
         return Promise.resolve(new Response(null, { status: 404 }));
       }

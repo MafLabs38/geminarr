@@ -48,6 +48,17 @@ describe('ConnectionCard', () => {
     expect(await screen.findByText(words)).toBeInTheDocument();
   });
 
+  it('names the machine of the account that is being read', async () => {
+    serveApi({
+      'GET /connection': () => ({ ...connection, state: 'Connected' }),
+      'GET /mnemarr': () => linkedState,
+      'GET /runs': () => idle,
+    });
+    renderAt(<ConnectionCard />);
+
+    expect(await screen.findByText('Machine: geminarr-demo')).toBeInTheDocument();
+  });
+
   it('says why the session needs a sign-in, and says Mnemarr is linked with its link to the page', async () => {
     serveApi({
       'GET /connection': () => ({

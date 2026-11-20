@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { renderAt, serveApi } from '__tests__/render';
+import { activeAccount, renderAt, serveApi } from '__tests__/render';
 import Connection, { PAUSE_HOURS } from 'Connection/Connection';
 import type { Connection as ConnectionResource } from 'Connection/useConnection';
 
@@ -39,6 +39,29 @@ describe('Connection', () => {
     renderAt(<Connection />);
 
     expect(await screen.findByText(words, { selector: 'span' })).toBeInTheDocument();
+  });
+
+  it('says the machine of the account that is being read, and lists the accounts that are known', async () => {
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'Connected',
+        reason: null,
+        lastOkAt: '2026-11-13T08:00:00Z',
+        account: { name: 'Jane', email: 'jane@example.org' },
+      }),
+      'GET /accounts': () => ({
+        accounts: [
+          activeAccount,
+          { ...activeAccount, id: '89abcdef', machine: 'geminarr-john', active: false, signedIn: false },
+        ],
+      }),
+    });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Machine: geminarr-demo')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Accounts' })).toBeInTheDocument();
+    expect(screen.getByText('geminarr-john')).toBeInTheDocument();
   });
 
   it('says that a first start waits for a sign-in, as information and not as a session that expired', async () => {
