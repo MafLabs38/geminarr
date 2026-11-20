@@ -12,7 +12,7 @@ const en = {
   CancelPairing: 'Cancel',
   ConnectionCouldNotRead: 'Could not read the connection: {message}',
   ConnectionIntro:
-    'The session of the assistant is the signed-in browser profile of a dedicated Google account, never your main one. The session is kept by a browser of its own (a container) that you sign in to by hand, once; Geminarr only looks at whether it is still good.',
+    'The session of the assistant is the signed-in profile of the Google account that you choose. It is kept by a browser of its own (a container) that you sign in to by hand; Geminarr only looks at which account is signed in and whether the session is still good.',
   ConnectionLastGood: 'Last pass that worked',
   ConnectionPaused: 'Paused',
   ConnectionSince: 'Since',
@@ -49,7 +49,6 @@ const en = {
   SigningInNow: 'Signing in…',
   SigningInHint:
     'Finish signing in in the browser window, whichever way the account provider offers. This page notices by itself when you are done, and the window closes.',
-  SignInDedicated: 'Use the dedicated account, never your main one.',
   BrowserPageNotGiven: 'No browser desktop is given to relay (GEMINARR__BROWSER__DESKTOPURL).',
   ConnectionConnected: 'Connected',
   DemoReaderNotice:
@@ -124,7 +123,7 @@ const en = {
   BackfillPace: 'At most {perPass} older conversations are read in a pass, on purpose: the history is walked slowly.',
   BackfillDone: 'The whole history that the list holds is read. From now on only what is new is looked at.',
   BackfillCut:
-    'Everything that the page listed is read, but its list goes on past what one round reads. The rest of the past comes with the import of an archive.',
+    'Everything that the page listed is read, but its list goes on past what one round reads. The oldest conversations past it are not read.',
   RunSummary: '{listed} listed, {opened} opened, {sent} turns sent',
   RunWhen: 'When',
   MainMenu: 'Main menu',
@@ -132,7 +131,6 @@ const en = {
   CheckOperator: 'Sign-in',
   Connection: 'Connection',
   Conversations: 'Conversations',
-  Import: 'Import',
   Mnemarr: 'Mnemarr',
   Name: 'Name',
   NotFoundCode: '404',
@@ -153,6 +151,8 @@ const en = {
   ReasonMnemarrRejected: 'Mnemarr said no to what was sent. What waits is kept.',
   ReasonMnemarrUnreachable: 'Mnemarr does not answer: what waits is kept and goes when it does.',
   ReasonNeedsLogin: 'The session has expired: sign in again.',
+  ReasonAwaitingSignIn: 'No account is signed in yet: sign in to start reading.',
+  ConnectionAwaitingSignIn: 'Waiting for a sign-in',
   ReasonOutboxGrowing: 'Something has waited for Mnemarr for more than an hour.',
   ReasonDisconnected: 'Disconnected: the account is signed out of the browser. Sign in again when you want it read.',
   ReasonRateLimited: 'The assistant asked to slow down: Geminarr pauses by itself.',

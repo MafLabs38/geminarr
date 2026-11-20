@@ -35,14 +35,31 @@ describe('Connection', () => {
     ['Degraded', 'Degraded'],
     ['Paused', 'Paused'],
   ] as const)('says the state %s in words', async (state, words) => {
-    serveApi({ 'GET /connection': () => ({ ...base, state }) });
+    serveApi({ 'GET /connection': () => ({ ...base, state, lastOkAt: '2026-11-13T08:00:00Z' }) });
     renderAt(<Connection />);
 
     expect(await screen.findByText(words, { selector: 'span' })).toBeInTheDocument();
   });
 
+  it('says that a first start waits for a sign-in, as information and not as a session that expired', async () => {
+    serveApi({ 'GET /connection': () => ({ ...base, state: 'Degraded', reason: 'needs-login' }) });
+    renderAt(<Connection />);
+
+    expect(await screen.findByText('Waiting for a sign-in', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByText('No account is signed in yet: sign in to start reading.')).toBeInTheDocument();
+    expect(screen.queryByText('Degraded')).not.toBeInTheDocument();
+    expect(screen.queryByText(/has expired/u)).not.toBeInTheDocument();
+  });
+
   it('says why the session needs a sign-in', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'NeedsLogin',
+        reason: 'needs-login',
+        lastOkAt: '2026-11-13T08:00:00Z',
+      }),
+    });
     renderAt(<Connection />);
 
     expect(await screen.findByText('The session has expired: sign in again.')).toBeInTheDocument();
@@ -65,7 +82,7 @@ describe('Connection', () => {
 
     expect(await screen.findByRole('button', { name: 'Sign in to the assistant' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /browser/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Use the dedicated account, never your main one/)).toBeInTheDocument();
+    expect(screen.queryByText(/dedicated account/u)).not.toBeInTheDocument();
   });
 
   it('says who the browser is signed in as, by name and by address', async () => {
@@ -135,7 +152,14 @@ describe('Connection', () => {
   });
 
   it('says that the session has ended when a sign-in is asked for again', async () => {
-    serveApi({ 'GET /connection': () => ({ ...base, state: 'NeedsLogin', reason: 'needs-login' }) });
+    serveApi({
+      'GET /connection': () => ({
+        ...base,
+        state: 'NeedsLogin',
+        reason: 'needs-login',
+        lastOkAt: '2026-11-13T08:00:00Z',
+      }),
+    });
     renderAt(<Connection />);
 
     expect(await screen.findByText('The session has ended: sign in again')).toBeInTheDocument();

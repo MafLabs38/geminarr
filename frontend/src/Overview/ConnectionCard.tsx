@@ -5,7 +5,7 @@ import Card from 'Components/Card';
 import Button from 'Components/Form/Button';
 import LoadingIndicator from 'Components/LoadingIndicator';
 import StatusLabel from 'Components/Status/StatusLabel';
-import { connectionStates } from 'Connection/connectionStates';
+import { connectionView } from 'Connection/connectionStates';
 import { useConnection } from 'Connection/useConnection';
 import { kinds } from 'Helpers/Props/kinds';
 import { hostOf } from 'Mnemarr/hostOf';
@@ -22,8 +22,8 @@ export default function ConnectionCard() {
   const mnemarr = useMnemarr();
   const runs = useRuns();
   const runNow = useRunNow();
-  const state = connection.data ? connectionStates[connection.data.state] : undefined;
-  const reason = reasonKeyOf(connection.data?.reason ?? null);
+  const state = connection.data ? connectionView(connection.data) : undefined;
+  const reason = reasonKeyOf(state?.reason ?? null);
 
   return (
     <Card title={translate('ConnectionCardTitle')}>

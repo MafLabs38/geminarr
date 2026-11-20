@@ -28,5 +28,4 @@ public static class ConversationStates
 public static class ConversationSources
 {
     public const string Web = "web";
-    public const string Takeout = "takeout";
 }

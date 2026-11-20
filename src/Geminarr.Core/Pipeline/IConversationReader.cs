@@ -1,9 +1,9 @@
 namespace Geminarr.Core.Pipeline;
 
-/// <summary>Reads a web assistant (SPEC §6.1). Two implementations are meant (the web reader, the Takeout importer); a demonstration one serves a sandbox and the tests.</summary>
+/// <summary>Reads a web assistant (SPEC §6.1). The web reader is the real one; a demonstration one serves a sandbox and the tests.</summary>
 public interface IConversationReader
 {
-    /// <summary>Where this reader's conversations come from (<c>web</c>, <c>takeout</c>): the source of the meta line that goes to Mnemarr.</summary>
+    /// <summary>Where this reader's conversations come from (<c>web</c>): the source of the meta line that goes to Mnemarr.</summary>
     string Source { get; }
 
     Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken);

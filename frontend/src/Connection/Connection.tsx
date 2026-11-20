@@ -14,7 +14,7 @@ import { useRunNow, useRuns } from 'Runs/useRuns';
 import translate from 'Utilities/String/translate';
 
 import styles from './Connection.module.css';
-import { connectionStates } from './connectionStates';
+import { connectionView } from './connectionStates';
 import {
   type Connection as ConnectionState,
   CONNECTION_WAITING_REFRESH_MS,
@@ -91,7 +91,6 @@ function SignIn({
   return (
     <div className={styles.block}>
       <p>{translate(signingIn ? 'SigningInHint' : 'SignInInTheBrowser')}</p>
-      <p>{translate('SignInDedicated')}</p>
       {hasDesktop && !secure && (
         <>
           <Alert>{translate('DesktopNeedsHttps')}</Alert>
@@ -181,7 +180,8 @@ function Actions({ connection }: Readonly<{ connection: ConnectionState }>) {
 /** The session of the assistant: its state, where a person signs in (the browser container's desktop, on an origin of its own), pause and resume, and the way to clear the session (SPEC §7, ADR 0016, 0017). */
 export default function Connection() {
   const { data, error, isPending } = useConnection(CONNECTION_WAITING_REFRESH_MS);
-  const reason = reasonKeyOf(data?.reason ?? null);
+  const view = data ? connectionView(data) : undefined;
+  const reason = reasonKeyOf(view?.reason ?? null);
   // The window of the browser that this page opened to sign in: closed by this page once the connection says that it is done.
   const browserWindow = useRef<Window | null>(null);
   const connected = data?.state === 'Connected';
@@ -194,7 +194,7 @@ export default function Connection() {
       window.focus();
     }
   }, [connected]);
-  const state = data ? connectionStates[data.state] : undefined;
+  const state = view;
 
   return (
     <PageContent title={translate('Connection')}>
