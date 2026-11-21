@@ -83,16 +83,16 @@ public sealed class MnemarrClient
         await SendAsync<object>(request, cancellationToken);
     }
 
-    public async Task<Enrolled> EnrolAsync(string url, string code, string machine, CancellationToken cancellationToken)
+    public async Task<Enrolled> EnrolAsync(string url, string code, string machine, string? computerId, CancellationToken cancellationToken)
     {
-        using var request = Build(HttpMethod.Post, $"{url}/api/v1/ingest/enrol", key: null, new { code, machine });
+        using var request = Build(HttpMethod.Post, $"{url}/api/v1/ingest/enrol", key: null, new { code, machine, computerId });
         var result = await SendAsync<EnrolRow>(request, cancellationToken);
         return string.IsNullOrWhiteSpace(result?.Key) ? throw new SinkException(SinkFailure.Rejected, "Mnemarr gave no key.") : new Enrolled(result.Key, result.Machine ?? machine);
     }
 
-    public async Task<PairStarted> PairStartAsync(string url, string hostname, CancellationToken cancellationToken)
+    public async Task<PairStarted> PairStartAsync(string url, string hostname, string? computerId, CancellationToken cancellationToken)
     {
-        using var request = Build(HttpMethod.Post, $"{url}/api/v1/ingest/pair", key: null, new { hostname });
+        using var request = Build(HttpMethod.Post, $"{url}/api/v1/ingest/pair", key: null, new { hostname, computerId });
         var result = await SendAsync<PairStarted>(request, cancellationToken);
         return result is { UserCode.Length: > 0, DeviceCode.Length: > 0 } ? result : throw new SinkException(SinkFailure.Rejected, "Mnemarr did not start a pairing.");
     }

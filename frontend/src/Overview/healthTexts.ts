@@ -15,6 +15,7 @@ const reasonTexts: ReadonlyMap<string, TranslationKey> = new Map<string, Transla
   ['outbox-growing', 'ReasonOutboxGrowing'],
   ['not-connected', 'ReasonConnectionNotConnected'],
   ['needs-login', 'ReasonNeedsLogin'],
+  ['awaiting-sign-in', 'ReasonAwaitingSignIn'],
   ['reader-broken', 'ReasonReaderBroken'],
   ['browser-failed', 'ReasonBrowserFailed'],
   ['browser-exposed', 'ReasonBrowserExposed'],

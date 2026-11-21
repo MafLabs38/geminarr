@@ -6,7 +6,7 @@
 
 ## Context
 
-Vertical 2 is the first that keeps data and talks to Mnemarr. Everything after it (the browser, the reader of Gemini, the Takeout import) feeds the same chain, so the chain is built and proved first, with a **demonstration reader** whose conversations are invented: a reader that does not exist yet must not decide how the pipeline works.
+Vertical 2 is the first that keeps data and talks to Mnemarr. Everything after it (the browser, the reader of Gemini) feeds the same chain, so the chain is built and proved first, with a **demonstration reader** whose conversations are invented: a reader that does not exist yet must not decide how the pipeline works.
 
 ## Decision
 

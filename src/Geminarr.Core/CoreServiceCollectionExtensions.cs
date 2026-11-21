@@ -1,4 +1,5 @@
 using Geminarr.Core.Access;
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Browser;
 using Geminarr.Core.Configuration;
 using Geminarr.Core.Connection;
@@ -37,7 +38,11 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<IdentityOptions>, IdentityOptionsValidator>();
         services.AddOptions<IdentityOptions>().Bind(configuration.GetSection(IdentityOptions.SectionName)).ValidateOnStart();
         services.AddSingleton<IdentityService>();
-        services.AddSingleton<IDatabase, Database>();
+        // What is not an account's is in the root database; what is, in the workspace of the account that the work is for (SPEC §8).
+        services.AddSingleton<IRootDatabase>(provider => new Database(provider.GetRequiredService<IOptions<GeminarrOptions>>()));
+        services.AddSingleton<IAccountWorkspaces, AccountWorkspaces>();
+        services.AddSingleton<IAccountContext, AccountContext>();
+        services.AddSingleton<IDatabase, AccountDatabase>();
         services.AddSingleton<IConnectionStore, ConnectionStore>();
         services.AddSingleton<IConversationStore, ConversationStore>();
         services.AddSingleton<IOutboxStore, OutboxStore>();
@@ -56,7 +61,9 @@ public static class CoreServiceCollectionExtensions
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddHttpClient(nameof(DesktopBrowserHost)).ConfigurePrimaryHttpMessageHandler(DesktopBrowserHost.NewHandler);
         services.AddSingleton<MnemarrClient>();
+        services.AddSingleton(provider => new LinkStores(provider.GetRequiredService<IDestinationStore>(), provider.GetRequiredService<IKeyStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IAccountContext>(), provider.GetRequiredService<IAccountWorkspaces>()));
         services.AddSingleton<LinkService>();
+        services.AddSingleton<AccountService>();
         services.AddSingleton<IConversationSink, MnemarrSink>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, BrowserOptionsValidator>();
         services.AddSingleton<IValidateOptions<BrowserOptions>, DesktopOriginValidator>();
@@ -83,7 +90,7 @@ public static class CoreServiceCollectionExtensions
             ReaderKind.Web => ActivatorUtilities.CreateInstance<ExtensionReader>(provider),
             _ => null,
         }));
-        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>()));
+        services.AddSingleton(provider => new PassStores(provider.GetRequiredService<IConversationStore>(), provider.GetRequiredService<IOutboxStore>(), provider.GetRequiredService<IRunStore>(), provider.GetRequiredService<IAccountContext>(), provider.GetRequiredService<IAccountWorkspaces>()));
         services.AddSingleton<PassSettings>();
         services.AddSingleton<PassTrigger>();
         services.AddSingleton<PassRunner>();

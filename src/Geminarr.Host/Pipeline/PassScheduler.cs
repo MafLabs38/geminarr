@@ -110,12 +110,12 @@ public sealed class PassScheduler : BackgroundService
         }
     }
 
-    /// <summary>Tries the enrolment code of the deployment; false only when Mnemarr could not be reached, so that it is tried again.</summary>
+    /// <summary>Tries the enrolment code of the deployment; false while there is nothing to ask yet (nobody is signed in) or when Mnemarr could not be reached, so that it is tried again at the next wake.</summary>
     private async Task<bool> EnrolAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _link.EnrolFromCodeFileAsync(cancellationToken);
+            return await _link.EnrolFromCodeFileAsync(cancellationToken);
         }
         catch (SinkException ex)
         {

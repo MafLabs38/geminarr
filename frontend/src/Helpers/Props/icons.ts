@@ -10,7 +10,6 @@ import {
   Server,
   Settings,
   TriangleAlert,
-  Upload,
 } from 'lucide-react';
 
 /** The only place icons are chosen: components import names from here, never from the icon library. */
@@ -19,7 +18,6 @@ export const icons = {
   CONNECTION: Plug,
   CONVERSATIONS: MessagesSquare,
   RUNS: History,
-  IMPORT: Upload,
   MNEMARR: Link2,
   SYSTEM: Server,
   SETTINGS: Settings,

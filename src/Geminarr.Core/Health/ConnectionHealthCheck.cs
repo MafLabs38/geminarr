@@ -18,6 +18,12 @@ public sealed class ConnectionHealthCheck : IHealthCheck
         try
         {
             var record = _connection.Current();
+            // Before anything was ever read, nobody being signed in is not a defect: it is what a first start waits for.
+            if (record.LastOkAt is null && (record.State == ConnectionState.NeedsLogin || (record.State == ConnectionState.Degraded && record.LastReason == ConnectionReasons.NeedsLogin)))
+            {
+                return Task.FromResult(HealthReasons.Waiting(ConnectionReasons.AwaitingSignIn, "No account is signed in yet: sign in to start reading."));
+            }
+
             return Task.FromResult(record.State switch
             {
                 ConnectionState.Connected => HealthCheckResult.Healthy(),

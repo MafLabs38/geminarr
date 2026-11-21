@@ -44,9 +44,9 @@ public sealed class PassRunnerFixture : IDisposable
 
     private PassRunner Subject(bool withReader = true, ReaderOptions? options = null, string? publicUrl = null)
     {
-        _link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
+        _link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), TestLinks.Stores(_destination, _keys, _outbox, _workspace.Folder), new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
         var settings = new PassSettings(Options.Of(options ?? new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions { PublicUrl = publicUrl }), new ReaderProvider(withReader ? _reader : null), new FixedExposure(() => _exposure));
-        return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, _link, settings, _clock, NullLogger<PassRunner>.Instance);
+        return new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs, new FixedAccount()), _connection, _link, settings, _clock, NullLogger<PassRunner>.Instance);
     }
 
     private static string Session(string id) => ConversationLines.Session(id);
@@ -564,8 +564,8 @@ public sealed class PassRunnerFixture : IDisposable
         var gate = new TaskCompletionSource();
         var slow = new SlowReader(gate.Task);
         var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
-        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), TestLinks.Stores(_destination, _keys, _outbox, _workspace.Folder), new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs, new FixedAccount()), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
 
         var first = subject.RunAsync(TestContext.Current.CancellationToken);
         await slow.Started.Task;
@@ -584,8 +584,8 @@ public sealed class PassRunnerFixture : IDisposable
         var never = new TaskCompletionSource();
         var slow = new SlowReader(never.Task);
         var settings = new PassSettings(Options.Of(new ReaderOptions { PassTimeoutMinutes = 1 }), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
-        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), TestLinks.Stores(_destination, _keys, _outbox, _workspace.Folder), new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs, new FixedAccount()), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
 
         var run = subject.RunAsync(TestContext.Current.CancellationToken);
         await slow.Started.Task;
@@ -616,8 +616,8 @@ public sealed class PassRunnerFixture : IDisposable
         var never = new TaskCompletionSource();
         var slow = new SlowReader(never.Task);
         var settings = new PassSettings(Options.Of(new ReaderOptions()), Options.Of(new RetentionOptions()), Options.Of(new GeminarrOptions()), new ReaderProvider(slow), new NoBrowserExposure());
-        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), _destination, _keys, new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance, _outbox);
-        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
+        var link = new LinkService(Options.Of(new MnemarrOptions { Url = "https://mnemarr.homelab.example" }), TestLinks.Stores(_destination, _keys, _outbox, _workspace.Folder), new MnemarrClient(new FakeHttp(_ => FakeHttp.Status(System.Net.HttpStatusCode.NotFound))), _clock, NullLogger<LinkService>.Instance);
+        var subject = new PassRunner(_sink, new PassStores(_conversations, _outbox, _runs, new FixedAccount()), _connection, link, settings, _clock, NullLogger<PassRunner>.Instance);
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var run = subject.RunAsync(stopping.Token);

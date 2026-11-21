@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 
 import { renderAt, session, status, stubApi } from '__tests__/render';
 import App from 'App/App';
@@ -67,20 +67,17 @@ describe('the application', () => {
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('shows the whole shape of the product, with the pages that are not built marked "Soon" and not links', () => {
+  it('shows a menu of pages that are all built: every entry is a link, and none is marked "Soon"', () => {
     stubApi({ '/system/status': status, '/health': health });
 
     shell('/');
 
-    const unbuilt = menuEntries.filter((candidate) => !candidate.available);
-    for (const entry of unbuilt) {
-      expect(screen.queryByRole('link', { name: entry.label })).not.toBeInTheDocument();
+    const menu = within(screen.getByRole('navigation', { name: 'Main menu' }));
+    for (const entry of menuEntries) {
+      expect(menu.getByRole('link', { name: entry.label })).toHaveAttribute('href', entry.to);
     }
-    // One literal oracle next to the ones derived from the menu: a wrongly flagged entry would not fail the derived ones.
+    expect(screen.queryByText('Soon')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Import' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Soon')).toHaveLength(unbuilt.length);
-    expect(screen.getByRole('link', { name: 'System' })).toHaveAttribute('href', '/system/status');
-    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
   });
 
   it('offers a way back to the overview from an unknown address', () => {

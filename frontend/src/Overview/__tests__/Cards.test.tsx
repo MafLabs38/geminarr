@@ -39,7 +39,7 @@ describe('ConnectionCard', () => {
     ['NotConnected', 'Not connected'],
   ] as const)('says the state %s in words', async (state, words) => {
     serveApi({
-      'GET /connection': () => ({ ...connection, state }),
+      'GET /connection': () => ({ ...connection, state, lastOkAt: '2026-11-13T08:00:00Z' }),
       'GET /mnemarr': () => linkedState,
       'GET /runs': () => idle,
     });
@@ -48,9 +48,25 @@ describe('ConnectionCard', () => {
     expect(await screen.findByText(words)).toBeInTheDocument();
   });
 
+  it('names the machine of the account that is being read', async () => {
+    serveApi({
+      'GET /connection': () => ({ ...connection, state: 'Connected' }),
+      'GET /mnemarr': () => linkedState,
+      'GET /runs': () => idle,
+    });
+    renderAt(<ConnectionCard />);
+
+    expect(await screen.findByText('Machine: geminarr-demo')).toBeInTheDocument();
+  });
+
   it('says why the session needs a sign-in, and says Mnemarr is linked with its link to the page', async () => {
     serveApi({
-      'GET /connection': () => ({ ...connection, state: 'NeedsLogin', reason: 'needs-login' }),
+      'GET /connection': () => ({
+        ...connection,
+        state: 'NeedsLogin',
+        reason: 'needs-login',
+        lastOkAt: '2026-11-13T08:00:00Z',
+      }),
       'GET /mnemarr': () => linkedState,
       'GET /runs': () => idle,
     });

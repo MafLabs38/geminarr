@@ -56,6 +56,13 @@ describe('the runs page', () => {
     expect(screen.getByRole('button', { name: 'Run now' })).toBeDisabled();
   });
 
+  it('names the machine of the account whose passes they are', async () => {
+    serveApi({ 'GET /runs': () => ({ running: false, runs: [run(1)] }) });
+    renderAt(<Runs />);
+
+    expect(await screen.findByText('Machine: geminarr-demo')).toBeInTheDocument();
+  });
+
   it('says that no pass has run yet', async () => {
     serveApi({ 'GET /runs': () => ({ running: false, runs: [] }) });
     renderAt(<Runs />);

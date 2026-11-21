@@ -1,0 +1,6 @@
+# Made-up test tokens of two early commits of the extension branch (neither is in the tree any more). They open nothing. Accepted by the maintainer in the chat on 2026-11-18.
+7900c5bbc6b99395801262c1a9a8b2d91c9c35be:src/Geminarr.Integration.Test/ExtensionApiFixture.cs:generic-api-key:13
+dcffbd7685ac1bbcecba48a5e3c1f9c393b09f18:src/Geminarr.Core.Test/Masking/SecretMaskerFixture.cs:private-key:47
+# A made-up account key of the tests (sixteen hex digits that open nothing): the generic rule takes it for a token. One exact finding (the squashed commit of pull request 38), authorised by the maintainer for fictitious values (never for a real secret).
+5d82e6f0d4540798eefd5f65822583cce993cd5d:src/Geminarr.Core.Test/Support/FixedAccount.cs:generic-api-key:8
+dce740f85ad6a5a35d5b9565f84a9af2ec4ef7a7:src/Geminarr.Core.Test/Support/FixedAccount.cs:generic-api-key:8

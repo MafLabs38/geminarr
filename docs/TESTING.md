@@ -21,7 +21,7 @@
 
 ## 3. What is specific to Geminarr
 
-- **The reader is tested against fixtures, never the network.** The web reader and the Takeout importer are tested against _recorded or synthetic_ pages and archives kept in `tests/fixtures/` (the shape of the product's pages, with invented conversations). A test that reaches the real product is a manual spike (`.spike/`, git-ignored), not part of the suite.
+- **The reader is tested against fixtures, never the network.** The web reader is tested against _recorded or synthetic_ pages kept in `tests/fixtures/` (the shape of the product's pages, with invented conversations). A test that reaches the real product is a manual spike (`.spike/`, git-ignored), not part of the suite.
 - **No real content in the repository.** No real conversation, account, cookie, identifier or address in a test, a fixture, a snapshot or a screenshot. Examples only (`a-dedicated-account@example.com`, `gemini-c1a2b3c4d5e6`).
 - **The pipeline is tested with fakes of its ports** (`IConversationReader`, `IConversationSink`) and `FakeTimeProvider`: a conversation that grows, a Mnemarr that is down, restored from a backup (fewer lines than believed), that refuses the key; a kill between the browser closing and the flush (the outbox survives); a turn rewritten after it was sent.
 - **The state machine is a table test**: every state, every event, the expected state and signal (SPEC §7.2).
@@ -30,7 +30,6 @@
 - **The session never leaks**: tests grep the logs, the API responses and the health output of a run for cookie names and for the text of a turn.
 - **The egress guard** (ADR 0020) is tested on a real namespace: the end-to-end stack runs it, and two probes in the namespace, one as Geminarr's user and one as the browser's, try the same connection; the browser's opens, Geminarr's does not, and Geminarr still reaches the desktop of the browser on the loopback, and nothing listens for a debugging port. The example files are tested to agree (the same rules in the Compose and Kubernetes examples, the same pinned image as the end-to-end stack, only Geminarr's user named).
 - **The browser container** is tested at its edges: a desktop that does not answer, one that redirects (not followed), a _Disconnect_ that is asked until the extension confirms it (it survives a restart and the page shows it as pending), a pause that a running pass cannot undo; the end-to-end test runs a real browser container from the pinned digest and opens its desktop by the ticket of the operator's session, never against Google.
-- **A Takeout archive is hostile input**: a path with `..`, an absolute path, a symlink, a bomb, a huge entry and a malformed file each have a test.
 
 ## 4. Conventions
 

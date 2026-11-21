@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Geminarr.Core.Accounts;
 using Geminarr.Core.Connection;
 using Geminarr.Core.Link;
 using Geminarr.Core.Masking;
@@ -27,12 +28,17 @@ public sealed class PassRunner
     private readonly IConversationStore _conversations;
     private readonly IOutboxStore _outbox;
     private readonly IRunStore _runs;
+    private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces? _workspaces;
     private readonly ConnectionTracker _connection;
     private readonly LinkService _link;
     private readonly PassSettings _settings;
     private readonly TimeProvider _clock;
     private readonly ILogger<PassRunner> _logger;
     private readonly SemaphoreSlim _running = new(1, 1);
+
+    /// <summary>The account that the positions below were asked of Mnemarr for: another account has other machines, so they are asked again when it changes.</summary>
+    private string? _positionsAccount;
     private DateTimeOffset? _positionsAt;
     private long _generation = -1;
 
@@ -46,6 +52,8 @@ public sealed class PassRunner
         _conversations = stores.Conversations;
         _outbox = stores.Outbox;
         _runs = stores.Runs;
+        _accounts = stores.Accounts;
+        _workspaces = stores.Workspaces;
         _connection = connection;
         _link = link;
         _settings = settings;
@@ -78,6 +86,22 @@ public sealed class PassRunner
     {
         var watch = Stopwatch.StartNew();
         var startedAt = _clock.GetUtcNow();
+        // The account that is signed in is the last one from now on (an expired session is still told to Mnemarr by its machine), and the pass works on that account's workspace whatever happens to the session while it runs (SPEC §8.2).
+        if (_accounts.SignedIn is { } signedIn)
+        {
+            _accounts.Remember(signedIn);
+        }
+
+        var account = _accounts.Current;
+        using var taken = _accounts.Use(account);
+        if (!string.Equals(account, _positionsAccount, StringComparison.Ordinal))
+        {
+            _positionsAccount = account;
+            _positions = null;
+            _positionsAt = null;
+            _generation = -1;
+        }
+
         _passGeneration = _link.Generation;
         // A heartbeat between two readings writes its row at the end, and only if it has something to say: no row flickers in the list, and a process that dies leaves nothing half done.
         long? runId = reading ? _runs.Start(RunKinds.Pass, startedAt) : null;
@@ -87,7 +111,7 @@ public sealed class PassRunner
         try
         {
             await ReconcileAsync(state, cancellationToken);
-            await ReadWithinItsTimeAsync(state, reading, cancellationToken);
+            await ReadWithinItsTimeAsync(state, reading, account, cancellationToken);
             if (Unlinked())
             {
                 // Unlinked while this pass was reading: what it queued is text for a Mnemarr that is gone.
@@ -96,6 +120,7 @@ public sealed class PassRunner
 
             await SendAsync(state, cancellationToken);
             await SignalAsync(state, cancellationToken);
+            await SendWhatWaitsForOthersAsync(account, state, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -145,7 +170,7 @@ public sealed class PassRunner
     /// Reading has a time of its own (the setting of the pass): a reader that hangs ends the reading, and what waits is still sent and Mnemarr still hears from the machine. The time follows the
     /// clock of the application, so that a test moves it.
     /// </summary>
-    private async Task ReadWithinItsTimeAsync(PassState state, bool reading, CancellationToken cancellationToken)
+    private async Task ReadWithinItsTimeAsync(PassState state, bool reading, string? account, CancellationToken cancellationToken)
     {
         if (!reading)
         {
@@ -158,7 +183,7 @@ public sealed class PassRunner
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
         try
         {
-            await ReadAsync(state, linked.Token);
+            await ReadAsync(state, account, linked.Token);
         }
         catch (OperationCanceledException) when (limit.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
@@ -169,7 +194,7 @@ public sealed class PassRunner
     }
 
     /// <summary>Steps 1 to 4: may we read, is the session good, what is new.</summary>
-    private async Task ReadAsync(PassState state, CancellationToken cancellationToken)
+    private async Task ReadAsync(PassState state, string? account, CancellationToken cancellationToken)
     {
         if (_settings.Reader is null)
         {
@@ -213,12 +238,23 @@ public sealed class PassRunner
             // The window goes past what a pass looks at when the history is walked (SPEC §6.3): the conversations below it are the backfill's.
             var window = reading.BackfillPerPass > 0 ? reading.MaxListed + BackfillWindow : reading.MaxListed;
             var headers = await FromReader(() => _settings.Reader.ListRecentAsync(window, cancellationToken), cancellationToken);
+            if (AccountMoved(state, account))
+            {
+                return;
+            }
+
             state.Listed = headers.Count;
             var recent = headers.Where(header => header.Rank < reading.MaxListed).ToList();
             var older = headers.Where(header => header.Rank >= reading.MaxListed).ToList();
             foreach (var header in Candidates(recent).Take(reading.MaxOpenPerPass).Concat(Backfill(older)))
             {
-                Queue(header, await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken));
+                var content = await FromReader(() => _settings.Reader.OpenAsync(header.Id, cancellationToken), cancellationToken);
+                if (AccountMoved(state, account))
+                {
+                    return;
+                }
+
+                Queue(header, content);
                 state.Opened++;
             }
 
@@ -229,6 +265,23 @@ public sealed class PassRunner
             _connection.Failed(ex.Reason);
             state.Fail(RunOutcomes.Failed, ex.Reason);
         }
+    }
+
+    /// <summary>
+    /// The reader follows the session of the browser, not the account that this pass took: when another account signs in while the pass is reading, what the reader gives is that account's, and it is not kept in the workspace of
+    /// the first (SPEC §8.2, rule 1). The pass stops, says so, and the next one is the new account's.
+    /// </summary>
+    private bool AccountMoved(PassState state, string? account)
+    {
+        var signedIn = _accounts.SignedIn;
+        if (string.Equals(signedIn, account, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Nobody is signed in any more (a sign-out, an expiry): that is the session's own news, told by the next check. Another account is the one that this pass must not keep.
+        state.Fail(RunOutcomes.Partial, signedIn is null ? "signed-out" : "account-changed");
+        return true;
     }
 
     /// <summary>
@@ -368,6 +421,42 @@ public sealed class PassRunner
         {
             state.Destination = ex.Failure;
             state.Fail(RunOutcomes.Partial, HeartbeatContent.ProblemOf(ex.Failure));
+        }
+    }
+
+    /// <summary>
+    /// What waits for Mnemarr in the workspace of an account that is signed out (Mnemarr was down when the operator disconnected, say) is sent by the pass of the account that is signed in: sending needs the key and the outbox of that
+    /// account, not its session. It is sent as that account (its key, its machine), with no run and no heartbeat of its own (SPEC §8.2, rule 6): a failure leaves it waiting for the next pass.
+    /// </summary>
+    private async Task SendWhatWaitsForOthersAsync(string? account, PassState state, CancellationToken cancellationToken)
+    {
+        // The address is one for every account: Mnemarr that did not answer this pass does not answer the others, and each call would wait for its whole time limit.
+        if (_workspaces is null || state.Destination == SinkFailure.Unreachable)
+        {
+            return;
+        }
+
+        foreach (var other in _workspaces.Known().Where(key => !string.Equals(key, account, StringComparison.Ordinal)))
+        {
+            using (_accounts.Use(other))
+            {
+                if (_outbox.PendingLines() == 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await FlushAsync(new PassState(), cancellationToken);
+                    _link.RecordTalk(null);
+                }
+                catch (SinkException ex)
+                {
+                    // The row of that account says what is wrong (a key that was refused, Mnemarr that does not answer), as its own pass would.
+                    _link.RecordTalk(HeartbeatContent.ProblemOf(ex.Failure));
+                    _logger.LogInformation(ex, "What waits for an account that is signed out could not be sent ({Failure}); it waits for the next pass.", ex.Failure);
+                }
+            }
         }
     }
 

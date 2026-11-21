@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
-import { renderAt, serveApi } from '__tests__/render';
+import { activeAccount, renderAt, serveApi } from '__tests__/render';
 import Conversations from 'Conversations/Conversations';
 import type { Backfill, Conversation, Conversations as ConversationsResource } from 'Conversations/useConversations';
 
@@ -67,6 +68,43 @@ describe('the conversations page', () => {
     serve({ total: 1, conversations: [conversation('long-1', { state: 'error', lastError: 'unfinished-read' })] });
 
     expect(await screen.findByText(/Could not be read to its beginning/u)).toBeInTheDocument();
+  });
+
+  it('chooses the account whose conversations are shown, asks for that one, and shows no progress for an account that is not being read', async () => {
+    const calls = serveApi({
+      'GET /accounts': () => ({
+        accounts: [
+          activeAccount,
+          { ...activeAccount, id: '89abcdef', machine: 'geminarr-john', active: false, signedIn: false },
+        ],
+      }),
+      'GET /conversations': () => ({ total: 1, conversations: [conversation('mine-1')], backfill: backfill() }),
+    });
+    renderAt(<Conversations />);
+    expect(await screen.findByText('mine-1')).toBeInTheDocument();
+
+    serveApi({
+      'GET /accounts': () => ({
+        accounts: [
+          activeAccount,
+          { ...activeAccount, id: '89abcdef', machine: 'geminarr-john', active: false, signedIn: false },
+        ],
+      }),
+      'GET /conversations': () => ({ total: 1, conversations: [conversation('theirs-1')], backfill: null }),
+    });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Account' }), '89abcdef');
+
+    expect(await screen.findByText('theirs-1')).toBeInTheDocument();
+    expect(screen.queryByText('The history')).not.toBeInTheDocument();
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it('offers no choice of account when there is only one', async () => {
+    serve({ total: 0, conversations: [] });
+
+    await screen.findByText('No conversation has been read yet.');
+
+    expect(screen.queryByRole('combobox', { name: 'Account' })).not.toBeInTheDocument();
   });
 
   it('says that nothing was read yet', async () => {

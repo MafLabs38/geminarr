@@ -8,10 +8,10 @@ export const livePath = '/api/v1/live';
 
 /** What each topic that the host announces makes the pages read again: a key is the path of the read (a path that starts with one of these is read again). */
 const topicPaths: Readonly<Record<string, readonly string[]>> = {
-  connection: ['/connection'],
+  connection: ['/connection', '/accounts'],
   status: ['/health', '/system/status'],
-  runs: ['/runs', '/conversations'],
-  mnemarr: ['/mnemarr'],
+  runs: ['/runs', '/conversations', '/accounts'],
+  mnemarr: ['/mnemarr', '/accounts'],
 };
 
 export function invalidateTopic(queryClient: QueryClient, topic: string) {

@@ -1,4 +1,5 @@
-using Geminarr.Core.Configuration;
+using System.Collections.Concurrent;
+using Geminarr.Core.Accounts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -8,23 +9,103 @@ namespace Geminarr.Core.Link;
 public sealed class KeyStore : IKeyStore
 {
     private readonly IOptions<MnemarrOptions> _mnemarr;
-    private readonly IOptions<GeminarrOptions> _geminarr;
+    private readonly IAccountContext _accounts;
+    private readonly IAccountWorkspaces _workspaces;
     private readonly ILogger<KeyStore> _logger;
+    private readonly ConcurrentDictionary<string, bool> _refused = new();
 
-    public KeyStore(IOptions<MnemarrOptions> mnemarr, IOptions<GeminarrOptions> geminarr, ILogger<KeyStore>? logger = null)
+    public KeyStore(IOptions<MnemarrOptions> mnemarr, IAccountContext accounts, IAccountWorkspaces workspaces, ILogger<KeyStore>? logger = null)
     {
         _mnemarr = mnemarr;
-        _geminarr = geminarr;
+        _accounts = accounts;
+        _workspaces = workspaces;
         _logger = logger ?? NullLogger<KeyStore>.Instance;
     }
 
-    private string Path => string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) ? System.IO.Path.Combine(_geminarr.Value.DataFolder, "mnemarr", "key") : _mnemarr.Value.KeyFile;
-
-    public string? Read()
+    /// <summary>
+    /// The file of the key for an account: the one that the deployment gives (one key is one machine, so it serves the first account only, SPEC §8.2), or the one of the workspace of the account. Null when there is none:
+    /// no account, no key; or an account that the key of the deployment does not serve.
+    /// </summary>
+    private string? PathFor(string? account, bool claim = true)
     {
+        if (!string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile))
+        {
+            return KeyFileServes(account, claim) ? _mnemarr.Value.KeyFile : null;
+        }
+
+        return account is null ? null : System.IO.Path.Combine(_workspaces.Folder(account), "mnemarr", "key");
+    }
+
+    /// <summary>
+    /// A key from the deployment is one machine: it serves nobody in particular while no account is signed in (the page says it is there), the first account that uses it (a marker in its workspace says which, so that a
+    /// second account that signs in and has a workspace does not take it away), and never another one, whose notes would go to the machine of the first. Forget the first account and the next one that uses it is served.
+    /// </summary>
+    private bool KeyFileServes(string? account, bool claim)
+    {
+        if (account is null)
+        {
+            return true;
+        }
+
+        var owner = _workspaces.Known().FirstOrDefault(other => File.Exists(OwnerMarker(other)));
+        if (owner == account)
+        {
+            return true;
+        }
+
+        if (owner is null)
+        {
+            // Only the account that the work is for claims the key; a question about another account (the table of accounts) changes nothing.
+            if (claim)
+            {
+                ClaimKeyFile(account);
+            }
+
+            return claim;
+        }
+
+        if (_refused.TryAdd(account, true))
+        {
+            _logger.LogWarning("A key given by the deployment serves one account: a second account is not linked to it. Pair it instead (unset GEMINARR__MNEMARR__KEYFILE).");
+        }
+
+        return false;
+    }
+
+    private string OwnerMarker(string account) => System.IO.Path.Combine(_workspaces.Folder(account), "keyfile-owner");
+
+    /// <summary>The account that uses the key of the deployment first keeps it: an empty file in its workspace (there is none yet while the account has not been read, and it is made the next time).</summary>
+    private void ClaimKeyFile(string account)
+    {
+        if (!_workspaces.Exists(account))
+        {
+            return;
+        }
+
         try
         {
-            var text = File.ReadAllText(Path).Trim();
+            File.WriteAllBytes(OwnerMarker(account), []);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "The workspace of the account could not be marked as the one that the key of the deployment serves.");
+        }
+    }
+
+    public string? Read() => ReadFile(PathFor(_accounts.Current));
+
+    public bool ExistsFor(string account) => ReadFile(PathFor(account, claim: false)) is not null;
+
+    private string? ReadFile(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var text = File.ReadAllText(path).Trim();
             return text.Length == 0 ? null : text;
         }
         catch (FileNotFoundException)
@@ -45,9 +126,14 @@ public sealed class KeyStore : IKeyStore
 
     public string? AddressOf()
     {
+        if (PathFor(_accounts.Current) is not { } path)
+        {
+            return null;
+        }
+
         try
         {
-            var text = File.ReadAllText(Path + ".address").Trim();
+            var text = File.ReadAllText(path + ".address").Trim();
             return text.Length == 0 ? null : text;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -58,7 +144,16 @@ public sealed class KeyStore : IKeyStore
 
     public void Write(string key, string address)
     {
-        var folder = System.IO.Path.GetDirectoryName(Path);
+        // The account is read once: the folder that is made and the file that is written are those of the same account, whatever happens to the session in between.
+        var account = _accounts.Current;
+        var path = PathFor(account) ?? throw new InvalidOperationException("No account is signed in, or the key of the deployment does not serve it: its key has nowhere to be kept.");
+        if (string.IsNullOrWhiteSpace(_mnemarr.Value.KeyFile) && account is not null)
+        {
+            // The workspace is made first, for its owner alone: the folder of the key is made inside it.
+            _workspaces.Ensure(account);
+        }
+
+        var folder = System.IO.Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
         {
             CreateFolder(folder);
@@ -66,8 +161,8 @@ public sealed class KeyStore : IKeyStore
 
         // Written to a file of its own first and moved over the old one: a crash never leaves half a key, and the key is never readable by another user, not even for a moment.
         // The address that binds it is written the same way (it decides which Mnemarr may be given the key), and after it: a crash between the two leaves a key without its address, which is not bound to an address (as a key that the deployment gives), never an old key bound to a new address.
-        WriteOwnerOnly(Path, key);
-        WriteOwnerOnly(Path + ".address", address);
+        WriteOwnerOnly(path, key);
+        WriteOwnerOnly(path + ".address", address);
     }
 
     private static void WriteOwnerOnly(string path, string text)
@@ -102,10 +197,15 @@ public sealed class KeyStore : IKeyStore
 
     public void Delete()
     {
+        if (PathFor(_accounts.Current) is not { } path)
+        {
+            return;
+        }
+
         try
         {
-            File.Delete(Path);
-            File.Delete(Path + ".address");
+            File.Delete(path);
+            File.Delete(path + ".address");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

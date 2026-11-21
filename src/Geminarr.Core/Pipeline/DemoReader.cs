@@ -12,6 +12,9 @@ public sealed class DemoReader : IConversationReader
 {
     public const string SignedOutFile = "demo-signed-out";
 
+    /// <summary>The account of the demonstration: a made-up address (the reader reads as one account, as a sandbox that is signed in).</summary>
+    public const string DemoAccount = "demo@geminarr.example";
+
     /// <summary>The longest a demonstration conversation gets: a demonstration does not grow for ever.</summary>
     private const int MaxTurns = 1000;
 
@@ -68,6 +71,8 @@ public sealed class DemoReader : IConversationReader
     }
 
     public string Source => ConversationSources.Web;
+
+    public string? AccountAddress => File.Exists(Path.Combine(_dataFolder, SignedOutFile)) ? null : DemoAccount;
 
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken) =>
         Task.FromResult(File.Exists(Path.Combine(_dataFolder, SignedOutFile)) ? SessionCheck.SignedOut : SessionCheck.SignedIn);

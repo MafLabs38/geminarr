@@ -6,4 +6,9 @@ public interface IConnectionStore
     ConnectionRecord Get();
 
     void Save(ConnectionRecord record);
+
+    /// <summary>The key of the account that was signed in last, kept until the operator disconnects (SPEC §8.2): an expired session is told to Mnemarr by the machine of that account. Null when there is none.</summary>
+    string? Account();
+
+    void SetAccount(string? key);
 }

@@ -25,6 +25,11 @@ public sealed class ExtensionReader : IConversationReader
 
     public string Source => ConversationSources.Web;
 
+    // The operator disconnected: whatever the session was last said to be, nobody is signed in as far as Geminarr is concerned until the extension has said that the sign-out is done and somebody signs in again (SPEC §8.2).
+    public string? AccountAddress => !_inbox.Disconnected && _inbox.Session is { SignedIn: true, Account: { } account } ? account.Email : null;
+
+    public bool SignedInWithoutAccount => !_inbox.Disconnected && _inbox.Session is { SignedIn: true, Account: null };
+
     public Task<SessionCheck> CheckSessionAsync(CancellationToken cancellationToken)
     {
         var session = _inbox.Session;

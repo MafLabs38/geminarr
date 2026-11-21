@@ -1,6 +1,6 @@
 # 0004 — A dedicated Google account, never the main one
 
-- **Status**: accepted
+- **Status**: accepted; its first rule (a dedicated account) and its alternative of an import of the past are superseded by [0027](0027-any-account-may-be-signed-in-and-there-is-no-import.md)
 - **Date**: 2026-11-11
 - **Spec**: D-08, D-09, D-10; SPEC §7, §11
 

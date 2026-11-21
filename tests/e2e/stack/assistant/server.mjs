@@ -1,5 +1,5 @@
 // A fake assistant for the end-to-end tests: synthetic pages shaped like the ones the extension reads (a list of conversations, and the turns of one), on a plain-HTTP host of the test network. Nothing here is real.
-// POST /admin/signin makes the next visitor a person who signs in (a cookie is given); POST /admin/signout ends every session, as an expiry would; GET /admin/guests counts the pages shown to a visitor; GET /admin/reach?host=&port= says whether a port of another container opens; POST /admin/break shows a page that is neither (a page whose shape changed); POST /admin/add adds a conversation at the top of the list; POST /admin/history adds nine older ones at the bottom of it.
+// POST /admin/signin makes the next visitor a person who signs in (a cookie is given; `?as=<address>` is another account, which has conversations of its own); POST /admin/signout ends every session, as an expiry would; GET /admin/guests counts the pages shown to a visitor; GET /admin/reach?host=&port= says whether a port of another container opens; POST /admin/break shows a page that is neither (a page whose shape changed); POST /admin/add adds a conversation at the top of the list; POST /admin/history adds nine older ones at the bottom of it.
 import http from 'node:http';
 import net from 'node:net';
 
@@ -33,29 +33,56 @@ const conversations = [
 ];
 // A session is a cookie of the browser (the extension clears them when the operator disconnects): a request without a valid one is a visitor. `armed` is a person who signs in at the next request.
 let mode = 'in';
-const sessions = new Set();
-let armed = false;
+/** token -> the address of the account that the session belongs to. */
+const sessions = new Map();
+/** The address that signs in at the next request, or null when nobody does. */
+let armed = null;
+const DEFAULT_ACCOUNT = 'jane.doe@example.org';
 let guests = 0;
 let added = 0;
 
 const COOKIE = 'fake_session';
 const cookieOf = (request) => new RegExp(`(?:^|; )${COOKIE}=([^;]+)`).exec(request.headers.cookie ?? '')?.[1];
 
-/** Whether the request is a signed-in one, and the header that gives the cookie to a person who has just signed in. */
+/** The name that the button of an account shows: the words of the part before the @ ("jane.doe" is Jane Doe). */
+const nameOf = (address) =>
+  address
+    .split('@')[0]
+    .split(/[._-]/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+/** The conversations of an account: the three of the default one (and what a test adds to it), and two of its own for any other. */
+function conversationsOf(address) {
+  if (address === DEFAULT_ACCOUNT) return conversations;
+  let seed = 0;
+  for (const character of address) seed = (seed * 31 + character.codePointAt(0)) % 0xffffff;
+  const id = (n) => `${(seed + n).toString(16).padStart(6, '0')}${'ab12cd'}`;
+  return [1, 2].map((n) => ({
+    id: id(n),
+    title: `Notes ${n} of ${nameOf(address)}`,
+    turns: [
+      ['user', `A question ${n} of ${nameOf(address)}.`],
+      ['assistant', `An answer ${n}.`],
+    ],
+  }));
+}
+
+/** Whether the request is a signed-in one (and of which account), and the header that gives the cookie to a person who has just signed in. */
 function visitor(request) {
   const token = cookieOf(request);
-  const valid = Boolean(token) && sessions.has(token);
+  const known = token ? sessions.get(token) : undefined;
   // The person who signs in does so at the next request, whoever makes it: a request that is signed in already uses the session that it has.
   const signsIn = armed;
-  armed = false;
-  if (valid) return { signedIn: true, headers: {} };
+  armed = null;
+  if (known) return { signedIn: true, address: known, headers: {} };
   if (signsIn) {
     const created = `s${sessions.size + 1}${Date.now()}`;
-    sessions.add(created);
-    return { signedIn: true, headers: { 'Set-Cookie': `${COOKIE}=${created}; Path=/` } };
+    sessions.set(created, signsIn);
+    return { signedIn: true, address: signsIn, headers: { 'Set-Cookie': `${COOKIE}=${created}; Path=/` } };
   }
   guests += 1;
-  return { signedIn: false, headers: {} };
+  return { signedIn: false, address: null, headers: {} };
 }
 
 const page = (body) =>
@@ -66,12 +93,12 @@ const escape = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').r
 
 function list(request, response) {
   if (mode === 'broken') return html(response, '<p>A page that is not the one that the extension knows.</p>');
-  const { signedIn, headers } = visitor(request);
+  const { signedIn, address, headers } = visitor(request);
   // A page that nobody is signed in to has a sign-in link and lists nothing.
   const account = signedIn
-    ? '<a href="https://accounts.fake.invalid/SignOutOptions" aria-label="Google Account: Jane Doe (jane.doe@example.org)">Account</a>'
+    ? `<a href="https://accounts.fake.invalid/SignOutOptions" aria-label="Google Account: ${escape(nameOf(address))} (${escape(address)})">Account</a>`
     : '<a href="https://accounts.fake.invalid/ServiceLogin?continue=x">Sign in</a>';
-  const links = (signedIn ? conversations : [])
+  const links = (signedIn ? conversationsOf(address) : [])
     .map((item) => `<a href="/app/${item.id}">${escape(item.title)}</a>`)
     .join('');
   return html(
@@ -83,8 +110,9 @@ function list(request, response) {
 }
 
 function conversation(request, response, id) {
-  if (!visitor(request).signedIn) return html(response, '<p>Sign in to see this conversation.</p>', 200);
-  const found = conversations.find((item) => item.id === id);
+  const seen = visitor(request);
+  if (!seen.signedIn) return html(response, '<p>Sign in to see this conversation.</p>', 200);
+  const found = conversationsOf(seen.address).find((item) => item.id === id);
   if (!found) return html(response, 'Not found', 404);
   const turns = found.turns.map(([role, text]) =>
     role === 'user'
@@ -94,14 +122,14 @@ function conversation(request, response, id) {
   html(response, turns.join(''));
 }
 
-function admin(path, response) {
+function admin(path, response, address) {
   if (path === '/admin/signout') {
     sessions.clear();
     mode = 'in';
   }
   if (path === '/admin/signin') {
     mode = 'in';
-    armed = true;
+    armed = address;
   }
   if (path === '/admin/break') mode = 'broken';
   if (path === '/admin/history') {
@@ -155,7 +183,10 @@ http
     const path = new URL(request.url, 'https://assistant.invalid').pathname;
     if (request.method === 'POST' && path.startsWith('/admin/')) {
       request.resume();
-      return admin(path, response);
+      const address = (
+        new URL(request.url, 'https://assistant.invalid').searchParams.get('as') ?? DEFAULT_ACCOUNT
+      ).toLowerCase();
+      return admin(path, response, address);
     }
     if (path === '/admin/reach' && request.method === 'GET') return reach(request, response);
     if (path === '/admin/guests' && request.method === 'GET') {

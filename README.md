@@ -4,9 +4,9 @@
 
 **Status: foundation and operator access.** The container runs, its page is closed behind a sign-in and shows its health and its settings, the whole quality chain is in place, and the specification is written. **It does not read Gemini yet**: how to read a product that has no API from a container is the first thing to be measured ([roadmap](docs/ROADMAP.md)).
 
-Gemini keeps your conversations to itself: no API gives access to the history, and a good idea told by voice a year ago cannot be found again. Geminarr signs in to a **dedicated Google account** (the one that shares your Google AI plan), reads the conversations that appeared or grew since its last visit, and sends their new turns to Mnemarr, which stores them as notes and finds them **by meaning** and by text. It keeps no copy of its own, summarises nothing, and when its session ends it tells Mnemarr, which mails you a link to sign in again.
+Gemini keeps your conversations to itself: no API gives access to the history, and a good idea told by voice a year ago cannot be found again. Geminarr reads the Google account that you sign in to in its browser (each account is a machine of its own in Mnemarr), reads the conversations that appeared or grew since its last visit, and sends their new turns to Mnemarr, which stores them as notes and finds them **by meaning** and by text. It keeps no copy of its own, summarises nothing, and when its session ends it tells Mnemarr, which mails you a link to sign in again.
 
-> ⚠️ **Never sign it in to your main Google account.** A Google session is valid across all of the account's services (mailbox included): Geminarr is made for an account that holds nothing but Gemini conversations ([why](docs/adr/0004-a-dedicated-google-account-never-the-main-one.md)). Reading a consumer product by automation is against its terms of use; the risk is yours, on that dedicated account.
+> ⚠️ **A Google session is valid across all of the account's services (mailbox included)**, so whichever account Geminarr is signed in to is exposed as far as the container is ([why](SECURITY.md)). Geminarr forbids no account; a dedicated one is the careful choice. Reading a consumer product by automation is against its terms of use; the risk is yours.
 
 ## Documentation
 
@@ -15,7 +15,7 @@ Gemini keeps your conversations to itself: no API gives access to the history, a
 | Document | Content |
 |---|---|
 | [docs/VISION.md](docs/VISION.md) | Why, what it must and must not do |
-| [docs/SPEC.md](docs/SPEC.md) | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and the browser container, the Takeout import, features, API, settings, health, security, questions |
+| [docs/SPEC.md](docs/SPEC.md) | Decisions, architecture, data model, the contract with Mnemarr, the reader, the session and the browser container, features, API, settings, health, security, questions |
 | [docs/adr/](docs/adr/README.md) | Architecture decision records |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | The spikes and the verticals, built and to come |
 | [docs/mnemarr-changes.md](docs/mnemarr-changes.md) | What Mnemarr must gain for Geminarr (four small changes) |

@@ -24,6 +24,9 @@ public static class ConnectionReasons
 {
     public const string NotConnected = "not-connected";
     public const string NeedsLogin = "needs-login";
+
+    /// <summary>Nothing was ever read and nobody is signed in: the state of a first start, not a defect.</summary>
+    public const string AwaitingSignIn = "awaiting-sign-in";
     public const string ReaderBroken = "reader-broken";
     public const string RateLimited = "rate-limited";
     public const string Unreachable = "unreachable";
