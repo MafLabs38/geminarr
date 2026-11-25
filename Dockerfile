@@ -8,7 +8,7 @@
 # The constraint that comes with it: an asset that differs per architecture (a native library) must be chosen with ARG TARGETARCH
 # (or `dotnet publish -a`), never by the architecture of the builder, or the arm64 image gets amd64 files and fails only when it runs.
 # The image carries no browser (ADR 0016): the browser is a container of its own.
-FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS frontend
 WORKDIR /build
 COPY package.json yarn.lock ./
 # No install script runs while the interface is built: the dev tools of the lockfile (test runners, mutation tools) are not needed by the build and would
@@ -19,7 +19,7 @@ RUN yarn build
 
 # The extension that reads the assistant in the browser (ADR 0022): packed and signed here, with Node alone. The key is a build secret (never a layer, never an argument): without it the package is signed by an
 # ephemeral key, which is only fine for a build that nobody installs from (the pipeline refuses to publish a release without the key).
-FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS extension
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS extension
 ARG VERSION=0.0.0-dev
 WORKDIR /build
 COPY extension ./extension
